@@ -1,7 +1,7 @@
 {
-  "name": "dsw-plugin",
-  "version": "1.0.0",
-  "description": "",
+  "name": "ai-document-plugin",
+  "version": "0.1.0",
+  "description": "Plugin for DSW to generate documents using AI.",
   "license": "MIT",
   "author": "",
   "type": "module",
@@ -14,7 +14,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" && eslint src --fix",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
     "lint": "eslint src",
-    "serve:dist": "vite preview --strictPort --port 4173",
+    "serve:dist": "vite preview --strictPort --port 4180",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

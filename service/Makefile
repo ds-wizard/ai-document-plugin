@@ -20,7 +20,7 @@ requirements:
 
 .PHONY: dev
 dev:
-	uv run uvicorn plugin_service:create_app --reload --proxy-headers --host "0.0.0.0" --port 8000
+	uv run uvicorn ai_document_plugin_service:create_app --reload --proxy-headers --host "0.0.0.0" --port 8010
 
 .PHONY: build
 build:

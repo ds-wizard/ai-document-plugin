@@ -1,8 +1,8 @@
 [project]
-name = "plugin-service"
-version = "1.0.0"
-description = "Plugin Service for ..."
-keywords = ["wizard", "plugin"]
+name = "ai-document-plugin-service"
+version = "0.1.0"
+description = "Plugin for DSW to generate documents using AI."
+keywords = ["wizard", "plugin", "ai", "document", "generation", "llm", "fastapi"]
 license = "MIT"
 authors = [
     { name = "...", email = "..." }

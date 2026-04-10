@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
         // Ensure the bundle works in a plain browser host (no Node "process")
         define: {
             '__API_URL__': JSON.stringify(
-                mode === 'production' ? `/gateway/plugins/${pluginMetadata.uuid}` : 'http://localhost:8000'
+                mode === 'production' ? `/gateway/plugins/${pluginMetadata.uuid}` : 'http://localhost:8010'
             ),
             'process.env.NODE_ENV': JSON.stringify(isProd ? 'production' : 'development'),
             'process.env': JSON.stringify({}),

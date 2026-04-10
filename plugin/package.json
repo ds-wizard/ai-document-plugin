@@ -1,0 +1,45 @@
+{
+  "name": "dsw-plugin",
+  "version": "1.0.0",
+  "description": "",
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "scripts": {
+    "build": "npm run typecheck && npm run lint && npm run build:prod",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production",
+    "build:watch": "vite build --watch --mode development",
+    "dev": "concurrently -k \"npm run build:watch\" \"npm run serve:dist\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" && eslint src --fix",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
+    "lint": "eslint src",
+    "serve:dist": "vite preview --strictPort --port 4173",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.7.4",
+    "terser": "^5.44.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "@ds-wizard/plugin-sdk": "^0.8.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "zod": "^4.3.5"
+  }
+}

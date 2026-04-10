@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/plugin'
+    schedule:
+      interval: 'weekly'
+      day: 'saturday'
+      time: '08:00'
+      timezone: 'Europe/Prague'
+    target-branch: 'develop'
+    assignees:
+      - 'janslifka'
+    groups:
+      minor-and-patch:
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  - package-ecosystem: 'uv'
+    directory: '/service'
+    schedule:
+      interval: 'weekly'
+      day: 'saturday'
+      time: '08:00'
+      timezone: 'Europe/Prague'
+    target-branch: 'develop'
+    assignees:
+      - 'MarekSuchanek'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'saturday'
+      time: '08:00'
+      timezone: 'Europe/Prague'
+    target-branch: 'develop'
+    assignees:
+      - 'janslifka'

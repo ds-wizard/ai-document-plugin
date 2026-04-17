@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 
 class AssignmentQuestionNode(TypedDict, total=False):
     question_path: str
     question_title: str
     question_text: str
-    children: dict[str, "AssignmentQuestionNode"]
+    children: dict[str, 'AssignmentQuestionNode']
     include: bool
     value: bool
 
@@ -31,24 +31,32 @@ class SectionNode:
 @dataclass
 class SectionRecord:
     """A section in the template tree. Either a leaf (text set) or a parent (children set)."""
+
     key: str
     section: SectionNode
-    text: Optional[str] = None  # leaf: formatted content for matching
-    children: Optional[list["SectionRecord"]] = None  # non-leaf: nested sections
+    text: str | None = None  # leaf: formatted content for matching
+    children: list['SectionRecord'] | None = (
+        None  # non-leaf: nested sections
+    )
 
 
 @dataclass
 class SectionAssignment:
     """Assignment result for one section. Either a leaf (assignments set) or a parent (children set)."""
+
     key: str
-    assignments: Optional[AssignmentTree] = None  # leaf: matched questions
-    children: Optional[list["SectionAssignment"]] = None  # non-leaf: nested section assignments
+    assignments: AssignmentTree | None = None  # leaf: matched questions
+    children: list['SectionAssignment'] | None = (
+        None  # non-leaf: nested section assignments
+    )
 
     def to_dict(self) -> dict:
         return {
-            "key": self.key,
-            "assignments": self.assignments if self.assignments else None,
-            "children": [c.to_dict() for c in self.children] if self.children else None,
+            'key': self.key,
+            'assignments': self.assignments or None,
+            'children': [c.to_dict() for c in self.children]
+            if self.children
+            else None,
         }
 
 
@@ -57,20 +65,20 @@ class AssignmentNode:
     question_path: str
     question_title: str
     question_text: str
-    status: "AssignmentStatus"
-    children: list["AssignmentNode"]
+    status: 'AssignmentStatus'
+    children: list['AssignmentNode']
 
     def to_dict(self) -> dict:
         return {
-            "question_path": self.question_path,
-            "question_title": self.question_title,
-            "question_text": self.question_text,
-            "status": self.status.value,
-            "children": [child.to_dict() for child in self.children],
+            'question_path': self.question_path,
+            'question_title': self.question_title,
+            'question_text': self.question_text,
+            'status': self.status.value,
+            'children': [child.to_dict() for child in self.children],
         }
 
 
 class AssignmentStatus(str, Enum):
-    DENIED = "denied"
-    MATCHED_EXPAND = "matched-expand"
-    MATCHED_LEAF = "matched-leaf"
+    DENIED = 'denied'
+    MATCHED_EXPAND = 'matched-expand'
+    MATCHED_LEAF = 'matched-leaf'

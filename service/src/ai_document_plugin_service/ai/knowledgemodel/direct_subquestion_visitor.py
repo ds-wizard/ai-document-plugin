@@ -1,7 +1,7 @@
 """Visitor that returns direct child questions for each question type."""
 
 from .question_visitor import QuestionVisitor
-from .types import Chapter, BlankQuestion
+from .types import BlankQuestion, Chapter
 
 
 class DirectSubquestionVisitor(QuestionVisitor):

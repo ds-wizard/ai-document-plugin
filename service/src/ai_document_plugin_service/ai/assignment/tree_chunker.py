@@ -1,10 +1,11 @@
-import tiktoken
-import uuid
 import copy
+import uuid
+
+import tiktoken
 
 
 class TreeChunker:
-    def __init__(self, data, max_tokens=5000, model_name="cl100k_base"):
+    def __init__(self, data, max_tokens=5000, model_name='cl100k_base'):
         self.max_tokens = max_tokens
         self.encoding = tiktoken.get_encoding(model_name)
 
@@ -25,32 +26,32 @@ class TreeChunker:
 
     def _get_token_count(self, title, text):
         """Counts tokens for only the title and text."""
-        content = f"{title if title is not None else ''}\n{text if text is not None else ''}"
+        content = f'{title if title is not None else ""}\n{text if text is not None else ""}'
         return len(self.encoding.encode(content))
 
     def _process_and_flatten(self, node, current_path):
         """Recursively registers nodes and extracts root-to-leaf ID paths."""
         # Assign an ID if one doesn't exist
-        if "node_id" not in node:
-            node["node_id"] = str(uuid.uuid4())
+        if 'node_id' not in node:
+            node['node_id'] = str(uuid.uuid4())
 
-        node_id = node["node_id"]
-        title = node.get("title")
-        text = node.get("text")
-        id = node.get("id")
+        node_id = node['node_id']
+        title = node.get('title')
+        text = node.get('text')
+        id = node.get('id')
 
         # Save to registry (excluding children to keep it flat)
         self.node_registry[node_id] = {
-            "id": id,
-            "node_id": node_id,
-            "tag": node.get("tag"),
-            "title": title,
-            "text": text,
-            "tokens": self._get_token_count(title, text)
+            'id': id,
+            'node_id': node_id,
+            'tag': node.get('tag'),
+            'title': title,
+            'text': text,
+            'tokens': self._get_token_count(title, text),
         }
 
         new_path = current_path + [node_id]
-        children = node.get("children")
+        children = node.get('children')
 
         # Handle if children were passed as a dictionary instead of a list
         if isinstance(children, dict):
@@ -74,19 +75,25 @@ class TreeChunker:
         for path in self.paths:
             # Calculate tokens only for nodes not already in the current chunk
             new_tokens = sum(
-                self.node_registry[node_id]["tokens"]
-                for node_id in path if node_id not in current_chunk_ids
+                self.node_registry[node_id]['tokens']
+                for node_id in path
+                if node_id not in current_chunk_ids
             )
 
             # If adding this path exceeds the limit (and the chunk isn't empty)
-            if current_tokens + new_tokens > self.max_tokens and current_chunk_paths:
+            if (
+                current_tokens + new_tokens > self.max_tokens
+                and current_chunk_paths
+            ):
                 # 1. Finalize the current chunk
                 chunks.append(self._reconstruct(current_chunk_paths))
 
                 # 2. Reset the tracking variables for the new chunk
                 current_chunk_paths = [path]
                 current_chunk_ids = set(path)
-                current_tokens = sum(self.node_registry[nid]["tokens"] for nid in path)
+                current_tokens = sum(
+                    self.node_registry[nid]['tokens'] for nid in path
+                )
             else:
                 # Add the path to the current chunk
                 current_chunk_paths.append(path)
@@ -112,20 +119,21 @@ class TreeChunker:
                     # Fetch metadata from registry and build the dictionary node
                     registry_data = self.node_registry[node_id]
                     new_node = {
-                        "id": registry_data["id"],
-                        "node_id": registry_data["node_id"],
-                        "tag": registry_data["tag"],
-                        "title": registry_data["title"],
-                        "text": registry_data["text"],
-                        "children": []
+                        'id': registry_data['id'],
+                        'node_id': registry_data['node_id'],
+                        'tag': registry_data['tag'],
+                        'title': registry_data['title'],
+                        'text': registry_data['text'],
+                        'children': [],
                     }
                     created_nodes[node_id] = new_node
                     parent_list.append(new_node)
 
                 # Shift the pointer to the current node's children list
-                parent_list = created_nodes[node_id]["children"]
+                parent_list = created_nodes[node_id]['children']
 
         return root_nodes
+
 
 # Example Usage:
 # chunker = TreeChunker(my_nested_dict, max_tokens=5000)

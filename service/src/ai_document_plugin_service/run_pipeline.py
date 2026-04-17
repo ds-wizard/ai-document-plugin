@@ -1,14 +1,20 @@
 import json
 import logging
+import pathlib
 import time
 
 from ai_document_plugin_service.ai.assignment import run_assignment
 from ai_document_plugin_service.ai.assignment.io import save_assignments
-from ai_document_plugin_service.ai.common import AssignmentStats, configure_logging
+from ai_document_plugin_service.ai.common import (
+    AssignmentStats,
+    configure_logging,
+)
 from ai_document_plugin_service.ai.common.config import load_config
-from ai_document_plugin_service.ai.generation.dmp_generator import generate_dmp_markdown
-from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
+from ai_document_plugin_service.ai.generation.dmp_generator import (
+    generate_dmp_markdown,
+)
 from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
+from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
 
 # Cost per million tokens (USD) – adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -30,12 +36,18 @@ def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
             widths[index] = max(widths[index], len(cell))
 
     def format_row(row: list[str]) -> str:
-        return "| " + " | ".join(cell.ljust(widths[index]) for index, cell in enumerate(row)) + " |"
+        return (
+            '| '
+            + ' | '.join(
+                cell.ljust(widths[index]) for index, cell in enumerate(row)
+            )
+            + ' |'
+        )
 
-    separator = "| " + " | ".join("-" * width for width in widths) + " |"
+    separator = '| ' + ' | '.join('-' * width for width in widths) + ' |'
     lines = [format_row(headers), separator]
     lines.extend(format_row(row) for row in rows)
-    return "\n".join(lines)
+    return '\n'.join(lines)
 
 
 def run_pipeline() -> None:
@@ -45,39 +57,44 @@ def run_pipeline() -> None:
     model_name = config.model
     file_paths = config.files
 
-    with open(file_paths.knowledge_model, "r", encoding="utf-8") as f:
+    with pathlib.Path(file_paths.knowledge_model).open(encoding='utf-8') as f:
         km_data = json.load(f)
-    with open(file_paths.dmp_template, "r", encoding="utf-8") as f:
+    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
         template_data = json.load(f)
 
-    replies = km_data["replies"]
-    km = km_data["knowledgeModel"]
+    replies = km_data['replies']
+    km = km_data['knowledgeModel']
     all_stats: list[tuple[str, AssignmentStats]] = []
 
     # Step 1: Hierarchical assignment (returns assignments)
-    logger.debug("Step 1: Assigning questions to sections...")
+    logger.debug('Step 1: Assigning questions to sections...')
     top_questions = parse_questionnaire(km_data)
-    assignments, stats2 = run_assignment(template_data, top_questions, config, km)
+    assignments, stats2 = run_assignment(
+        template_data, top_questions, config, km,
+    )
     save_assignments(assignments, file_paths.assignments_output, stats=stats2)
-    all_stats.append(("2. Hierarchical assignment", stats2))
-    logger.debug("Saved assignments to %s", file_paths.assignments_output)
+    all_stats.append(('2. Hierarchical assignment', stats2))
+    logger.debug('Saved assignments to %s', file_paths.assignments_output)
 
     # Step 2: DMP generator (returns markdown and debug markdown)
-    logger.debug("Step 2: Generating DMP markdown...")
+    logger.debug('Step 2: Generating DMP markdown...')
     assignments_as_dict = [a.to_dict() for a in assignments]
     stats3 = AssignmentStats()
     markdown, debug_markdown, stats3 = generate_dmp_markdown(
-        assignments_as_dict, replies, km, stats=stats3
+        assignments_as_dict, replies, km, stats=stats3,
     )
-    all_stats.append(("2. DMP generator", stats3))
+    all_stats.append(('2. DMP generator', stats3))
 
     # Save pre-polished version before step 4
-    with open(file_paths.output_pre_polish_markdown, "w", encoding="utf-8") as f:
-        f.write(debug_markdown)
-    logger.debug("Saved pre-polished DMP to %s", file_paths.output_pre_polish_markdown)
+    pathlib.Path(file_paths.output_pre_polish_markdown).write_text(debug_markdown, encoding='utf-8')
+    logger.debug(
+        'Saved pre-polished DMP to %s', file_paths.output_pre_polish_markdown,
+    )
 
     # Step 3: DMP polisher (reorganize content into relevant sections)
-    logger.debug("Step 3: Polishing DMP (moving content to relevant sections)...")
+    logger.debug(
+        'Step 3: Polishing DMP (moving content to relevant sections)...',
+    )
     stats4 = AssignmentStats()
     markdown = polish_dmp(
         markdown,
@@ -85,7 +102,7 @@ def run_pipeline() -> None:
         stats=stats4,
         template_data=template_data,
     )
-    all_stats.append(("4. DMP polisher", stats4))
+    all_stats.append(('4. DMP polisher', stats4))
 
     # Build token/cost summary table
     total_input = sum(s.total_input_tokens for _, s in all_stats)
@@ -98,59 +115,62 @@ def run_pipeline() -> None:
             str(stats.total_calls),
             str(stats.total_input_tokens),
             str(stats.total_output_tokens),
-            f"{_price(stats)[2]:.2f}",
+            f'{_price(stats)[2]:.2f}',
         ]
         for step_name, stats in all_stats
     ]
-    table_rows.append([
-        "**Total**",
-        "",
-        str(total_input),
-        str(total_output),
-        f"**{total_cost:.2f}**",
-    ])
+    table_rows.append(
+        [
+            '**Total**',
+            '',
+            str(total_input),
+            str(total_output),
+            f'**{total_cost:.2f}**',
+        ],
+    )
     table_md = _markdown_table(
-        ["Step", "LLM calls", "Input tokens", "Output tokens", "Cost (USD)"],
+        ['Step', 'LLM calls', 'Input tokens', 'Output tokens', 'Cost (USD)'],
         table_rows,
     )
     t2 = time.time()
 
-    summary_section = "\n".join([
-        "",
-        "",
-        "---",
-        "",
-        "## Pipeline token usage and cost",
-        "",
-        table_md,
-        "",
-        f"*Model: {model_name}. Cost per million tokens: input {COST_PER_MIL_INPUT} USD, output {COST_PER_MIL_OUTPUT} USD.*",
-        f"Total time: {t2 - t1}s"
-    ])
+    summary_section = '\n'.join(
+        [
+            '',
+            '',
+            '---',
+            '',
+            '## Pipeline token usage and cost',
+            '',
+            table_md,
+            '',
+            f'*Model: {model_name}. Cost per million tokens: input {COST_PER_MIL_INPUT} USD, output {COST_PER_MIL_OUTPUT} USD.*',
+            f'Total time: {t2 - t1}s',
+        ],
+    )
     full_markdown = markdown + summary_section
 
-    with open(file_paths.output_markdown, "w", encoding="utf-8") as f:
-        f.write(full_markdown)
+    pathlib.Path(file_paths.output_markdown).write_text(full_markdown, encoding='utf-8')
 
-    logger.debug("Saved DMP to %s", file_paths.output_markdown)
-    logger.debug("Token usage and cost:")
+    logger.debug('Saved DMP to %s', file_paths.output_markdown)
+    logger.debug('Token usage and cost:')
     for step_name, stats in all_stats:
         _, _, tot = _price(stats)
         logger.debug(
-            "%s: %s calls, %s in / %s out tokens, %.2f USD",
+            '%s: %s calls, %s in / %s out tokens, %.2f USD',
             step_name,
-            f"{stats.total_calls:,}",
-            f"{stats.total_input_tokens:,}",
-            f"{stats.total_output_tokens:,}",
+            f'{stats.total_calls:,}',
+            f'{stats.total_input_tokens:,}',
+            f'{stats.total_output_tokens:,}',
             tot,
         )
     logger.debug(
-        "Total: %s in / %s out tokens, %.2f USD",
-        f"{total_input:,}",
-        f"{total_output:,}",
+        'Total: %s in / %s out tokens, %.2f USD',
+        f'{total_input:,}',
+        f'{total_output:,}',
         total_cost,
     )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run_pipeline()

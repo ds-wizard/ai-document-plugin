@@ -2,13 +2,19 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from ai_document_plugin_service.ai.assignment.tree_chunker import TreeChunker
-from ai_document_plugin_service.ai.knowledgemodel.direct_subquestion_visitor import DirectSubquestionVisitor
-from ai_document_plugin_service.ai.knowledgemodel.types import BlankQuestion, Chapter, QuestionData
+from ai_document_plugin_service.ai.knowledgemodel.direct_subquestion_visitor import (
+    DirectSubquestionVisitor,
+)
+from ai_document_plugin_service.ai.knowledgemodel.types import (
+    BlankQuestion,
+    Chapter,
+    QuestionData,
+)
 
 
 def build_question_chunks(
-        top_level_questions: list[QuestionData],
-        max_chunk_tokens: int = 500,
+    top_level_questions: list[QuestionData],
+    max_chunk_tokens: int = 500,
 ) -> tuple[list[str], dict[str, str]]:
     """
     Convert questionnaire data into chunked XML prompts for assignment matching.
@@ -29,8 +35,11 @@ def build_question_chunks(
     child_questions = root.accept(DirectSubquestionVisitor()) or []
 
     question_id_to_path: dict[str, str] = {}
-    xml_nodes = [_question_to_xml_node(question, question_id_to_path) for question in child_questions]
-    tree_root = {"tag": "root", "children": xml_nodes}
+    xml_nodes = [
+        _question_to_xml_node(question, question_id_to_path)
+        for question in child_questions
+    ]
+    tree_root = {'tag': 'root', 'children': xml_nodes}
 
     chunker = TreeChunker(tree_root, max_tokens=max_chunk_tokens)
     chunks = chunker.chunk()
@@ -38,15 +47,17 @@ def build_question_chunks(
     for chunk in chunks:
         parts: list[str] = []
         for chunk_root in chunk:
-            parts.extend(_xml_node_to_string(child) for child in chunk_root["children"])
-        chunk_xml.append("\n".join(parts))
+            parts.extend(
+                _xml_node_to_string(child) for child in chunk_root['children']
+            )
+        chunk_xml.append('\n'.join(parts))
 
     return chunk_xml, question_id_to_path
 
 
 def _question_to_xml_node(
-        question: QuestionData,
-        question_id_to_path: dict[str, str],
+    question: QuestionData,
+    question_id_to_path: dict[str, str],
 ) -> dict[str, Any]:
     """
     Recursively convert a `QuestionData` node into an XML-ready dictionary.
@@ -56,25 +67,28 @@ def _question_to_xml_node(
     containers based on runtime type.
     """
     child_questions = question.accept(DirectSubquestionVisitor()) or []
-    title = question.title or ""
+    title = question.title or ''
     text = question.text
 
     if not child_questions:
         question_id = str(len(question_id_to_path) + 1)
         question_id_to_path[question_id] = question.path
-        node = {"tag": "question", "id": question_id, "title": title}
+        node = {'tag': 'question', 'id': question_id, 'title': title}
         if text:
-            node["text"] = text
+            node['text'] = text
         return node
 
-    tag = "chapter" if isinstance(question, Chapter) else "section"
+    tag = 'chapter' if isinstance(question, Chapter) else 'section'
     node: dict[str, Any] = {
-        "tag": tag,
-        "title": title,
-        "children": [_question_to_xml_node(child, question_id_to_path) for child in child_questions],
+        'tag': tag,
+        'title': title,
+        'children': [
+            _question_to_xml_node(child, question_id_to_path)
+            for child in child_questions
+        ],
     }
     if text:
-        node["text"] = text
+        node['text'] = text
     return node
 
 
@@ -89,18 +103,22 @@ def _xml_node_to_string(node: dict[str, Any]) -> str:
     - `text` (serialized as `<context>`)
     - `children` (recursive)
     """
-    tag = node["tag"]
-    title = node.get("title", "")
-    text = node.get("text")
-    children = node.get("children", [])
-    attrs = f' id="{escape(str(node["id"]))}"' if tag == "question" and "id" in node else ""
+    tag = node['tag']
+    title = node.get('title', '')
+    text = node.get('text')
+    children = node.get('children', [])
+    attrs = (
+        f' id="{escape(str(node["id"]))}"'
+        if tag == 'question' and 'id' in node
+        else ''
+    )
 
-    parts = [f"<{tag}{attrs}>"]
+    parts = [f'<{tag}{attrs}>']
     if title:
-        parts.append(f"<title>{escape(title)}</title>")
+        parts.append(f'<title>{escape(title)}</title>')
     if text:
-        parts.append(f"<context>{escape(text)}</context>")
+        parts.append(f'<context>{escape(text)}</context>')
     for child in children:
         parts.append(_xml_node_to_string(child))
-    parts.append(f"</{tag}>")
-    return "\n".join(parts)
+    parts.append(f'</{tag}>')
+    return '\n'.join(parts)

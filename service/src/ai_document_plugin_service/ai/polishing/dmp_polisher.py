@@ -7,11 +7,14 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 
 import json
 import logging
-from typing import Optional
+import pathlib
 
-from ai_document_plugin_service.ai.common.config import DEFAULT_CONFIG_PATH, load_config
-from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+from ai_document_plugin_service.ai.common.config import (
+    DEFAULT_CONFIG_PATH,
+    load_config,
+)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 
 logger = logging.getLogger(__name__)
 
@@ -19,32 +22,34 @@ logger = logging.getLogger(__name__)
 def _format_template_structure(nodes: list, depth: int = 0) -> list[str]:
     """Format section tree as # Section, ## Subsection, ### Subsubsection, etc."""
     lines = []
-    prefix = "#" * (depth + 1) + " "
+    prefix = '#' * (depth + 1) + ' '
     for node in nodes:
-        key = node.get("key") or node.get("title", "?")
+        key = node.get('key') or node.get('title', '?')
         lines.append(prefix + str(key))
-        children = node.get("children") or node.get("sections")
+        children = node.get('children') or node.get('sections')
         if children:
             lines.extend(_format_template_structure(children, depth + 1))
     return lines
 
 
-def _build_template_structure_string(template_data: Optional[dict] = None) -> str:
+def _build_template_structure_string(
+    template_data: dict | None = None,
+) -> str:
     """Build the required section structure string from template data (dict with 'sections' key)."""
     if template_data is None:
-        return ""
-    nodes = template_data.get("sections", [])
+        return ''
+    nodes = template_data.get('sections', [])
     if not nodes:
-        return ""
+        return ''
     lines = _format_template_structure(nodes)
-    return "\n".join(lines)
+    return '\n'.join(lines)
 
 
 def polish_dmp(
-        markdown: str,
-        config_path: str = DEFAULT_CONFIG_PATH,
-        stats: Optional[AssignmentStats] = None,
-        template_data: Optional[dict] = None,
+    markdown: str,
+    config_path: str = DEFAULT_CONFIG_PATH,
+    stats: AssignmentStats | None = None,
+    template_data: dict | None = None,
 ) -> str:
     """
     Polish the DMP by moving content to relevant sections and improving structure.
@@ -60,17 +65,18 @@ def polish_dmp(
     """
     structure_str = _build_template_structure_string(template_data)
     llm = OpenAIGenerationLLM(config_path=config_path)
-    return llm.polish_dmp(markdown=markdown, structure_str=structure_str, stats=stats)
+    return llm.polish_dmp(
+        markdown=markdown, structure_str=structure_str, stats=stats,
+    )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     config = load_config()
     file_paths = config.files
 
-    with open(file_paths.output_pre_polish_markdown, "r", encoding="utf-8") as f:
-        markdown = f.read()
+    markdown = pathlib.Path(file_paths.output_pre_polish_markdown).read_text(encoding='utf-8')
 
-    with open(file_paths.dmp_template, "r", encoding="utf-8") as f:
+    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
         template_data = json.load(f)
 
     stats = AssignmentStats()
@@ -81,13 +87,12 @@ if __name__ == "__main__":
         template_data=template_data,
     )
 
-    with open(file_paths.output_markdown, "w", encoding="utf-8") as f:
-        f.write(polished)
+    pathlib.Path(file_paths.output_markdown).write_text(polished, encoding='utf-8')
 
-    logger.debug("Polished DMP saved to %s", file_paths.output_markdown)
+    logger.debug('Polished DMP saved to %s', file_paths.output_markdown)
     logger.debug(
-        "LLM calls: %s, input tokens: %s, output tokens: %s",
+        'LLM calls: %s, input tokens: %s, output tokens: %s',
         stats.total_calls,
-        f"{stats.total_input_tokens:,}",
-        f"{stats.total_output_tokens:,}",
+        f'{stats.total_input_tokens:,}',
+        f'{stats.total_output_tokens:,}',
     )

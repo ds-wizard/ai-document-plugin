@@ -1,4 +1,5 @@
 import json
+import pathlib
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
@@ -15,13 +16,13 @@ def save_assignments(
         payload = serializable
     else:
         payload = {
-            "assignments": serializable,
-            "stats": {
-                "total_calls": stats.total_calls,
-                "total_input_tokens": stats.total_input_tokens,
-                "total_output_tokens": stats.total_output_tokens,
+            'assignments': serializable,
+            'stats': {
+                'total_calls': stats.total_calls,
+                'total_input_tokens': stats.total_input_tokens,
+                'total_output_tokens': stats.total_output_tokens,
             },
         }
 
-    with open(output_path, "w", encoding="utf-8") as handle:
+    with pathlib.Path(output_path).open('w', encoding='utf-8') as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)

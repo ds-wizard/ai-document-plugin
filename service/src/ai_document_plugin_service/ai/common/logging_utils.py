@@ -5,7 +5,8 @@ def configure_logging(level: int | str = logging.DEBUG) -> None:
     if isinstance(level, str):
         normalized_level = logging.getLevelName(level.upper())
         if not isinstance(normalized_level, int):
-            raise ValueError(f'Unsupported log level: {level}')
+            msg = f'Unsupported log level: {level}'
+            raise ValueError(msg)
         level = normalized_level
 
     root_logger = logging.getLogger()

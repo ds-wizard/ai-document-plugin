@@ -2,14 +2,10 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
+from typing import TYPE_CHECKING
 
 from json_repair import repair_json
 from openai import OpenAI
-from openai.types.chat import (
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
-)
 
 from ai_document_plugin_service.ai.common import AssignmentStats
 from ai_document_plugin_service.ai.common.config import Config
@@ -17,6 +13,13 @@ from ai_document_plugin_service.ai.common.llm_client import (
     add_usage,
     call_with_retry,
 )
+
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletionMessageParam,
+        ChatCompletionSystemMessageParam,
+        ChatCompletionUserMessageParam,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class LayerMatcher(ABC):
 
 
 class OpenAILayerMatcher(LayerMatcher):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         self.config = config
         self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
 
@@ -74,7 +77,8 @@ class OpenAILayerMatcher(LayerMatcher):
                     'Model did not stop generating naturally: %s',
                     choice,
                 )
-                raise Exception('Model did not stop generating naturally.')
+                msg = 'Model did not stop generating naturally.'
+                raise Exception(msg)
             content = (choice.message.content or '').strip()
             add_usage(stats, response)
             try:
@@ -94,7 +98,8 @@ class OpenAILayerMatcher(LayerMatcher):
         data = json.loads(repaired_content)
 
         if not isinstance(data, dict):
-            raise ValueError('LLM response is not a JSON object.')
+            msg = 'LLM response is not a JSON object.'
+            raise ValueError(msg)
         result: dict[str, list[str]] = {}
         for id_str, section_list in data.items():
             if section_list is None:

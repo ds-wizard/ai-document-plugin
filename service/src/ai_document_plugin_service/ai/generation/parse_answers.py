@@ -1,9 +1,10 @@
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_answer(answer: dict, km: dict):
+def parse_answer(answer: dict[str, Any], km: dict[str, Any]) -> str | None:
     answer_type = answer['type']
     entities = km['entities']
     answer_entities = entities['answers']
@@ -12,6 +13,7 @@ def parse_answer(answer: dict, km: dict):
         entity = answer_entities.get(answer['value'], None)
         if entity is None:
             # TODO: this is strange, how can there be reply but no associated value in the km?
+            # https://github.com/ds-wizard/ai-document-plugin/issues/1
             logger.debug(
                 'Entity %s has no answer in the KM, strange...',
                 answer['value'],
@@ -29,15 +31,17 @@ def parse_answer(answer: dict, km: dict):
         )
     if answer_type == 'IntegrationReply':
         val = answer['value']
-        if val['type'] in [
+        if val['type'] in {
             'PlainType',
             'IntegrationLegacyType',
             'IntegrationType',
-        ]:
+        }:
             return val['value']
-        raise RuntimeError('Unkown integration answer type', val['type'])
+        msg = 'Unkown integration answer type'
+        raise RuntimeError(msg, val['type'])
     if answer_type == 'ItemListReply':
         return None  # this answer is answered in it's children
     if answer_type == 'StringReply':
         return answer['value']  # this answer is answered in it's children
-    raise RuntimeError('Unknown answer type', answer_type)
+    msg = 'Unknown answer type'
+    raise RuntimeError(msg, answer_type)

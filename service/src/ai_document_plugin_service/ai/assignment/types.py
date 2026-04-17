@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TypedDict
 
 
@@ -16,12 +16,11 @@ AssignmentTree = dict[str, AssignmentQuestionNode]
 
 
 class SectionNode:
-    """
-    Represents a section with a reference to its parent section.
+    """Represents a section with a reference to its parent section.
     This allows navigation up the hierarchy tree.
     """
 
-    def __init__(self, section_dict):
+    def __init__(self, section_dict) -> None:
         self.section = section_dict
         self.title = section_dict['title']
         self.content = section_dict.get('content')
@@ -76,7 +75,7 @@ class AssignmentNode:
         }
 
 
-class AssignmentStatus(str, Enum):
+class AssignmentStatus(StrEnum):
     DENIED = 'denied'
     MATCHED_EXPAND = 'matched-expand'
     MATCHED_LEAF = 'matched-leaf'

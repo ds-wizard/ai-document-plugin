@@ -1,5 +1,4 @@
-"""
-Polish a generated DMP by reorganizing content into the most relevant sections and chapters.
+"""Polish a generated DMP by reorganizing content into the most relevant sections and chapters.
 
 Moves content that appears in one section but belongs thematically in another (e.g. when
 a topic is mentioned early but has a dedicated chapter later). Does not add new content.
@@ -51,8 +50,7 @@ def polish_dmp(
     stats: AssignmentStats | None = None,
     template_data: dict | None = None,
 ) -> str:
-    """
-    Polish the DMP by moving content to relevant sections and improving structure.
+    """Polish the DMP by moving content to relevant sections and improving structure.
 
     Args:
         markdown: The raw DMP markdown to polish.
@@ -62,6 +60,7 @@ def polish_dmp(
 
     Returns:
         The polished DMP markdown.
+
     """
     structure_str = _build_template_structure_string(template_data)
     llm = OpenAIGenerationLLM(config_path=config_path)
@@ -77,7 +76,7 @@ if __name__ == '__main__':
     file_paths = config.files
 
     markdown = pathlib.Path(file_paths.output_pre_polish_markdown).read_text(
-        encoding='utf-8'
+        encoding='utf-8',
     )
 
     with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
@@ -92,7 +91,7 @@ if __name__ == '__main__':
     )
 
     pathlib.Path(file_paths.output_markdown).write_text(
-        polished, encoding='utf-8'
+        polished, encoding='utf-8',
     )
 
     logger.debug('Polished DMP saved to %s', file_paths.output_markdown)

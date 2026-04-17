@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 from ai_document_plugin_service.ai.knowledgemodel.types import (
     Chapter,
     Choice,
@@ -18,7 +20,7 @@ QUESTION_TYPES = [
 ]
 
 
-def _iterate_km_chapters(km: dict):
+def _iterate_km_chapters(km: dict) -> Iterator[dict]:
     for chapter_uuid in km['chapterUuids']:
         yield km['entities']['chapters'][chapter_uuid]
 
@@ -47,17 +49,16 @@ def parse_chapter(chapter_uuid: str, km: dict, replies: dict) -> Chapter:
     )
 
     # Parse questions with this chapter as parent_question
-    questions = []
-    for question_uuid in chapter_data.get('questionUuids', []):
-        questions.append(
-            parse_question(
-                question_uuid,
-                km,
-                replies,
-                chapter.uuid + '.' + question_uuid,
-                parent_question=chapter,
-            ),
+    questions = [
+        parse_question(
+            question_uuid,
+            km,
+            replies,
+            chapter.uuid + '.' + question_uuid,
+            parent_question=chapter,
         )
+        for question_uuid in chapter_data.get('questionUuids', [])
+    ]
 
     chapter.questions = questions
     return chapter
@@ -88,18 +89,17 @@ def parse_options_answer(
         parent_question=parent_question,
     )
 
-    followup_questions = []
-    for question_uuid in answer_data.get('followUpUuids', []):
-        followup_questions.append(
-            parse_question(
-                question_uuid,
-                km,
-                replies,
-                parent_question=None,
-                parent_answer=answer,
-                path=path + '.' + question_uuid,
-            ),
+    followup_questions = [
+        parse_question(
+            question_uuid,
+            km,
+            replies,
+            parent_question=None,
+            parent_answer=answer,
+            path=path + '.' + question_uuid,
         )
+        for question_uuid in answer_data.get('followUpUuids', [])
+    ]
 
     answer.followup_questions = followup_questions
     return answer
@@ -130,15 +130,13 @@ def parse_value_question(
 
 
 def get_value_reply(
-    km: dict,
+    _km: dict,
     replies: dict,
-    question: QuestionData,
+    _question: QuestionData,
     path: str,
 ) -> str:
     """Get the reply for the question."""
-    label = replies.get(path, {}).get('value', {}).get('value', '')
-
-    return label
+    return replies.get(path, {}).get('value', {}).get('value', '')
 
 
 def parse_integration_question(
@@ -151,7 +149,6 @@ def parse_integration_question(
     parent_answer: OptionsAnswer | None = None,
 ) -> IntegrationQuestion:
     """Parse an IntegrationQuestion from the knowledge model."""
-    # TODO
     integration_question = IntegrationQuestion(
         path=path,
         uuid=question_uuid,
@@ -172,17 +169,13 @@ def parse_integration_question(
 
 
 def get_integration_reply(
-    km: dict,
+    _km: dict,
     replies: dict,
-    question: QuestionData,
+    _question: QuestionData,
     path: str,
 ) -> str:
     """Get the reply for the question."""
-    label = (
-        replies.get(path, {}).get('value', {}).get('value', {}).get('value', '')
-    )
-
-    return label
+    return replies.get(path, {}).get('value', {}).get('value', {}).get('value', '')
 
 
 def parse_list_question(
@@ -195,7 +188,6 @@ def parse_list_question(
     parent_answer: OptionsAnswer | None = None,
 ) -> ListQuestion:
     """Parse a ListQuestion from the knowledge model."""
-
     list_question = ListQuestion(
         path=path,
         uuid=question_uuid,
@@ -205,17 +197,16 @@ def parse_list_question(
         parent_answer=parent_answer,
         questions=[],
     )
-    questions = []
-    for nested_question_uuid in question.get('itemTemplateQuestionUuids', []):
-        questions.append(
-            parse_question(
-                nested_question_uuid,
-                km,
-                replies,
-                path + '.*.' + nested_question_uuid,
-                parent_question=list_question,
-            ),
+    questions = [
+        parse_question(
+            nested_question_uuid,
+            km,
+            replies,
+            path + '.*.' + nested_question_uuid,
+            parent_question=list_question,
         )
+        for nested_question_uuid in question.get('itemTemplateQuestionUuids', [])
+    ]
 
     list_question.questions = questions
     return list_question
@@ -242,17 +233,16 @@ def parse_options_question(
     )
 
     # Parse answers with this options question as parent
-    answers = []
-    for answer_uuid in question.get('answerUuids', []):
-        answers.append(
-            parse_options_answer(
-                answer_uuid,
-                km,
-                replies,
-                path + '.' + answer_uuid,
-                parent_question=options_question,
-            ),
+    answers = [
+        parse_options_answer(
+            answer_uuid,
+            km,
+            replies,
+            path + '.' + answer_uuid,
+            parent_question=options_question,
         )
+        for answer_uuid in question.get('answerUuids', [])
+    ]
 
     options_question.answers = answers
 
@@ -269,19 +259,17 @@ def parse_options_question(
 def get_option_reply(
     km: dict,
     replies: dict,
-    question: QuestionData,
+    _question: QuestionData,
     path: str,
 ) -> str:
     """Get the reply for the question."""
     reply = replies.get(path, {}).get('value', {}).get('value', '')
-    label = (
+    return (
         km.get('entities', {})
         .get('answers', {})
         .get(reply, {})
         .get('label', '')
     )
-
-    return label
 
 
 def parse_multi_choice_question(
@@ -317,21 +305,18 @@ def parse_multi_choice_question(
 def get_multichoice_reply(
     km: dict,
     replies: dict,
-    question: QuestionData,
+    _question: QuestionData,
     path: str,
 ) -> list[str]:
     """Get the reply for the question."""
-    replies = replies.get(path, {}).get('value', {}).get('value', '')
-    labels = []
-    for r in replies:
-        labels.append(
-            km.get('entities', {})
-            .get('answers', {})
-            .get(r, {})
-            .get('label', ''),
-        )
-
-    return labels
+    reply_values = replies.get(path, {}).get('value', {}).get('value', '')
+    return [
+        km.get('entities', {})
+        .get('answers', {})
+        .get(reply_value, {})
+        .get('label', '')
+        for reply_value in reply_values
+    ]
 
 
 def parse_question(
@@ -342,17 +327,21 @@ def parse_question(
     parent_question: QuestionData | None = None,
     parent_answer: OptionsAnswer | None = None,
 ) -> QuestionData:
-    """
-    Parse a question from the knowledge model based on its type.
+    """Parse a question from the knowledge model based on its type.
 
     Args:
         question_uuid: UUID of the question to parse
         km: Knowledge model dictionary
-        parent_question: Optional parent question (for nested questions, or Chapter for top-level questions)
+        parent_question: Optional parent question for nested questions or
+            chapter-level questions
         parent_answer: Optional parent answer (for followup questions)
 
     Returns:
         QuestionData instance of the appropriate type
+
+    Raises:
+        ValueError: If the question type is unknown.
+
     """
     question = km['entities']['questions'][question_uuid]
     question_type = question.get('questionType')
@@ -407,4 +396,5 @@ def parse_question(
             parent_question,
             parent_answer,
         )
-    raise ValueError(f'Unknown question type: {question_type}')
+    error_message = f'Unknown question type: {question_type}'
+    raise ValueError(error_message)

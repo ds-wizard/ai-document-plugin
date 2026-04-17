@@ -1,16 +1,15 @@
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats
 
-T = TypeVar('T')
 logger = logging.getLogger(__name__)
 
 
-def call_with_retry(
+def call_with_retry[T](
     fn: Callable[[], T],
     max_retries: int = 3,
     delay: float = 2.0,
@@ -27,12 +26,12 @@ def call_with_retry(
                 time.sleep(delay)
     if err is not None:
         raise err
-    raise RuntimeError('call_with_retry finished without result or exception')
+    msg = 'call_with_retry finished without result or exception'
+    raise RuntimeError(msg)
 
 
 def extract_usage_tokens(response: Any) -> tuple[int, int]:
-    """
-    :param response:
+    """:param response:
     :return: Input tokens, Output tokens
     """
     usage = getattr(response, 'usage', None)
@@ -41,7 +40,8 @@ def extract_usage_tokens(response: Any) -> tuple[int, int]:
         output_tokens = getattr(usage, 'completion_tokens', None)
         if input_tokens is not None and output_tokens is not None:
             return input_tokens, output_tokens
-    raise Exception('No token info provided in the API response')
+    msg = 'No token info provided in the API response'
+    raise Exception(msg)
 
 
 def add_usage(stats: 'AssignmentStats | None', response: Any) -> None:

@@ -62,8 +62,7 @@ def expand_assignment_paths(
     mappings: list[str],
     km: dict[str, Any],
 ) -> AssignmentTree:
-    """
-    Decompose flat dot-separated assignment paths into nested question nodes.
+    """Decompose flat dot-separated assignment paths into nested question nodes.
 
     This preserves the previous hierarchical output shape consumed by downstream steps.
     """

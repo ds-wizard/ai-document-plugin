@@ -82,7 +82,7 @@ def main() -> None:
     with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
         template_data = json.load(f)
     with pathlib.Path(file_paths.knowledge_model).open(
-        'r', encoding='utf-8'
+        'r', encoding='utf-8',
     ) as f:
         km_data = json.load(f)
 

@@ -5,7 +5,7 @@ import tiktoken
 
 
 class TreeChunker:
-    def __init__(self, data, max_tokens=5000, model_name='cl100k_base'):
+    def __init__(self, data, max_tokens=5000, model_name='cl100k_base') -> None:
         self.max_tokens = max_tokens
         self.encoding = tiktoken.get_encoding(model_name)
 
@@ -29,7 +29,7 @@ class TreeChunker:
         content = f'{title if title is not None else ""}\n{text if text is not None else ""}'
         return len(self.encoding.encode(content))
 
-    def _process_and_flatten(self, node, current_path):
+    def _process_and_flatten(self, node, current_path) -> None:
         """Recursively registers nodes and extracts root-to-leaf ID paths."""
         # Assign an ID if one doesn't exist
         if 'node_id' not in node:
@@ -50,7 +50,7 @@ class TreeChunker:
             'tokens': self._get_token_count(title, text),
         }
 
-        new_path = current_path + [node_id]
+        new_path = [*current_path, node_id]
         children = node.get('children')
 
         # Handle if children were passed as a dictionary instead of a list

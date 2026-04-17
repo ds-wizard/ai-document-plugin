@@ -54,15 +54,18 @@ def _get(config: dict, *path: str):
     current = config
     for key in path:
         if not isinstance(current, dict) or key not in current:
+            msg = f"Missing required config value: '{'.'.join(path)}'"
             raise ValueError(
-                f"Missing required config value: '{'.'.join(path)}'",
+                msg,
             )
         current = current[key]
 
     if current is None:
-        raise ValueError(f"Missing required config value: '{'.'.join(path)}'")
+        msg = f"Missing required config value: '{'.'.join(path)}'"
+        raise ValueError(msg)
     if isinstance(current, str) and current.strip() == '':
-        raise ValueError(f"Missing required config value: '{'.'.join(path)}'")
+        msg = f"Missing required config value: '{'.'.join(path)}'"
+        raise ValueError(msg)
     return current
 
 
@@ -107,9 +110,11 @@ def load_config(
         prompts = yaml.safe_load(handle)
 
     if not isinstance(config, dict):
-        raise ValueError('Invalid config format: expected a top-level mapping')
+        msg = 'Invalid config format: expected a top-level mapping'
+        raise ValueError(msg)
     if not isinstance(prompts, dict):
-        raise ValueError('Invalid prompts format: expected a top-level mapping')
+        msg = 'Invalid prompts format: expected a top-level mapping'
+        raise ValueError(msg)
 
     return Config(
         api_key=_expand_env_vars(

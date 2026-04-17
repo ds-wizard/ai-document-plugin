@@ -16,7 +16,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator import (
 from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
 from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
 
-# Cost per million tokens (USD) – adjust for your model
+# Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
 COST_PER_MIL_OUTPUT = 2.0
 
@@ -93,7 +93,7 @@ def run_pipeline() -> None:
 
     # Save pre-polished version before step 4
     pathlib.Path(file_paths.output_pre_polish_markdown).write_text(
-        debug_markdown, encoding='utf-8'
+        debug_markdown, encoding='utf-8',
     )
     logger.debug(
         'Saved pre-polished DMP to %s',
@@ -153,14 +153,16 @@ def run_pipeline() -> None:
             '',
             table_md,
             '',
-            f'*Model: {model_name}. Cost per million tokens: input {COST_PER_MIL_INPUT} USD, output {COST_PER_MIL_OUTPUT} USD.*',
+            (f'*Model: {model_name}.'
+            f'Cost per million tokens: input {COST_PER_MIL_INPUT} USD,'
+            f'output {COST_PER_MIL_OUTPUT} USD.*'),
             f'Total time: {t2 - t1}s',
         ],
     )
     full_markdown = markdown + summary_section
 
     pathlib.Path(file_paths.output_markdown).write_text(
-        full_markdown, encoding='utf-8'
+        full_markdown, encoding='utf-8',
     )
 
     logger.debug('Saved DMP to %s', file_paths.output_markdown)

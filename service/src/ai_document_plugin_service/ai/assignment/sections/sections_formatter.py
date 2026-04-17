@@ -10,7 +10,7 @@ from ai_document_plugin_service.ai.common import AssignmentStats
 
 
 class SectionFormatter:
-    def __init__(self, sections: list[SectionRecord]):
+    def __init__(self, sections: list[SectionRecord]) -> None:
         self.sections = sections
         self.leaf_sections = collect_leaf_section_texts(sections)
         self.section_key_to_id: dict[str, str] | None = None
@@ -38,15 +38,15 @@ class SectionFormatter:
 
     def get_sections_as_xml(self) -> str:
         if self.section_key_to_id is None:
+            msg = 'Class not initialized, call create_mappings first'
             raise RuntimeError(
-                'Class not initialized, call create_mappings first',
+                msg,
             )
 
-        sections_xml = render_section_tree_as_xml(
+        return render_section_tree_as_xml(
             sections=self.sections,
             section_key_to_id=self.section_key_to_id,
         )
-        return sections_xml
 
     def get_original_id(self, section_id: str) -> str:
         if self.section_id_to_key is None:

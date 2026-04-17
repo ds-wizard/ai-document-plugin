@@ -1,11 +1,7 @@
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from openai import OpenAI
-from openai.types.chat import (
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
-)
 
 from ai_document_plugin_service.ai.common.config import (
     DEFAULT_CONFIG_PATH,
@@ -16,6 +12,13 @@ from ai_document_plugin_service.ai.common.llm_client import (
     call_with_retry,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletionMessageParam,
+        ChatCompletionSystemMessageParam,
+        ChatCompletionUserMessageParam,
+    )
 
 
 class GenerationLLM(ABC):
@@ -39,7 +42,7 @@ class GenerationLLM(ABC):
 
 
 class OpenAIGenerationLLM(GenerationLLM):
-    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH):
+    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
         self.config = load_config(config_path)
         self.client = OpenAI(
             api_key=self.config.api_key,

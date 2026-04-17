@@ -53,10 +53,10 @@ def is_multianswer_question(path: str):
 
 
 def get_question_path(question, override_uuids) -> str:
-    """Gets question_path from question, overrides wildcards with uuids"""
+    """Gets question_path from question, overrides wildcards with uuids."""
     path = question['question_path']
     for replacement in override_uuids:
-        path = re.sub('\\*', replacement, path, count=1)
+        path = re.sub(r'\*', replacement, path, count=1)
     return path
 
 
@@ -98,6 +98,7 @@ def match_replies_selection(
         If the (partially resolved) path of the first question still contains
         a ``*``, all questions at this level are list questions and we call
         ``handle_multi_replies``.  Otherwise we call ``handle_single_reply``.
+
     """
     if override_uuids is None:
         override_uuids = []
@@ -142,7 +143,7 @@ def handle_multi_replies(questions, replies, km, depth, override_uuids):
     """
     result_items = []
     has_answer = False
-    for i, uuid in enumerate(
+    for uuid in (
         get_wildcard_uuids(
             get_question_path(next(iter(questions.values())), override_uuids),
             replies.keys(),
@@ -153,7 +154,7 @@ def handle_multi_replies(questions, replies, km, depth, override_uuids):
             replies,
             km,
             depth + 1,
-            override_uuids + [uuid],
+            [*override_uuids, uuid],
         )
         if not child_has_answer:
             continue
@@ -240,8 +241,9 @@ def _build_single_question_result(
         'type': 'question',
     }
     if is_multianswer_question(question_path):
+        msg = 'There is multianswer question among non-multianswer questions at path'
         raise RuntimeError(
-            'There is multianswer question among non-multianswer questions at path',
+            msg,
             question_path,
         )
     if question_path in replies:
@@ -404,7 +406,7 @@ def _flatten_matched_questions(
     """Extract all leaf questions from match_replies_selection result for one section."""
     rows = []
 
-    def walk(items):
+    def walk(items) -> None:
         for item in items:
             if item.get('type') == 'wrapper':
                 walk(item.get('children', []))
@@ -469,8 +471,7 @@ def _generate_section(
     llm: GenerationLLM,
     stats: AssignmentStats | None = None,
 ) -> tuple[str, str]:
-    """
-    Recursively generate markdown for one section node.
+    """Recursively generate markdown for one section node.
     Leaf: content from Q&A via LLM. Parent: summary of children via LLM.
     Returns (section_markdown, debug_markdown).
     """
@@ -571,7 +572,7 @@ if __name__ == '__main__':
     file_paths = config.files
 
     with pathlib.Path(file_paths.assignments_output).open(
-        encoding='utf-8'
+        encoding='utf-8',
     ) as f:
         data = json.load(f)
     selection = data['assignments']
@@ -589,7 +590,7 @@ if __name__ == '__main__':
     )
 
     pathlib.Path(file_paths.output_markdown).write_text(
-        markdown, encoding='utf-8'
+        markdown, encoding='utf-8',
     )
     logger.debug('DMP saved to %s', file_paths.output_markdown)
     logger.debug(

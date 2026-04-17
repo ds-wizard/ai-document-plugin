@@ -29,27 +29,21 @@ def render_section_tree_as_xml(
     sections: list[SectionRecord],
     section_key_to_id: dict[str, str] | None = None,
 ) -> str:
-    """
-    Render the section tree as XML.
+    """Render the section tree as XML.
 
     Only leaf sections receive an `id` attribute.
     Returns (xml, id_to_section_key).
     """
     leaf_index = [0]
 
-    root_children: list[dict[str, Any]] = []
-    for section in sections:
-        root_children.append(
-            _section_record_to_xml_node(
+    root_children: list[dict[str, Any]] = [_section_record_to_xml_node(
                 section=section,
                 leaf_index=leaf_index,
                 section_key_to_id=section_key_to_id,
-            ),
-        )
+            ) for section in sections]
 
     xml_parts = ['<sections>']
-    for child in root_children:
-        xml_parts.append(_xml_node_to_string(child))
+    xml_parts.extend(_xml_node_to_string(child) for child in root_children)
     xml_parts.append('</sections>')
     return '\n'.join(xml_parts)
 
@@ -79,7 +73,7 @@ def _build_records_recursively(
                 text=None,
                 children=_build_records_recursively(
                     node.subsections,
-                    parent_sections + [node],
+                    [*parent_sections, node],
                 ),
             ),
         )
@@ -142,8 +136,7 @@ def _xml_node_to_string(node: dict[str, Any]) -> str:
         parts.append(f'<title>{escape(title)}</title>')
     if content:
         parts.append(f'<content>{escape(content)}</content>')
-    for child in children:
-        parts.append(_xml_node_to_string(child))
+    parts.extend(_xml_node_to_string(child) for child in children)
     parts.append(f'</{tag}>')
     return '\n'.join(parts)
 
@@ -167,17 +160,14 @@ def _format_section(
         lines.append(f'Title: {parent_section.title}')
 
         if parent_section.content:
-            lines.append('Content:')
-            lines.append(parent_section.content)
+            lines.extend(('Content:', parent_section.content))
 
         lines.append('')  # Add spacing between sections
 
     # Format the main section
-    lines.append('[MOST SPECIFIC SECTION]')
-    lines.append(f'Title: {section.title}')
+    lines.extend(('[MOST SPECIFIC SECTION]', f'Title: {section.title}'))
 
     if section.content:
-        lines.append('Content:')
-        lines.append(section.content)
+        lines.extend(('Content:', section.content))
 
     return '\n'.join(lines)

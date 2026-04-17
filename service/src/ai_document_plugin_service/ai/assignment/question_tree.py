@@ -16,8 +16,7 @@ def build_question_chunks(
     top_level_questions: list[QuestionData],
     max_chunk_tokens: int = 500,
 ) -> tuple[list[str], dict[str, str]]:
-    """
-    Convert questionnaire data into chunked XML prompts for assignment matching.
+    """Convert questionnaire data into chunked XML prompts for assignment matching.
 
     The function builds a question tree from the provided top-level questions, assigns
     string IDs to leaf questions to make it easier for LLMs to process (compared to question path from DSW), and chunks the resulting tree by token budget.
@@ -30,6 +29,7 @@ def build_question_chunks(
         A tuple of:
         - `chunk_xml`: XML snippets where each item is one question-tree chunk.
         - `question_id_to_path`: Mapping from generated leaf question IDs to KM paths.
+
     """
     root = BlankQuestion(top_level_questions)
     child_questions = root.accept(DirectSubquestionVisitor()) or []
@@ -59,8 +59,7 @@ def _question_to_xml_node(
     question: QuestionData,
     question_id_to_path: dict[str, str],
 ) -> dict[str, Any]:
-    """
-    Recursively convert a `QuestionData` node into an XML-ready dictionary.
+    """Recursively convert a `QuestionData` node into an XML-ready dictionary.
 
     Leaf questions become `<question id="...">` nodes and are registered in
     `question_id_to_path`; non-leaf nodes become `<chapter>` or `<section>`
@@ -93,8 +92,7 @@ def _question_to_xml_node(
 
 
 def _xml_node_to_string(node: dict[str, Any]) -> str:
-    """
-    Serialize an XML-node dictionary into an escaped XML string.
+    """Serialize an XML-node dictionary into an escaped XML string.
 
     Supported fields:
     - `tag` (required)
@@ -118,7 +116,6 @@ def _xml_node_to_string(node: dict[str, Any]) -> str:
         parts.append(f'<title>{escape(title)}</title>')
     if text:
         parts.append(f'<context>{escape(text)}</context>')
-    for child in children:
-        parts.append(_xml_node_to_string(child))
+    parts.extend(_xml_node_to_string(child) for child in children)
     parts.append(f'</{tag}>')
     return '\n'.join(parts)

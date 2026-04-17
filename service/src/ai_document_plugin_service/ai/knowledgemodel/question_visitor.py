@@ -17,29 +17,35 @@ class QuestionVisitor(ABC):
     """Abstract visitor interface for visiting QuestionData types."""
 
     @abstractmethod
-    def visit_value_question(self, question: 'ValueQuestion'):
+    def visit_value_question(self, question: 'ValueQuestion') -> None:
         """Visit a ValueQuestion."""
 
     @abstractmethod
-    def visit_list_question(self, question: 'ListQuestion'):
+    def visit_list_question(self, question: 'ListQuestion') -> None:
         """Visit a ListQuestion."""
 
     @abstractmethod
-    def visit_options_question(self, question: 'OptionsQuestion'):
+    def visit_options_question(self, question: 'OptionsQuestion') -> None:
         """Visit an OptionsQuestion."""
 
     @abstractmethod
-    def visit_multi_choice_question(self, question: 'MultiChoiceQuestion'):
+    def visit_multi_choice_question(
+        self,
+        question: 'MultiChoiceQuestion',
+    ) -> None:
         """Visit a MultiChoiceQuestion."""
 
     @abstractmethod
-    def visit_integration_question(self, question: 'IntegrationQuestion'):
+    def visit_integration_question(
+        self,
+        question: 'IntegrationQuestion',
+    ) -> None:
         """Visit an IntegrationQuestion."""
 
     @abstractmethod
-    def visit_blank_question(self, question: 'BlankQuestion'):
+    def visit_blank_question(self, question: 'BlankQuestion') -> None:
         """Visit an IntegrationQuestion."""
 
     @abstractmethod
-    def visit_chapter(self, question: 'Chapter'):
+    def visit_chapter(self, question: 'Chapter') -> None:
         """Visit an IntegrationQuestion."""

@@ -28,7 +28,6 @@ class FilePaths:
     dmp_template: str
     config_path: str
     prompts_path: str
-    question_contexts: str
     assignments_output: str
     output_markdown: str
     output_pre_polish_markdown: str
@@ -120,7 +119,6 @@ def load_config(
             dmp_template=_resolve_existing_path(_get_file_path(config, "dmp_template")),
             config_path=_get_file_path(config, "config_path"),
             prompts_path=configured_prompts_path,
-            question_contexts=_get_file_path(config, "question_contexts"),
             assignments_output=_get_file_path(config, "assignments_output"),
             output_markdown=_get_file_path(config, "output_markdown"),
             output_pre_polish_markdown=_get_file_path(config, "output_pre_polish_markdown"),

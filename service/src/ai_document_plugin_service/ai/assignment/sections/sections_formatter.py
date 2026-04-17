@@ -1,7 +1,7 @@
-from ai.assignment.section_tree import collect_leaf_section_texts, render_section_tree_as_xml
-from ai.assignment.sections.llm import SectionIdGenerator
-from ai.assignment.types import SectionRecord
-from ai.common import AssignmentStats
+from ai_document_plugin_service.ai.assignment.section_tree import collect_leaf_section_texts, render_section_tree_as_xml
+from ai_document_plugin_service.ai.assignment.sections.llm import SectionIdGenerator
+from ai_document_plugin_service.ai.assignment.types import SectionRecord
+from ai_document_plugin_service.ai.common import AssignmentStats
 
 
 class SectionFormatter:

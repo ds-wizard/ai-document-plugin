@@ -12,7 +12,6 @@ files:
   knowledge_model: ""
   config_path: "config.yaml"
   prompts_path: "prompts.yaml"
-  question_contexts: "question_contexts.json"
   assignments_output: "question_section_assignments_OpenAILayerMatcher.json"
   output_markdown: "dmp_output.md"
   output_pre_polish_markdown: "dmp_output_pre_polish.md"

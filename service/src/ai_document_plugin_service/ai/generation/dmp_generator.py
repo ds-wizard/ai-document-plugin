@@ -6,10 +6,10 @@ from typing import Optional
 
 import pandas as pd
 
-from ai.common.config import load_config
-from ai.common.types import AssignmentStats
-from ai.generation.parse_answers import parse_answer
-from ai.generation.llm import GenerationLLM, OpenAIGenerationLLM
+from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.ai.generation.llm import GenerationLLM, OpenAIGenerationLLM
 
 logger = logging.getLogger(__name__)
 

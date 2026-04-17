@@ -4,20 +4,20 @@ from typing import Any
 
 from tqdm import tqdm
 
-from ai.assignment.compatibility_utils import convert_mappings_to_assignment_tree
-from ai.assignment.io import save_assignments
-from ai.assignment.llm import OpenAILayerMatcher
-from ai.assignment.question_tree import build_question_chunks
-from ai.assignment.section_tree import (
+from ai_document_plugin_service.ai.assignment.compatibility_utils import convert_mappings_to_assignment_tree
+from ai_document_plugin_service.ai.assignment.io import save_assignments
+from ai_document_plugin_service.ai.assignment.llm import OpenAILayerMatcher
+from ai_document_plugin_service.ai.assignment.question_tree import build_question_chunks
+from ai_document_plugin_service.ai.assignment.section_tree import (
     build_section_records,
 )
-from ai.assignment.sections.llm import OpenAISectionIdGenerator
-from ai.assignment.sections.sections_formatter import SectionFormatter
-from ai.assignment.types import SectionAssignment
-from ai.common.config import Config, load_config
-from ai.common.types import AssignmentStats
-from ai.knowledgemodel.parse_types import parse_questionnaire
-from ai.knowledgemodel.types import QuestionData
+from ai_document_plugin_service.ai.assignment.sections.llm import OpenAISectionIdGenerator
+from ai_document_plugin_service.ai.assignment.sections.sections_formatter import SectionFormatter
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.common.config import Config, load_config
+from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.knowledgemodel.parse_types import parse_questionnaire
+from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
 logger = logging.getLogger(__name__)
 

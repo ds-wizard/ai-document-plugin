@@ -9,9 +9,9 @@ import json
 import logging
 from typing import Optional
 
-from ai.common.config import DEFAULT_CONFIG_PATH, load_config
-from ai.generation.llm import OpenAIGenerationLLM
-from ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.config import DEFAULT_CONFIG_PATH, load_config
+from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 logger = logging.getLogger(__name__)
 

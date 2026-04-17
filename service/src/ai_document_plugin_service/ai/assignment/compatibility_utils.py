@@ -1,6 +1,6 @@
 from typing import Any
 
-from ai.assignment.types import SectionAssignment, SectionRecord
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
 
 
 def convert_mappings_to_assignment_tree(

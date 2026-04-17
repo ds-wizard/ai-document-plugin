@@ -1,4 +1,4 @@
-from ai.assignment.section_tree import (
+from ai_document_plugin_service.ai.assignment.section_tree import (
     build_section_records,
     collect_leaf_section_texts,
     render_section_tree_as_xml,

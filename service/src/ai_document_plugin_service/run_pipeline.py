@@ -2,13 +2,13 @@ import json
 import logging
 import time
 
-from ai.assignment import run_assignment
-from ai.assignment.io import save_assignments
-from ai.common import AssignmentStats, configure_logging
-from ai.common.config import load_config
-from ai.generation.dmp_generator import generate_dmp_markdown
-from ai.polishing.dmp_polisher import polish_dmp
-from ai.knowledgemodel import parse_questionnaire
+from ai_document_plugin_service.ai.assignment import run_assignment
+from ai_document_plugin_service.ai.assignment.io import save_assignments
+from ai_document_plugin_service.ai.common import AssignmentStats, configure_logging
+from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.generation.dmp_generator import generate_dmp_markdown
+from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
+from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
 
 # Cost per million tokens (USD) – adjust for your model
 COST_PER_MIL_INPUT = 0.25

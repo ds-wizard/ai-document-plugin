@@ -6,9 +6,9 @@ from json import JSONDecodeError
 from json_repair import repair_json
 from openai import OpenAI
 
-from ai.common import AssignmentStats
-from ai.common.config import Config
-from ai.common.llm_client import extract_usage_tokens, call_with_retry, add_usage
+from ai_document_plugin_service.ai.common import AssignmentStats
+from ai_document_plugin_service.ai.common.config import Config
+from ai_document_plugin_service.ai.common.llm_client import extract_usage_tokens, call_with_retry, add_usage
 
 logger = logging.getLogger(__name__)
 

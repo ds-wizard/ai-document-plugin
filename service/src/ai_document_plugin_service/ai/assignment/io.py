@@ -1,7 +1,7 @@
 import json
 
-from ai.assignment.types import SectionAssignment
-from ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 
 def save_assignments(

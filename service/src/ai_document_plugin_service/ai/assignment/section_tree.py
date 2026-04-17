@@ -1,7 +1,7 @@
 from typing import Any
 from xml.sax.saxutils import escape
 
-from ai.assignment.types import SectionNode, SectionRecord
+from ai_document_plugin_service.ai.assignment.types import SectionNode, SectionRecord
 
 
 def build_section_records(template_data: dict[str, Any]) -> list[SectionRecord]:

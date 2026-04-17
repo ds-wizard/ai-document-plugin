@@ -3,9 +3,9 @@ from typing import Optional
 
 from openai import OpenAI
 
-from ai.common.config import DEFAULT_CONFIG_PATH, load_config
-from ai.common.llm_client import call_with_retry, add_usage
-from ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.config import DEFAULT_CONFIG_PATH, load_config
+from ai_document_plugin_service.ai.common.llm_client import call_with_retry, add_usage
+from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 
 class GenerationLLM(ABC):

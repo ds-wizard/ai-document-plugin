@@ -1,9 +1,9 @@
 from typing import Any
 from xml.sax.saxutils import escape
 
-from ai.assignment.tree_chunker import TreeChunker
-from ai.knowledgemodel.direct_subquestion_visitor import DirectSubquestionVisitor
-from ai.knowledgemodel.types import BlankQuestion, Chapter, QuestionData
+from ai_document_plugin_service.ai.assignment.tree_chunker import TreeChunker
+from ai_document_plugin_service.ai.knowledgemodel.direct_subquestion_visitor import DirectSubquestionVisitor
+from ai_document_plugin_service.ai.knowledgemodel.types import BlankQuestion, Chapter, QuestionData
 
 
 def build_question_chunks(

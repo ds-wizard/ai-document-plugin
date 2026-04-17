@@ -1,4 +1,4 @@
-from ai.knowledgemodel.types import (
+from ai_document_plugin_service.ai.knowledgemodel.types import (
     QuestionData,
     ValueQuestion,
     ListQuestion,

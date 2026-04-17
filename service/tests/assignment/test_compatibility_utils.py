@@ -1,10 +1,10 @@
 import pytest
 
-from ai.assignment.compatibility_utils import (
+from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
     expand_assignment_paths,
 )
-from ai.assignment.section_tree import build_section_records
+from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
 
 
 def _km_fixture() -> dict:

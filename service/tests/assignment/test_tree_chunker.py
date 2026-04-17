@@ -1,4 +1,4 @@
-from ai.assignment.tree_chunker import TreeChunker
+from ai_document_plugin_service.ai.assignment.tree_chunker import TreeChunker
 
 
 def _count_nodes(nodes: list[dict]) -> int:

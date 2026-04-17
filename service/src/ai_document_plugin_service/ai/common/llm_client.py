@@ -3,7 +3,7 @@ import time
 from typing import Callable, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ai.common import AssignmentStats
+    from ai_document_plugin_service.ai.common import AssignmentStats
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)

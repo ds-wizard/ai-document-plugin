@@ -1,8 +1,8 @@
 from typing import Optional
 
-from ai.common.types import AssignmentStats
-from ai.generation import dmp_generator
-from ai.generation.llm import GenerationLLM
+from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.generation import dmp_generator
+from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 
 
 # ---------------------------------------------------------------------------

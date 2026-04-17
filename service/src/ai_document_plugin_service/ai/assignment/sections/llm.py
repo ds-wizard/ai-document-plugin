@@ -31,7 +31,11 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
         leaf_sections: list[tuple[str, str]],
         stats: AssignmentStats,
     ) -> dict[str, str]:
-        """One LLM call per leaf section: generate a short meaningful unique id. Returns section_key -> id, or None if config not set (caller should use letter ids)."""
+        """Generate one short unique ID per leaf section.
+
+        Returns:
+            Mapping of `section_key -> generated_id`.
+        """
         system_msg = self.config.section_id.system_message
         user_tpl = self.config.section_id.user_message
         result: dict[str, str] = {}
@@ -41,7 +45,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
             existing_str = (
                 ', '.join(sorted(used_ids)) if used_ids else '(none yet)'
             )
-            # Use full section text (format_section: [PARENT SECTION], Title, Content, [MOST SPECIFIC SECTION], ...) so structure and parent bodies are preserved
+            # Use full formatted section text so parent context is preserved.
             content_block = (section_text or '').strip() if section_text else ''
             user_msg = (
                 user_tpl.replace('{existing_ids}', existing_str)

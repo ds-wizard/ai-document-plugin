@@ -1,11 +1,17 @@
 import copy
 import uuid
+from typing import Any
 
 import tiktoken
 
 
 class TreeChunker:
-    def __init__(self, data, max_tokens=5000, model_name='cl100k_base') -> None:
+    def __init__(
+        self,
+        data: dict[str, Any] | list[dict[str, Any]],
+        max_tokens: int = 5000,
+        model_name: str = 'cl100k_base',
+    ) -> None:
         self.max_tokens = max_tokens
         self.encoding = tiktoken.get_encoding(model_name)
 
@@ -24,12 +30,16 @@ class TreeChunker:
             for item in self.data:
                 self._process_and_flatten(item, [])
 
-    def _get_token_count(self, title, text):
+    def _get_token_count(self, title: str | None, text: str | None) -> int:
         """Counts tokens for only the title and text."""
         content = f'{title if title is not None else ""}\n{text if text is not None else ""}'
         return len(self.encoding.encode(content))
 
-    def _process_and_flatten(self, node, current_path) -> None:
+    def _process_and_flatten(
+        self,
+        node: dict[Any, Any],
+        current_path: list[str],
+    ) -> None:
         """Recursively registers nodes and extracts root-to-leaf ID paths."""
         # Assign an ID if one doesn't exist
         if 'node_id' not in node:
@@ -38,11 +48,11 @@ class TreeChunker:
         node_id = node['node_id']
         title = node.get('title')
         text = node.get('text')
-        id = node.get('id')
+        node_value_id = node.get('id')
 
         # Save to registry (excluding children to keep it flat)
         self.node_registry[node_id] = {
-            'id': id,
+            'id': node_value_id,
             'node_id': node_id,
             'tag': node.get('tag'),
             'title': title,
@@ -63,9 +73,10 @@ class TreeChunker:
         else:
             # Recurse through children
             for child in children:
-                self._process_and_flatten(child, new_path)
+                if isinstance(child, dict):
+                    self._process_and_flatten(child, new_path)
 
-    def chunk(self):
+    def chunk(self) -> list[list[dict[str, Any]]]:
         """Groups paths into chunks based on token limits and rebuilds the dicts."""
         chunks = []
         current_chunk_paths = []
@@ -106,7 +117,7 @@ class TreeChunker:
 
         return chunks
 
-    def _reconstruct(self, paths):
+    def _reconstruct(self, paths: list[list[str]]) -> list[dict[str, Any]]:
         """Rebuilds the nested dictionary structure from a list of ID paths."""
         root_nodes = []
         created_nodes = {}
@@ -133,8 +144,3 @@ class TreeChunker:
                 parent_list = created_nodes[node_id]['children']
 
         return root_nodes
-
-
-# Example Usage:
-# chunker = TreeChunker(my_nested_dict, max_tokens=5000)
-# batched_dicts = chunker.chunk()

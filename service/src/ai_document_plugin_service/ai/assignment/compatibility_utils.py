@@ -8,6 +8,10 @@ from ai_document_plugin_service.ai.assignment.types import (
 )
 
 
+class UnexpectedAssignmentPathError(ValueError):
+    """Raised when an assignment path points to an invalid leaf."""
+
+
 def convert_mappings_to_assignment_tree(
     sections: list[SectionRecord],
     path_to_sections_mappings: dict[str, list[str]],
@@ -65,6 +69,9 @@ def expand_assignment_paths(
     """Decompose flat dot-separated assignment paths into nested question nodes.
 
     This preserves the previous hierarchical output shape consumed by downstream steps.
+
+    Raises:
+        UnexpectedAssignmentPathError: If an invalid leaf path is encountered.
     """
     root: AssignmentTree = {}
     km_questions = km['entities']['questions']
@@ -91,7 +98,8 @@ def expand_assignment_paths(
                 elif not is_leaf and prefix_parts[-1] in km_answers:
                     continue
                 else:
-                    raise Exception('Unexpected path as leaf: ' + full_path)
+                    msg = f'Unexpected path as leaf: {full_path}'
+                    raise UnexpectedAssignmentPathError(msg)
 
                 node: AssignmentQuestionNode = {
                     'question_path': full_path,

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
         ListQuestion,
         MultiChoiceQuestion,
         OptionsQuestion,
+        QuestionData,
         ValueQuestion,
     )
 
@@ -17,35 +18,35 @@ class QuestionVisitor(ABC):
     """Abstract visitor interface for visiting QuestionData types."""
 
     @abstractmethod
-    def visit_value_question(self, question: 'ValueQuestion') -> None:
+    def visit_value_question(self, question: 'ValueQuestion') -> list['QuestionData']:
         """Visit a ValueQuestion."""
 
     @abstractmethod
-    def visit_list_question(self, question: 'ListQuestion') -> None:
+    def visit_list_question(self, question: 'ListQuestion') -> list['QuestionData']:
         """Visit a ListQuestion."""
 
     @abstractmethod
-    def visit_options_question(self, question: 'OptionsQuestion') -> None:
+    def visit_options_question(self, question: 'OptionsQuestion') -> list['QuestionData']:
         """Visit an OptionsQuestion."""
 
     @abstractmethod
     def visit_multi_choice_question(
         self,
         question: 'MultiChoiceQuestion',
-    ) -> None:
+    ) -> list['QuestionData']:
         """Visit a MultiChoiceQuestion."""
 
     @abstractmethod
     def visit_integration_question(
         self,
         question: 'IntegrationQuestion',
-    ) -> None:
+    ) -> list['QuestionData']:
         """Visit an IntegrationQuestion."""
 
     @abstractmethod
-    def visit_blank_question(self, question: 'BlankQuestion') -> None:
+    def visit_blank_question(self, question: 'BlankQuestion') -> list['QuestionData']:
         """Visit an IntegrationQuestion."""
 
     @abstractmethod
-    def visit_chapter(self, question: 'Chapter') -> None:
+    def visit_chapter(self, question: 'Chapter') -> list['QuestionData']:
         """Visit an IntegrationQuestion."""

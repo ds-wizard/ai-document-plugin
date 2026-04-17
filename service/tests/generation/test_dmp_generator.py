@@ -141,6 +141,7 @@ def test_construct_chapter_prompt_formats_questions() -> None:
         {"type": "question", "question_title": "Q1", "reply": "A1", "children": []},
     ]
     prompt = dmp_generator.construct_chapter_prompt("Data", replies)
+    assert prompt is not None
     assert "Chapter name: Data" in prompt
     assert "Q1" in prompt
     assert "A1" in prompt

@@ -24,6 +24,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class ModelDidNotStopError(RuntimeError):
+    """Raised when LLM generation does not finish with stop reason."""
+
+
+class UnableToParseResponseError(ValueError):
+    """Raised when LLM response cannot be parsed as expected JSON."""
+
+
 class LayerMatcher(ABC):
     @abstractmethod
     def match_questions_to_sections(
@@ -63,7 +71,7 @@ class OpenAILayerMatcher(LayerMatcher):
             user_prompt,
         ]
 
-        def call_and_parse():
+        def call_and_parse() -> dict[str, list[str]]:
             response = self.client.chat.completions.create(
                 model=self.config.model,
                 messages=messages,
@@ -78,7 +86,7 @@ class OpenAILayerMatcher(LayerMatcher):
                     choice,
                 )
                 msg = 'Model did not stop generating naturally.'
-                raise Exception(msg)
+                raise ModelDidNotStopError(msg)
             content = (choice.message.content or '').strip()
             add_usage(stats, response)
             try:
@@ -86,20 +94,25 @@ class OpenAILayerMatcher(LayerMatcher):
                     content,
                 )
             except JSONDecodeError as e:
-                raise Exception('Unable to parse: ' + content) from e
+                msg = 'Unable to parse: ' + content
+                raise UnableToParseResponseError(msg) from e
             return question_to_sections
 
         return call_with_retry(call_and_parse)
 
     @staticmethod
     def _parse_json_question_to_sections(content: str) -> dict[str, list[str]]:
-        """Parse JSON like { "1": ["A", "B"], "2": ["C"], "3": [] } (section IDs are letters)."""
+        """Parse JSON like {"1": ["A", "B"], "2": ["C"], "3": []}.
+
+        Raises:
+            TypeError: If the repaired JSON payload is not an object.
+        """
         repaired_content = repair_json(content)
         data = json.loads(repaired_content)
 
         if not isinstance(data, dict):
             msg = 'LLM response is not a JSON object.'
-            raise ValueError(msg)
+            raise TypeError(msg)
         result: dict[str, list[str]] = {}
         for id_str, section_list in data.items():
             if section_list is None:

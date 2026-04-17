@@ -1,6 +1,7 @@
 import os
 import pathlib
 from dataclasses import dataclass
+from typing import Any
 
 import yaml
 
@@ -50,7 +51,7 @@ def _expand_env_vars(value: str) -> str:
     return os.path.expandvars(value)
 
 
-def _get(config: dict, *path: str):
+def _get(config: dict[str, Any], *path: str) -> Any:  # noqa: ANN401
     current = config
     for key in path:
         if not isinstance(current, dict) or key not in current:
@@ -63,7 +64,7 @@ def _get(config: dict, *path: str):
     if current is None:
         msg = f"Missing required config value: '{'.'.join(path)}'"
         raise ValueError(msg)
-    if isinstance(current, str) and current.strip() == '':
+    if isinstance(current, str) and not current.strip():
         msg = f"Missing required config value: '{'.'.join(path)}'"
         raise ValueError(msg)
     return current
@@ -88,7 +89,7 @@ def _get_file_path(config: dict, key: str) -> str:
 def _resolve_existing_path(path: str) -> str:
     candidates = [path]
     if not pathlib.Path(path).is_absolute():
-        candidates.append(os.path.join('jsons', path))
+        candidates.append(str(pathlib.Path('jsons') / path))
 
     for candidate in candidates:
         if pathlib.Path(candidate).exists():
@@ -111,10 +112,10 @@ def load_config(
 
     if not isinstance(config, dict):
         msg = 'Invalid config format: expected a top-level mapping'
-        raise ValueError(msg)
+        raise TypeError(msg)
     if not isinstance(prompts, dict):
         msg = 'Invalid prompts format: expected a top-level mapping'
-        raise ValueError(msg)
+        raise TypeError(msg)
 
     return Config(
         api_key=_expand_env_vars(

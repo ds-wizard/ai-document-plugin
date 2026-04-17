@@ -32,7 +32,7 @@ class QuestionData(QuestionnaireElement):
         self.context: str | None = None
 
     @abstractmethod
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         """Accept a visitor and return the result of visiting this question."""
 
     def get_path(self) -> str:
@@ -62,7 +62,7 @@ class Chapter(QuestionData):
         )
         self.questions = questions
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_chapter(self)
 
 
@@ -78,7 +78,7 @@ class BlankQuestion(QuestionData):
         )
         self.questions = questions
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_blank_question(self)
 
 
@@ -101,7 +101,7 @@ class ValueQuestion(QuestionData):
             parent_answer,
         )
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_value_question(self)
 
 
@@ -126,7 +126,7 @@ class ListQuestion(QuestionData):
         )
         self.questions = questions
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_list_question(self)
 
     def get_path(self) -> str:
@@ -179,7 +179,7 @@ class OptionsQuestion(QuestionData):
         )
         self.answers = answers
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_options_question(self)
 
 
@@ -210,7 +210,7 @@ class MultiChoiceQuestion(QuestionData):
         )
         self.choices = choices
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_multi_choice_question(self)
 
 
@@ -233,5 +233,5 @@ class IntegrationQuestion(QuestionData):
             parent_answer,
         )
 
-    def accept(self, visitor: 'QuestionVisitor') -> None:
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_integration_question(self)

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 class AssignmentQuestionNode(TypedDict, total=False):
@@ -20,7 +20,7 @@ class SectionNode:
     This allows navigation up the hierarchy tree.
     """
 
-    def __init__(self, section_dict) -> None:
+    def __init__(self, section_dict: dict[str, Any]) -> None:
         self.section = section_dict
         self.title = section_dict['title']
         self.content = section_dict.get('content')

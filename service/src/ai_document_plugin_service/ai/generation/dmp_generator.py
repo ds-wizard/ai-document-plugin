@@ -3,6 +3,8 @@ import logging
 import math
 import pathlib
 import re
+from collections.abc import Iterable
+from typing import Any
 
 import pandas as pd
 
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 DEPTH_INCLUDE_ALL_ANSWERS = 2
 
 
-def _get_reply_keys_at_level(replies: dict, prefix: str) -> list[str]:
+def _get_reply_keys_at_level(replies: dict[str, Any], prefix: str) -> list[str]:
     """Return reply keys that are prefix + exactly one more segment (neighbouring replies)."""
     if not prefix:
         return [k for k in replies if '.' not in k]
@@ -33,7 +35,7 @@ def _get_reply_keys_at_level(replies: dict, prefix: str) -> list[str]:
     ]
 
 
-def get_wildcard_uuids(template, paths):
+def get_wildcard_uuids(template: str, paths: Iterable[str]) -> list[str]:
     """Extract the UUIDs that fill each ``*`` wildcard in *template* by matching against *paths*."""
     pattern = '^' + re.escape(template).replace(r'\*', r'([^.]+)') + '$'
 
@@ -47,12 +49,12 @@ def get_wildcard_uuids(template, paths):
     return uuids
 
 
-def is_multianswer_question(path: str):
+def is_multianswer_question(path: str) -> bool:
     """Checks if the current path contains *."""
     return '*' in path
 
 
-def get_question_path(question, override_uuids) -> str:
+def get_question_path(question: dict[str, Any], override_uuids: list[str]) -> str:
     """Gets question_path from question, overrides wildcards with uuids."""
     path = question['question_path']
     for replacement in override_uuids:
@@ -61,12 +63,12 @@ def get_question_path(question, override_uuids) -> str:
 
 
 def match_replies_selection(
-    questions,
-    replies,
-    km,
-    depth=0,
-    override_uuids=None,
-) -> tuple[list[dict], bool]:
+    questions: dict[str, Any],
+    replies: dict[str, Any],
+    km: dict[str, Any],
+    depth: int = 0,
+    override_uuids: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], bool]:
     """Recursively match questionnaire replies to the assigned question tree.
 
     The assignment tree stores question paths with ``*`` wildcards for list
@@ -123,7 +125,13 @@ def match_replies_selection(
     )
 
 
-def handle_multi_replies(questions, replies, km, depth, override_uuids):
+def handle_multi_replies(
+    questions: dict[str, Any],
+    replies: dict[str, Any],
+    km: dict[str, Any],
+    depth: int,
+    override_uuids: list[str],
+) -> tuple[list[dict[str, Any]], bool]:
     """Handle list (ItemListReply) questions whose path still contains a ``*``.
 
     A list question lets the user create multiple items (e.g. "add another
@@ -143,11 +151,9 @@ def handle_multi_replies(questions, replies, km, depth, override_uuids):
     """
     result_items = []
     has_answer = False
-    for uuid in (
-        get_wildcard_uuids(
-            get_question_path(next(iter(questions.values())), override_uuids),
-            replies.keys(),
-        ),
+    for uuid in get_wildcard_uuids(
+        get_question_path(next(iter(questions.values())), override_uuids),
+        replies.keys(),
     ):
         children, child_has_answer = match_replies_selection(
             questions,
@@ -171,7 +177,13 @@ def handle_multi_replies(questions, replies, km, depth, override_uuids):
     return result_items, has_answer
 
 
-def handle_single_reply(questions, replies, km, depth, override_uuids):
+def handle_single_reply(
+    questions: dict[str, Any],
+    replies: dict[str, Any],
+    km: dict[str, Any],
+    depth: int,
+    override_uuids: list[str],
+) -> tuple[list[dict[str, Any]], bool]:
     """Handle questions whose path is fully resolved (no remaining ``*``).
 
     Iterates over each assigned question at this level, resolves its path,
@@ -225,19 +237,23 @@ def handle_single_reply(questions, replies, km, depth, override_uuids):
 
 
 def _build_single_question_result(
-    item,
-    question_path,
-    replies,
-    km,
-    depth,
-    override_uuids,
-):
-    """Build a result dict for one question, parsing its reply and recursing into children."""
+    item: dict[str, Any],
+    question_path: str,
+    replies: dict[str, Any],
+    km: dict[str, Any],
+    depth: int,
+    override_uuids: list[str],
+) -> tuple[dict[str, Any], bool]:
+    """Build a result dict for one question and recurse into children.
+
+    Raises:
+        RuntimeError: If a multi-answer question appears in a single-answer branch.
+    """
     res = {
         'question_path': question_path,
         'question_title': item['question_title'],
         'question_text': item['question_text'],
-        'include': item.get('include', None),
+        'include': item.get('include'),
         'type': 'question',
     }
     if is_multianswer_question(question_path):
@@ -259,7 +275,10 @@ def _build_single_question_result(
     return res, child_has_answer
 
 
-def _get_neighbour_prefix(questions, override_uuids) -> str:
+def _get_neighbour_prefix(
+    questions: dict[str, Any],
+    override_uuids: list[str],
+) -> str:
     """Derive the dot-separated parent prefix shared by all questions at this level."""
     first_q = next(iter(questions.values()))
     first_path = get_question_path(first_q, override_uuids)
@@ -271,13 +290,13 @@ def _get_neighbour_prefix(questions, override_uuids) -> str:
 
 
 def _collect_neighbouring_reply_items(
-    questions,
-    replies,
-    km,
-    override_uuids,
-    question_paths_covered,
-) -> list[dict]:
-    """Find replies at the same path level that weren't explicitly assigned and create synthetic question items for them."""
+    questions: dict[str, Any],
+    replies: dict[str, Any],
+    km: dict[str, Any],
+    override_uuids: list[str],
+    question_paths_covered: set[str],
+) -> list[dict[str, Any]]:
+    """Create synthetic items for replies at the same level not explicitly assigned."""
     prefix = _get_neighbour_prefix(questions, override_uuids)
     keys_at_level = _get_reply_keys_at_level(replies, prefix)
     synthetic_items = []
@@ -347,7 +366,10 @@ def _sanitize_table_cell(text: object | None) -> str:
     return s.strip()
 
 
-def construct_chapter_prompt(chapter_name, replies):
+def construct_chapter_prompt(
+    chapter_name: str,
+    replies: list[dict[str, Any]],
+) -> str | None:
     """Build the LLM user prompt for one section from its matched question/answer tree.
 
     Returns ``None`` when there are no replies to include.
@@ -355,7 +377,7 @@ def construct_chapter_prompt(chapter_name, replies):
     if len(replies) == 0:
         return None
 
-    def construct_question_answers(question, level):
+    def construct_question_answers(question: dict[str, Any], level: int) -> str:
         if question['type'] == 'wrapper':
             groups = [
                 construct_question_answers(q, level + 1)
@@ -365,7 +387,7 @@ def construct_chapter_prompt(chapter_name, replies):
         result = (
             ('\t' * level)
             + ' - Question: '
-            + sanitize(question['question_title'])
+            + (sanitize(question['question_title']) or '')
             + '\n'
         )
         if question.get('reply') is not None:
@@ -406,7 +428,7 @@ def _flatten_matched_questions(
     """Extract all leaf questions from match_replies_selection result for one section."""
     rows = []
 
-    def walk(items) -> None:
+    def walk(items: list[dict[str, Any]]) -> None:
         for item in items:
             if item.get('type') == 'wrapper':
                 walk(item.get('children', []))

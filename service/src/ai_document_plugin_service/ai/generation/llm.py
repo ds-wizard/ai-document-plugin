@@ -55,6 +55,7 @@ class OpenAIGenerationLLM(GenerationLLM):
         stats: AssignmentStats | None = None,
         previously_generated: str = '',
     ) -> str:
+        _ = previously_generated
         user_content = prompt
         system_message: ChatCompletionSystemMessageParam = {
             'role': 'system',

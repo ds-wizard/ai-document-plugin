@@ -50,7 +50,7 @@ def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return '\n'.join(lines)
 
 
-def run_pipeline() -> None:
+def run_pipeline() -> None:  # noqa: PLR0914
     t1 = time.time()
     config = load_config()
     configure_logging(config.log_level)

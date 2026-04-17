@@ -18,8 +18,9 @@ def build_question_chunks(
 ) -> tuple[list[str], dict[str, str]]:
     """Convert questionnaire data into chunked XML prompts for assignment matching.
 
-    The function builds a question tree from the provided top-level questions, assigns
-    string IDs to leaf questions to make it easier for LLMs to process (compared to question path from DSW), and chunks the resulting tree by token budget.
+    The function builds a question tree from top-level questions, assigns
+    short string IDs to leaf questions, and chunks the resulting tree by
+    token budget.
 
     Args:
         top_level_questions: Parsed KM chapter-level questions.

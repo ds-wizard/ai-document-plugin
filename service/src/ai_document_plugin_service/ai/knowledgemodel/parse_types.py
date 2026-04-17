@@ -130,7 +130,10 @@ def parse_value_question(
 
 
 def get_value_reply(
-    km: dict, replies: dict, question: QuestionData, path: str,
+    km: dict,
+    replies: dict,
+    question: QuestionData,
+    path: str,
 ) -> str:
     """Get the reply for the question."""
     label = replies.get(path, {}).get('value', {}).get('value', '')
@@ -159,14 +162,20 @@ def parse_integration_question(
     )
 
     integration_question.reply = get_integration_reply(
-        km, replies, integration_question, path,
+        km,
+        replies,
+        integration_question,
+        path,
     )
 
     return integration_question
 
 
 def get_integration_reply(
-    km: dict, replies: dict, question: QuestionData, path: str,
+    km: dict,
+    replies: dict,
+    question: QuestionData,
+    path: str,
 ) -> str:
     """Get the reply for the question."""
     label = (
@@ -248,14 +257,20 @@ def parse_options_question(
     options_question.answers = answers
 
     options_question.reply = get_option_reply(
-        km, replies, options_question, path,
+        km,
+        replies,
+        options_question,
+        path,
     )
 
     return options_question
 
 
 def get_option_reply(
-    km: dict, replies: dict, question: QuestionData, path: str,
+    km: dict,
+    replies: dict,
+    question: QuestionData,
+    path: str,
 ) -> str:
     """Get the reply for the question."""
     reply = replies.get(path, {}).get('value', {}).get('value', '')
@@ -300,7 +315,10 @@ def parse_multi_choice_question(
 
 
 def get_multichoice_reply(
-    km: dict, replies: dict, question: QuestionData, path: str,
+    km: dict,
+    replies: dict,
+    question: QuestionData,
+    path: str,
 ) -> list[str]:
     """Get the reply for the question."""
     replies = replies.get(path, {}).get('value', {}).get('value', '')

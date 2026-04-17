@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 def call_with_retry(
-    fn: Callable[[], T], max_retries: int = 3, delay: float = 2.0,
+    fn: Callable[[], T],
+    max_retries: int = 3,
+    delay: float = 2.0,
 ) -> T:
     """Retry fn on connection or rate-limit errors."""
     err: Exception | None = None

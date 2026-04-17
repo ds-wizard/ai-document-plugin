@@ -52,7 +52,12 @@ class Chapter(QuestionData):
         questions: list['QuestionData'],
     ):
         super().__init__(
-            path, uuid, title, text, parent_question=None, parent_answer=None,
+            path,
+            uuid,
+            title,
+            text,
+            parent_question=None,
+            parent_answer=None,
         )
         self.questions = questions
 
@@ -67,7 +72,10 @@ class BlankQuestion(QuestionData):
 
     def __init__(self, questions: list['QuestionData']):
         super().__init__(
-            path='__root__', uuid='__root__', title='Root', text=None,
+            path='__root__',
+            uuid='__root__',
+            title='Root',
+            text=None,
         )
         self.questions = questions
 
@@ -86,7 +94,12 @@ class ValueQuestion(QuestionData):
         parent_answer: Optional['OptionsAnswer'] = None,
     ):
         super().__init__(
-            path, uuid, title, text, parent_question, parent_answer,
+            path,
+            uuid,
+            title,
+            text,
+            parent_question,
+            parent_answer,
         )
 
     def accept(self, visitor: 'QuestionVisitor'):
@@ -105,7 +118,12 @@ class ListQuestion(QuestionData):
         parent_answer: Optional['OptionsAnswer'] = None,
     ):
         super().__init__(
-            path, uuid, title, text, parent_question, parent_answer,
+            path,
+            uuid,
+            title,
+            text,
+            parent_question,
+            parent_answer,
         )
         self.questions = questions
 
@@ -153,7 +171,12 @@ class OptionsQuestion(QuestionData):
         parent_answer: Optional['OptionsAnswer'] = None,
     ):
         super().__init__(
-            path, uuid, title, text, parent_question, parent_answer,
+            path,
+            uuid,
+            title,
+            text,
+            parent_question,
+            parent_answer,
         )
         self.answers = answers
 
@@ -179,7 +202,12 @@ class MultiChoiceQuestion(QuestionData):
         parent_answer: Optional['OptionsAnswer'] = None,
     ):
         super().__init__(
-            path, uuid, title, text, parent_question, parent_answer,
+            path,
+            uuid,
+            title,
+            text,
+            parent_question,
+            parent_answer,
         )
         self.choices = choices
 
@@ -198,7 +226,12 @@ class IntegrationQuestion(QuestionData):
         parent_answer: Optional['OptionsAnswer'] = None,
     ):
         super().__init__(
-            path, uuid, title, text, parent_question, parent_answer,
+            path,
+            uuid,
+            title,
+            text,
+            parent_question,
+            parent_answer,
         )
 
     def accept(self, visitor: 'QuestionVisitor'):

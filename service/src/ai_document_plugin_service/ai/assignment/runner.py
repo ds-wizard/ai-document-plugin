@@ -52,7 +52,9 @@ def run_assignment(
     result_mapping = {}
     for question_chunk in tqdm(question_chunks, desc='Question chunks'):
         question_to_section_ids = matcher.match_questions_to_sections(
-            sections_xml, question_chunk, stats,
+            sections_xml,
+            question_chunk,
+            stats,
         )
 
         for question_id, section_ids in question_to_section_ids.items():
@@ -66,7 +68,9 @@ def run_assignment(
             ]
 
     assignments = convert_mappings_to_assignment_tree(
-        sections, result_mapping, km,
+        sections,
+        result_mapping,
+        km,
     )
     return assignments, stats
 
@@ -77,7 +81,9 @@ def main() -> None:
 
     with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
         template_data = json.load(f)
-    with pathlib.Path(file_paths.knowledge_model).open('r', encoding='utf-8') as f:
+    with pathlib.Path(file_paths.knowledge_model).open(
+        'r', encoding='utf-8'
+    ) as f:
         km_data = json.load(f)
 
     top_questions = parse_questionnaire(km_data)

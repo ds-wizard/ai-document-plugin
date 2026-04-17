@@ -42,7 +42,8 @@ class OpenAIGenerationLLM(GenerationLLM):
     def __init__(self, config_path: str = DEFAULT_CONFIG_PATH):
         self.config = load_config(config_path)
         self.client = OpenAI(
-            api_key=self.config.api_key, base_url=self.config.api_url,
+            api_key=self.config.api_key,
+            base_url=self.config.api_url,
         )
 
     def section_from_qa(
@@ -82,10 +83,12 @@ class OpenAIGenerationLLM(GenerationLLM):
         stats: AssignmentStats | None = None,
     ) -> str:
         system_prompt = self.config.dmp_polishing.system_message.replace(
-            '{sections}', structure_str,
+            '{sections}',
+            structure_str,
         )
         user_content = self.config.dmp_polishing.user_message.replace(
-            '{markdown}', markdown,
+            '{markdown}',
+            markdown,
         )
         system_message: ChatCompletionSystemMessageParam = {
             'role': 'system',

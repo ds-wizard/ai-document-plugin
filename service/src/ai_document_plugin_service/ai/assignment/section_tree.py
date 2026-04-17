@@ -78,7 +78,8 @@ def _build_records_recursively(
                 section=node,
                 text=None,
                 children=_build_records_recursively(
-                    node.subsections, parent_sections + [node],
+                    node.subsections,
+                    parent_sections + [node],
                 ),
             ),
         )

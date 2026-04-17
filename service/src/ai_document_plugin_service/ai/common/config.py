@@ -130,7 +130,8 @@ def load_config(
             assignments_output=_get_file_path(config, 'assignments_output'),
             output_markdown=_get_file_path(config, 'output_markdown'),
             output_pre_polish_markdown=_get_file_path(
-                config, 'output_pre_polish_markdown',
+                config,
+                'output_pre_polish_markdown',
             ),
         ),
         assignment=SystemAndUserPrompt(

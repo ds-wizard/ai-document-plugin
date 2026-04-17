@@ -24,7 +24,10 @@ logger = logging.getLogger(__name__)
 class LayerMatcher(ABC):
     @abstractmethod
     def match_questions_to_sections(
-        self, sections_xml: str, question_chunk_xml: str, stats: AssignmentStats,
+        self,
+        sections_xml: str,
+        question_chunk_xml: str,
+        stats: AssignmentStats,
     ) -> dict[str, list[str]]:
         """Return question_id -> list[section_id]."""
 
@@ -35,10 +38,14 @@ class OpenAILayerMatcher(LayerMatcher):
         self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
 
     def match_questions_to_sections(
-        self, sections_xml: str, question_chunk_xml: str, stats: AssignmentStats,
+        self,
+        sections_xml: str,
+        question_chunk_xml: str,
+        stats: AssignmentStats,
     ) -> dict[str, list[str]]:
         user_message = self.config.assignment.user_message.replace(
-            '{question_text}', question_chunk_xml,
+            '{question_text}',
+            question_chunk_xml,
         ).replace('{sections_list}', sections_xml)
         system_message: ChatCompletionSystemMessageParam = {
             'role': 'system',
@@ -64,7 +71,8 @@ class OpenAILayerMatcher(LayerMatcher):
             choice = response.choices[0]
             if choice.finish_reason != 'stop':
                 logger.debug(
-                    'Model did not stop generating naturally: %s', choice,
+                    'Model did not stop generating naturally: %s',
+                    choice,
                 )
                 raise Exception('Model did not stop generating naturally.')
             content = (choice.message.content or '').strip()

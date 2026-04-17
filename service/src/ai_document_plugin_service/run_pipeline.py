@@ -70,7 +70,10 @@ def run_pipeline() -> None:
     logger.debug('Step 1: Assigning questions to sections...')
     top_questions = parse_questionnaire(km_data)
     assignments, stats2 = run_assignment(
-        template_data, top_questions, config, km,
+        template_data,
+        top_questions,
+        config,
+        km,
     )
     save_assignments(assignments, file_paths.assignments_output, stats=stats2)
     all_stats.append(('2. Hierarchical assignment', stats2))
@@ -81,14 +84,20 @@ def run_pipeline() -> None:
     assignments_as_dict = [a.to_dict() for a in assignments]
     stats3 = AssignmentStats()
     markdown, debug_markdown, stats3 = generate_dmp_markdown(
-        assignments_as_dict, replies, km, stats=stats3,
+        assignments_as_dict,
+        replies,
+        km,
+        stats=stats3,
     )
     all_stats.append(('2. DMP generator', stats3))
 
     # Save pre-polished version before step 4
-    pathlib.Path(file_paths.output_pre_polish_markdown).write_text(debug_markdown, encoding='utf-8')
+    pathlib.Path(file_paths.output_pre_polish_markdown).write_text(
+        debug_markdown, encoding='utf-8'
+    )
     logger.debug(
-        'Saved pre-polished DMP to %s', file_paths.output_pre_polish_markdown,
+        'Saved pre-polished DMP to %s',
+        file_paths.output_pre_polish_markdown,
     )
 
     # Step 3: DMP polisher (reorganize content into relevant sections)
@@ -150,7 +159,9 @@ def run_pipeline() -> None:
     )
     full_markdown = markdown + summary_section
 
-    pathlib.Path(file_paths.output_markdown).write_text(full_markdown, encoding='utf-8')
+    pathlib.Path(file_paths.output_markdown).write_text(
+        full_markdown, encoding='utf-8'
+    )
 
     logger.debug('Saved DMP to %s', file_paths.output_markdown)
     logger.debug('Token usage and cost:')

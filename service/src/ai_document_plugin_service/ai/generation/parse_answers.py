@@ -13,7 +13,8 @@ def parse_answer(answer: dict, km: dict):
         if entity is None:
             # TODO: this is strange, how can there be reply but no associated value in the km?
             logger.debug(
-                'Entity %s has no answer in the KM, strange...', answer['value'],
+                'Entity %s has no answer in the KM, strange...',
+                answer['value'],
             )
             return ''
         return entity['label'] + (

@@ -20,7 +20,9 @@ def convert_mappings_to_assignment_tree(
                 section_to_paths_mappings[section_name] = []
             section_to_paths_mappings[section_name].append(path)
     return convert_mappings_to_assignment_tree_recursive(
-        sections, section_to_paths_mappings, km,
+        sections,
+        section_to_paths_mappings,
+        km,
     )
 
 
@@ -38,7 +40,9 @@ def convert_mappings_to_assignment_tree_recursive(
                     key=section.key,
                     assignments=None,
                     children=convert_mappings_to_assignment_tree(
-                        section.children, section_to_path_mapping, km,
+                        section.children,
+                        section_to_path_mapping,
+                        km,
                     ),
                 ),
             )
@@ -55,7 +59,8 @@ def convert_mappings_to_assignment_tree_recursive(
 
 
 def expand_assignment_paths(
-    mappings: list[str], km: dict[str, Any],
+    mappings: list[str],
+    km: dict[str, Any],
 ) -> AssignmentTree:
     """
     Decompose flat dot-separated assignment paths into nested question nodes.

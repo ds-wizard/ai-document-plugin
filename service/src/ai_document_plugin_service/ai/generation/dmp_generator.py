@@ -61,7 +61,11 @@ def get_question_path(question, override_uuids) -> str:
 
 
 def match_replies_selection(
-    questions, replies, km, depth=0, override_uuids=None,
+    questions,
+    replies,
+    km,
+    depth=0,
+    override_uuids=None,
 ) -> tuple[list[dict], bool]:
     """Recursively match questionnaire replies to the assigned question tree.
 
@@ -103,10 +107,18 @@ def match_replies_selection(
         get_question_path(next(iter(questions.values())), override_uuids),
     ):
         return handle_multi_replies(
-            questions, replies, km, depth, override_uuids,
+            questions,
+            replies,
+            km,
+            depth,
+            override_uuids,
         )
     return handle_single_reply(
-        questions, replies, km, depth, override_uuids,
+        questions,
+        replies,
+        km,
+        depth,
+        override_uuids,
     )
 
 
@@ -137,7 +149,11 @@ def handle_multi_replies(questions, replies, km, depth, override_uuids):
         ),
     ):
         children, child_has_answer = match_replies_selection(
-            questions, replies, km, depth + 1, override_uuids + [uuid],
+            questions,
+            replies,
+            km,
+            depth + 1,
+            override_uuids + [uuid],
         )
         if not child_has_answer:
             continue
@@ -208,7 +224,12 @@ def handle_single_reply(questions, replies, km, depth, override_uuids):
 
 
 def _build_single_question_result(
-    item, question_path, replies, km, depth, override_uuids,
+    item,
+    question_path,
+    replies,
+    km,
+    depth,
+    override_uuids,
 ):
     """Build a result dict for one question, parsing its reply and recursing into children."""
     res = {
@@ -226,7 +247,11 @@ def _build_single_question_result(
     if question_path in replies:
         res['reply'] = parse_answer(replies[question_path]['value'], km)
     children, child_has_answer = match_replies_selection(
-        item['children'], replies, km, depth + 1, override_uuids,
+        item['children'],
+        replies,
+        km,
+        depth + 1,
+        override_uuids,
     )
     res['children'] = children
     return res, child_has_answer
@@ -244,7 +269,11 @@ def _get_neighbour_prefix(questions, override_uuids) -> str:
 
 
 def _collect_neighbouring_reply_items(
-    questions, replies, km, override_uuids, question_paths_covered,
+    questions,
+    replies,
+    km,
+    override_uuids,
+    question_paths_covered,
 ) -> list[dict]:
     """Find replies at the same path level that weren't explicitly assigned and create synthetic question items for them."""
     prefix = _get_neighbour_prefix(questions, override_uuids)
@@ -260,7 +289,9 @@ def _collect_neighbouring_reply_items(
 
 
 def _build_synthetic_question_item(
-    key: str, replies: dict, km: dict,
+    key: str,
+    replies: dict,
+    km: dict,
 ) -> dict | None:
     """Create a question-result dict for a reply that was not part of the original assignment.
 
@@ -277,7 +308,9 @@ def _build_synthetic_question_item(
     question_uuid = key.rsplit('.', maxsplit=1)[-1]
     if question_uuid not in km_questions:
         logger.debug(
-            'Question %s from %s not found in the KM', question_uuid, key,
+            'Question %s from %s not found in the KM',
+            question_uuid,
+            key,
         )
         return None
     question = km_questions[question_uuid]
@@ -334,9 +367,7 @@ def construct_chapter_prompt(chapter_name, replies):
             + '\n'
         )
         if question.get('reply') is not None:
-            result += (
-                ('\t' * level) + '   Answer: ' + question['reply'] + '\n'
-            )
+            result += ('\t' * level) + '   Answer: ' + question['reply'] + '\n'
         for child in question['children']:
             result += construct_question_answers(child, level + 1)
         return result
@@ -355,7 +386,9 @@ def llm_section_from_qa(
 ) -> str:
     """Generate DMP section content from questions and answers."""
     return llm.section_from_qa(
-        prompt=prompt, stats=stats, previously_generated=previously_generated,
+        prompt=prompt,
+        stats=stats,
+        previously_generated=previously_generated,
     )
 
 
@@ -365,7 +398,8 @@ def _heading(depth: int, title: str) -> str:
 
 
 def _flatten_matched_questions(
-    matches: list[dict], section_key: str,
+    matches: list[dict],
+    section_key: str,
 ) -> list[dict]:
     """Extract all leaf questions from match_replies_selection result for one section."""
     rows = []
@@ -450,7 +484,12 @@ def _generate_section(
         res = heading + '\nNo data'
         return res, res
     children_markdown, children_markdown_debug = _generate_children_sections(
-        node['children'], depth, replies, km, llm, stats,
+        node['children'],
+        depth,
+        replies,
+        km,
+        llm,
+        stats,
     )
     res = heading + '\n\n' + children_markdown
     debug_res = heading + '\n\n' + children_markdown_debug
@@ -489,7 +528,12 @@ def _generate_children_sections(
     children_parts = []
     for child in children:
         child_section, child_debug = _generate_section(
-            child, depth + 1, replies, km, llm, stats,
+            child,
+            depth + 1,
+            replies,
+            km,
+            llm,
+            stats,
         )
         children_parts.append((child_section, child_debug))
     children_markdown = '\n\n'.join([s for s, _ in children_parts])
@@ -526,7 +570,9 @@ if __name__ == '__main__':
     config = load_config()
     file_paths = config.files
 
-    with pathlib.Path(file_paths.assignments_output).open(encoding='utf-8') as f:
+    with pathlib.Path(file_paths.assignments_output).open(
+        encoding='utf-8'
+    ) as f:
         data = json.load(f)
     selection = data['assignments']
     with pathlib.Path(file_paths.knowledge_model).open(encoding='utf-8') as f:
@@ -536,10 +582,15 @@ if __name__ == '__main__':
 
     stats = AssignmentStats()
     markdown, debug_markdown, stats = generate_dmp_markdown(
-        selection, replies, km, stats=stats,
+        selection,
+        replies,
+        km,
+        stats=stats,
     )
 
-    pathlib.Path(file_paths.output_markdown).write_text(markdown, encoding='utf-8')
+    pathlib.Path(file_paths.output_markdown).write_text(
+        markdown, encoding='utf-8'
+    )
     logger.debug('DMP saved to %s', file_paths.output_markdown)
     logger.debug(
         'LLM calls: %s, input tokens: %s, output tokens: %s',

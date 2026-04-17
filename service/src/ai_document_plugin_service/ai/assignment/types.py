@@ -35,9 +35,7 @@ class SectionRecord:
     key: str
     section: SectionNode
     text: str | None = None  # leaf: formatted content for matching
-    children: list['SectionRecord'] | None = (
-        None  # non-leaf: nested sections
-    )
+    children: list['SectionRecord'] | None = None  # non-leaf: nested sections
 
 
 @dataclass

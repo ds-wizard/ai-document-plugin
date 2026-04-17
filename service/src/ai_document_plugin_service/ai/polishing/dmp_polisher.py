@@ -66,7 +66,9 @@ def polish_dmp(
     structure_str = _build_template_structure_string(template_data)
     llm = OpenAIGenerationLLM(config_path=config_path)
     return llm.polish_dmp(
-        markdown=markdown, structure_str=structure_str, stats=stats,
+        markdown=markdown,
+        structure_str=structure_str,
+        stats=stats,
     )
 
 
@@ -74,7 +76,9 @@ if __name__ == '__main__':
     config = load_config()
     file_paths = config.files
 
-    markdown = pathlib.Path(file_paths.output_pre_polish_markdown).read_text(encoding='utf-8')
+    markdown = pathlib.Path(file_paths.output_pre_polish_markdown).read_text(
+        encoding='utf-8'
+    )
 
     with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
         template_data = json.load(f)
@@ -87,7 +91,9 @@ if __name__ == '__main__':
         template_data=template_data,
     )
 
-    pathlib.Path(file_paths.output_markdown).write_text(polished, encoding='utf-8')
+    pathlib.Path(file_paths.output_markdown).write_text(
+        polished, encoding='utf-8'
+    )
 
     logger.debug('Polished DMP saved to %s', file_paths.output_markdown)
     logger.debug(

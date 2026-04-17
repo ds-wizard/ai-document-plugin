@@ -18,6 +18,14 @@ classifiers = [
 requires-python = ">=3.13, <4"
 dependencies = [
     "fastapi>=0.120,<1.0",
+    "genson",
+    "json-repair",
+    "openai",
+    "pandas",
+    "pyyaml",
+    "tabulate",
+    "tiktoken",
+    "tqdm",
 ]
 
 [dependency-groups]
@@ -25,6 +33,7 @@ dev = [
     "uvicorn",
     "ruff",
     "ty",
+    "pytest",
 ]
 
 [build-system]
@@ -55,3 +64,6 @@ indent-style = "space"
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"
+
+[tool.pytest.ini_options]
+pythonpath = ["src/ai_document_plugin_service"]

@@ -1,0 +1,18 @@
+llm_response_generation:
+  type: "openai-api"
+  model: "gpt-oss-120b"
+  api_url: https://llm.ai.e-infra.cz/v1/
+  api_key: "xxx"
+
+logging:
+  level: "INFO"
+
+files:
+  dmp_template: "jsons/he-template.json"
+  knowledge_model: ""
+  config_path: "config.yaml"
+  prompts_path: "prompts.yaml"
+  question_contexts: "question_contexts.json"
+  assignments_output: "question_section_assignments_OpenAILayerMatcher.json"
+  output_markdown: "dmp_output.md"
+  output_pre_polish_markdown: "dmp_output_pre_polish.md"

@@ -1,0 +1,79 @@
+assignment:
+  max_tokens: 8192
+  temperature: 0.1
+  system_message: |
+    You are a data management plan expert. You will see the DMP template sections in XML (same style as the questions). Only the bottom (most specific) sections have an id= attribute (A, B, C, ...). For each question ID, list the section IDs where that question belongs. A question can belong to 0, 1, or many sections. Use only those letter IDs in your answer.
+    Output valid JSON only, example output: 
+    
+    {
+      "1": ["section 1", "section 2"],
+      "2": [],
+    }
+  user_message: |
+    Here are the questions in XML:
+    {question_text}
+
+    Here are the DMP template sections in XML. Only the most specific (leaf) sections have id= (e.g. id="A"). Use those IDs in your answer:
+    {sections_list}
+
+    Output JSON: one key per question ID, value = list of section IDs (letters). Example:
+    { "1": ["A", "B"], "2": ["C"], "3": [], ... }
+
+
+section_id:
+  max_tokens: 256
+  temperature: 0.5
+  # Optional: generate short meaningful IDs for leaf sections (one LLM call per section). Placeholders: {existing_ids}, {section_title}, {section_content}.
+  system_message: |
+    Assign short, unique, meaningful IDs to DMP sections (e.g. contrib, data-desc, roles). Reply with only the ID, nothing else. Use 2-12 characters, alphanumeric and hyphens/underscores only.
+
+    Make sure it is a good fit for the specific section, not only a DMP in general.
+    For example, section about Data description should not contain project contributors, even though they should be in the DMP, just not in this specific section.
+    On the other hand, sections such as Roles and Responsibilities should contain questions about the contributors, but shouldn't contain questions about data formats for example.
+
+  user_message: |
+    Already assigned section IDs (do not reuse): {existing_ids}
+
+    Assign a short meaningful ID for this section. Below is the full context: parent section(s) with their content, then the most specific section.
+    Full path / title: {section_title}
+
+    Section context (parent sections and this section):
+    {section_content}
+
+dmp_generation:
+  max_tokens: 2048
+  temperature: 0.8
+  # Optional: generate short meaningful IDs for leaf sections (one LLM call per section). Placeholders: {existing_ids}, {section_title}, {section_content}.
+  system_message: |
+    You are a data management plan writer. Rewrite the following questions and answers into ONE SECTION with NO subsections of a DMP. 
+    Do not add any information not explicitly stated in the answers! You do not have to include all questions and answers, you may omit information that clearly does not fit into the section. 
+    Do not rewrite the heading, write only the section content. Make the text sound natural, it should not be just direct copy of the questions and answers, but rather a concise, well structured and fluent data management plan. 
+    Feel free to use markdown tables or lists. Maintain consistency in style and terminology with the already generated parts.
+
+dmp_polishing:
+  max_tokens: 16384
+  temperature: 0.3
+  # Optional: generate short meaningful IDs for leaf sections (one LLM call per section). Placeholders: {existing_ids}, {section_title}, {section_content}.
+  system_message: |
+    You are a data management plan editor. Your task is to polish and reorganize a DMP document. Output a valid Markdown file. 
+
+    # Reorganization rules:
+    - Move content to the most relevant section or chapter. If something is mentioned in one place but there is another chapter dedicated to that topic, move it there.
+    - Consolidate related information that is scattered across sections.
+    - Remove or shorten redundant mentions when the same information appears in multiple places (keep it in the most appropriate location).
+    - Improve flow and logical structure so each section focuses on its intended theme.
+    
+    CRITICAL: Do NOT add any new information. Only reorganize, move, merge, or lightly rephrase what is already in the document. Every fact, figure, and statement in your output must come from the input. Do not invent, extrapolate, or add content that was not explicitly stated in the input DMP."""
+    
+    You MUST follow this exact section structure.
+    Do not add, remove, or rename sections:
+    {sections}
+
+  user_message: |
+    Polish and reorganize the following DMP. Move content to the most relevant sections.
+    Do not add any information that was not already in the document.
+    
+    ---
+    
+    {markdown}
+

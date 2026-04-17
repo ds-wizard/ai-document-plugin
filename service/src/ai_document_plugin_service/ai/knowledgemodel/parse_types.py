@@ -61,7 +61,7 @@ def parse_choice(choice_uuid: str, km: dict) -> Choice:
 
 
 def parse_options_answer(answer_uuid: str, km: dict, replies: dict, path: str,
-                         parent_question: 'OptionsQuestion' = None) -> OptionsAnswer:
+                         parent_question: OptionsQuestion | None = None) -> OptionsAnswer:
     """Parse an OptionsAnswer from the knowledge model."""
     answer_data = km["entities"]["answers"][answer_uuid]
 
@@ -84,8 +84,8 @@ def parse_options_answer(answer_uuid: str, km: dict, replies: dict, path: str,
 
 
 def parse_value_question(question_uuid: str, question: dict, km: dict, replies: dict, path: str,
-                         parent_question: QuestionData = None,
-                         parent_answer: OptionsAnswer = None) -> ValueQuestion:
+                         parent_question: QuestionData | None = None,
+                         parent_answer: OptionsAnswer | None = None) -> ValueQuestion:
     """Parse a ValueQuestion from the knowledge model."""
     value_question = ValueQuestion(
         path=path,
@@ -109,8 +109,8 @@ def get_value_reply(km: dict, replies: dict, question: QuestionData, path: str) 
 
 
 def parse_integration_question(question_uuid: str, question: dict, km: dict, replies: dict, path: str,
-                               parent_question: QuestionData = None,
-                               parent_answer: OptionsAnswer = None) -> IntegrationQuestion:
+                               parent_question: QuestionData | None = None,
+                               parent_answer: OptionsAnswer | None = None) -> IntegrationQuestion:
     """Parse an IntegrationQuestion from the knowledge model."""
     # TODO
     integration_question = IntegrationQuestion(
@@ -135,8 +135,8 @@ def get_integration_reply(km: dict, replies: dict, question: QuestionData, path:
 
 
 def parse_list_question(question_uuid: str, question: dict, km: dict, replies: dict, path: str,
-                        parent_question: QuestionData = None,
-                        parent_answer: OptionsAnswer = None) -> ListQuestion:
+                        parent_question: QuestionData | None = None,
+                        parent_answer: OptionsAnswer | None = None) -> ListQuestion:
     """Parse a ListQuestion from the knowledge model."""
 
     list_question = (
@@ -159,8 +159,8 @@ def parse_list_question(question_uuid: str, question: dict, km: dict, replies: d
 
 
 def parse_options_question(question_uuid: str, question: dict, km: dict, replies: dict, path: str,
-                           parent_question: QuestionData = None,
-                           parent_answer: OptionsAnswer = None) -> OptionsQuestion:
+                           parent_question: QuestionData | None = None,
+                           parent_answer: OptionsAnswer | None = None) -> OptionsQuestion:
     """Parse an OptionsQuestion from the knowledge model."""
     options_question = OptionsQuestion(
         path=path,
@@ -194,8 +194,8 @@ def get_option_reply(km: dict, replies: dict, question: QuestionData, path: str)
 
 
 def parse_multi_choice_question(question_uuid: str, question: dict, km: dict, replies: dict, path: str,
-                                parent_question: QuestionData = None,
-                                parent_answer: OptionsAnswer = None) -> MultiChoiceQuestion:
+                                parent_question: QuestionData | None = None,
+                                parent_answer: OptionsAnswer | None = None) -> MultiChoiceQuestion:
     """Parse a MultiChoiceQuestion from the knowledge model."""
     multichoice_question = MultiChoiceQuestion(
         path=path,
@@ -223,8 +223,8 @@ def get_multichoice_reply(km: dict, replies: dict, question: QuestionData, path:
 
 
 def parse_question(question_uuid: str, km: dict, replies: dict, path: str,
-                   parent_question: QuestionData = None,
-                   parent_answer: OptionsAnswer = None) -> QuestionData:
+                   parent_question: QuestionData | None = None,
+                   parent_answer: OptionsAnswer | None = None) -> QuestionData:
     """
     Parse a question from the knowledge model based on its type.
     

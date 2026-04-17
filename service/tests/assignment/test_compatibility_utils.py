@@ -71,8 +71,13 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
 
     assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
     as_dict = {node.key: node.assignments for node in assignments}
+    data_assignments = as_dict["Data"]
+    methods_assignments = as_dict["Methods"]
 
-    assert "ch1" in as_dict["Data"]
-    assert "q1" in as_dict["Data"]["ch1"]["children"]
-    assert "q2" in as_dict["Data"]["ch1"]["children"]
-    assert "q2" in as_dict["Methods"]["ch1"]["children"]
+    assert data_assignments is not None
+    assert methods_assignments is not None
+
+    assert "ch1" in data_assignments
+    assert "q1" in data_assignments["ch1"]["children"]
+    assert "q2" in data_assignments["ch1"]["children"]
+    assert "q2" in methods_assignments["ch1"]["children"]

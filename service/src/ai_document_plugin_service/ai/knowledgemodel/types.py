@@ -12,10 +12,10 @@ class QuestionnaireElement(ABC):
 
 
 class QuestionData(QuestionnaireElement):
-    def __init__(self, path: str, uuid: str, title: str, text: Optional[str],
+    def __init__(self, path: str, uuid: str, title: Optional[str], text: Optional[str],
                  parent_question: Optional['QuestionData'] = None,
                  parent_answer: Optional['OptionsAnswer'] = None,
-                 reply: str = None):
+                 reply: Optional[str] = None):
         self.path = path
         self.uuid = uuid
         self.title = title
@@ -90,8 +90,8 @@ class ListQuestion(QuestionData):
 
 
 class OptionsAnswer(QuestionnaireElement):
-    def __init__(self, path: str, uuid: str, label: str, followup_questions: list['QuestionData'],
-                 parent_question: 'OptionsQuestion'):
+    def __init__(self, path: str, uuid: str, label: Optional[str], followup_questions: list['QuestionData'],
+                 parent_question: Optional['OptionsQuestion'] = None):
         self.path = path
         self.uuid = uuid
         self.label = label
@@ -99,6 +99,8 @@ class OptionsAnswer(QuestionnaireElement):
         self.parent_question = parent_question
 
     def get_path(self):
+        if self.parent_question is None:
+            return self.uuid
         return self.parent_question.get_path() + "." + self.uuid
 
 

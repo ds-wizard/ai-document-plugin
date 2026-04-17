@@ -5,6 +5,11 @@ from json import JSONDecodeError
 
 from json_repair import repair_json
 from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionMessageParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+)
 
 from ai_document_plugin_service.ai.common import AssignmentStats
 from ai_document_plugin_service.ai.common.config import Config
@@ -39,9 +44,17 @@ class OpenAILayerMatcher(LayerMatcher):
         user_message = (self.config.assignment.user_message
                         .replace("{question_text}", question_chunk_xml)
                         .replace("{sections_list}", sections_xml))
-        messages = [
-            {"role": "system", "content": self.config.assignment.system_message},
-            {"role": "user", "content": user_message},
+        system_message: ChatCompletionSystemMessageParam = {
+            "role": "system",
+            "content": self.config.assignment.system_message,
+        }
+        user_prompt: ChatCompletionUserMessageParam = {
+            "role": "user",
+            "content": user_message,
+        }
+        messages: list[ChatCompletionMessageParam] = [
+            system_message,
+            user_prompt,
         ]
 
         def call_and_parse():

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Callable, TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def call_with_retry(fn: Callable[[], T], max_retries: int = 3, delay: float = 2.0) -> T:
     """Retry fn on connection or rate-limit errors."""
-    err = None
+    err: Exception | None = None
     for attempt in range(max_retries):
         try:
             return fn()
@@ -20,10 +20,12 @@ def call_with_retry(fn: Callable[[], T], max_retries: int = 3, delay: float = 2.
             if attempt < max_retries - 1:
                 logger.debug("Error calling LLM, retrying: %s", e)
                 time.sleep(delay)
-    raise err
+    if err is not None:
+        raise err
+    raise RuntimeError('call_with_retry finished without result or exception')
 
 
-def extract_usage_tokens(response) -> tuple[int, int]:
+def extract_usage_tokens(response: Any) -> tuple[int, int]:
     """
     :param response:
     :return: Input tokens, Output tokens
@@ -37,7 +39,7 @@ def extract_usage_tokens(response) -> tuple[int, int]:
     raise Exception("No token info provided in the API response")
 
 
-def add_usage(stats: "AssignmentStats", response) -> None:
+def add_usage(stats: 'AssignmentStats | None', response: Any) -> None:
     if stats is None:
         return
     input_tokens, output_tokens = extract_usage_tokens(response)

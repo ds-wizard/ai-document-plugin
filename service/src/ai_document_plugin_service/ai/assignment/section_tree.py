@@ -140,7 +140,10 @@ def _xml_node_to_string(node: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _format_section(section: SectionNode, parent_sections: list[SectionNode] = None) -> str:
+def _format_section(
+        section: SectionNode,
+        parent_sections: list[SectionNode] | None = None,
+) -> str:
     if parent_sections is None:
         parent_sections = []
 

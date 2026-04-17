@@ -1,6 +1,11 @@
 from typing import Any
 
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
+from ai_document_plugin_service.ai.assignment.types import (
+    AssignmentQuestionNode,
+    AssignmentTree,
+    SectionAssignment,
+    SectionRecord,
+)
 
 
 def convert_mappings_to_assignment_tree(
@@ -45,13 +50,13 @@ def convert_mappings_to_assignment_tree_recursive(
     return result
 
 
-def expand_assignment_paths(mappings: list[str], km: dict[str, Any]) -> dict[str, Any]:
+def expand_assignment_paths(mappings: list[str], km: dict[str, Any]) -> AssignmentTree:
     """
     Decompose flat dot-separated assignment paths into nested question nodes.
 
     This preserves the previous hierarchical output shape consumed by downstream steps.
     """
-    root: dict[str, Any] = {}
+    root: AssignmentTree = {}
     km_questions = km["entities"]["questions"]
     km_chapters = km["entities"]["chapters"]
     km_answers = km["entities"]["answers"]
@@ -78,7 +83,7 @@ def expand_assignment_paths(mappings: list[str], km: dict[str, Any]) -> dict[str
                 else:
                     raise Exception("Unexpected path as leaf: " + full_path)
 
-                node: dict[str, Any] = {
+                node: AssignmentQuestionNode = {
                     "question_path": full_path,
                     "question_title": question_data["title"],
                     "question_text": question_data["text"],

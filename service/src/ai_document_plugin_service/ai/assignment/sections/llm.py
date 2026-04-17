@@ -17,7 +17,7 @@ class SectionIdGenerator(ABC):
             self,
             leaf_sections: list[tuple[str, str]],
             stats: AssignmentStats,
-    ) -> dict[str, str] | None:
+    ) -> dict[str, str]:
         """Return section_key -> section_id, or None to use generated letter IDs."""
         pass
 
@@ -31,7 +31,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
             self,
             leaf_sections: list[tuple[str, str]],
             stats: AssignmentStats,
-    ) -> dict[str, str] | None:
+    ) -> dict[str, str]:
         """One LLM call per leaf section: generate a short meaningful unique id. Returns section_key -> id, or None if config not set (caller should use letter ids)."""
         system_msg = self.config.section_id.system_message
         user_tpl = self.config.section_id.user_message

@@ -1,6 +1,18 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, TypedDict
+
+
+class AssignmentQuestionNode(TypedDict, total=False):
+    question_path: str
+    question_title: str
+    question_text: str
+    children: dict[str, "AssignmentQuestionNode"]
+    include: bool
+    value: bool
+
+
+AssignmentTree = dict[str, AssignmentQuestionNode]
 
 
 class SectionNode:
@@ -29,7 +41,7 @@ class SectionRecord:
 class SectionAssignment:
     """Assignment result for one section. Either a leaf (assignments set) or a parent (children set)."""
     key: str
-    assignments: Optional[dict[str, bool]] = None  # leaf: matched questions
+    assignments: Optional[AssignmentTree] = None  # leaf: matched questions
     children: Optional[list["SectionAssignment"]] = None  # non-leaf: nested section assignments
 
     def to_dict(self) -> dict:

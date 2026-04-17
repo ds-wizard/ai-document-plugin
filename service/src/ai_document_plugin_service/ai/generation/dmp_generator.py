@@ -261,14 +261,14 @@ def _build_synthetic_question_item(key: str, replies: dict, km: dict) -> Optiona
     }
 
 
-def sanitize(text: str):
+def sanitize(text: str | None) -> str | None:
     """Replace newlines with spaces, pass through ``None`` unchanged."""
     if text is None:
         return None
     return text.replace("\n", " ")
 
 
-def _sanitize_table_cell(text: str) -> str:
+def _sanitize_table_cell(text: object | None) -> str:
     """Sanitize text for use in a markdown table cell (avoid breaking rows/columns)."""
     if text is None:
         return ""

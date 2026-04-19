@@ -59,6 +59,7 @@ ignore = [
     "TD002",
     "DOC201",
     "PLR0913",
+    "PLR0914",
     "PLR0917",
 ]
 preview = true

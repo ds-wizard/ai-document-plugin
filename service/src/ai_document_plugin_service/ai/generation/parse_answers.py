@@ -19,15 +19,10 @@ def parse_answer(answer: dict[str, Any], km: dict[str, Any]) -> str | None:
                 answer['value'],
             )
             return ''
-        return entity['label'] + (
-            f' ({entity["advice"]})' if entity['advice'] is not None else ''
-        )
+        return entity['label'] + (f' ({entity["advice"]})' if entity['advice'] is not None else '')
     if answer_type == 'MultiChoiceReply':
         return ', '.join(
-            [
-                km['entities']['choices'][answer_id]['label']
-                for answer_id in answer['value']
-            ],
+            [km['entities']['choices'][answer_id]['label'] for answer_id in answer['value']],
         )
     if answer_type == 'IntegrationReply':
         val = answer['value']

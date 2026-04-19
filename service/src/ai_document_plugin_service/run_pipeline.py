@@ -36,13 +36,7 @@ def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
             widths[index] = max(widths[index], len(cell))
 
     def format_row(row: list[str]) -> str:
-        return (
-            '| '
-            + ' | '.join(
-                cell.ljust(widths[index]) for index, cell in enumerate(row)
-            )
-            + ' |'
-        )
+        return '| ' + ' | '.join(cell.ljust(widths[index]) for index, cell in enumerate(row)) + ' |'
 
     separator = '| ' + ' | '.join('-' * width for width in widths) + ' |'
     lines = [format_row(headers), separator]
@@ -93,7 +87,8 @@ def run_pipeline() -> None:  # noqa: PLR0914
 
     # Save pre-polished version before step 4
     pathlib.Path(file_paths.output_pre_polish_markdown).write_text(
-        debug_markdown, encoding='utf-8',
+        debug_markdown,
+        encoding='utf-8',
     )
     logger.debug(
         'Saved pre-polished DMP to %s',
@@ -153,16 +148,19 @@ def run_pipeline() -> None:  # noqa: PLR0914
             '',
             table_md,
             '',
-            (f'*Model: {model_name}.'
-            f'Cost per million tokens: input {COST_PER_MIL_INPUT} USD,'
-            f'output {COST_PER_MIL_OUTPUT} USD.*'),
+            (
+                f'*Model: {model_name}.'
+                f'Cost per million tokens: input {COST_PER_MIL_INPUT} USD,'
+                f'output {COST_PER_MIL_OUTPUT} USD.*'
+            ),
             f'Total time: {t2 - t1}s',
         ],
     )
     full_markdown = markdown + summary_section
 
     pathlib.Path(file_paths.output_markdown).write_text(
-        full_markdown, encoding='utf-8',
+        full_markdown,
+        encoding='utf-8',
     )
 
     logger.debug('Saved DMP to %s', file_paths.output_markdown)

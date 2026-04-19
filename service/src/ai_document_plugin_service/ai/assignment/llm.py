@@ -120,9 +120,7 @@ class OpenAILayerMatcher(LayerMatcher):
             if section_list is None:
                 result[str(id_str)] = []
             elif isinstance(section_list, list):
-                result[str(id_str)] = [
-                    str(s).strip() for s in section_list if s
-                ]
+                result[str(id_str)] = [str(s).strip() for s in section_list if s]
             else:
                 result[str(id_str)] = []
         return result

@@ -36,11 +36,14 @@ def render_section_tree_as_xml(
     """
     leaf_index = [0]
 
-    root_children: list[dict[str, Any]] = [_section_record_to_xml_node(
-                section=section,
-                leaf_index=leaf_index,
-                section_key_to_id=section_key_to_id,
-            ) for section in sections]
+    root_children: list[dict[str, Any]] = [
+        _section_record_to_xml_node(
+            section=section,
+            leaf_index=leaf_index,
+            section_key_to_id=section_key_to_id,
+        )
+        for section in sections
+    ]
 
     xml_parts = ['<sections>']
     xml_parts.extend(_xml_node_to_string(child) for child in root_children)

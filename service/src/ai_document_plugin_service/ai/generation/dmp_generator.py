@@ -28,11 +28,7 @@ def _get_reply_keys_at_level(replies: dict[str, Any], prefix: str) -> list[str]:
         return [k for k in replies if '.' not in k]
     prefix_dot = prefix + '.'
     expected_dots = prefix.count('.') + 1
-    return [
-        k
-        for k in replies
-        if k.startswith(prefix_dot) and k.count('.') == expected_dots
-    ]
+    return [k for k in replies if k.startswith(prefix_dot) and k.count('.') == expected_dots]
 
 
 def get_wildcard_uuids(template: str, paths: Iterable[str]) -> list[str]:
@@ -379,17 +375,9 @@ def construct_chapter_prompt(
 
     def construct_question_answers(question: dict[str, Any], level: int) -> str:
         if question['type'] == 'wrapper':
-            groups = [
-                construct_question_answers(q, level + 1)
-                for q in question['children']
-            ]
+            groups = [construct_question_answers(q, level + 1) for q in question['children']]
             return '\t' * level + 'SUBQUESTIONS GROUP: \n' + ''.join(groups)
-        result = (
-            ('\t' * level)
-            + ' - Question: '
-            + (sanitize(question['question_title']) or '')
-            + '\n'
-        )
+        result = ('\t' * level) + ' - Question: ' + (sanitize(question['question_title']) or '') + '\n'
         if question.get('reply') is not None:
             result += ('\t' * level) + '   Answer: ' + question['reply'] + '\n'
         for child in question['children']:
@@ -438,10 +426,8 @@ def _flatten_matched_questions(
                     {
                         'section': section_key,
                         'question_path': item.get('question_path') or '',
-                        'question_title': sanitize(item.get('question_title'))
-                        or '',
-                        'question_text': sanitize(item.get('question_text'))
-                        or '',
+                        'question_title': sanitize(item.get('question_title')) or '',
+                        'question_text': sanitize(item.get('question_text')) or '',
                         'has_reply': reply is not None,
                         'reply': reply or '',
                     },
@@ -464,11 +450,7 @@ def _source_questions_table(rows: list[dict]) -> str:
     for col in df.columns:
         df[col] = df[col].apply(_sanitize_table_cell)
     # Make path column visually small but still copyable
-    df['question_path'] = (
-        '<span style="font-size: 0.65em">'
-        + df['question_path'].astype(str)
-        + '</span>'
-    )
+    df['question_path'] = '<span style="font-size: 0.65em">' + df['question_path'].astype(str) + '</span>'
     df = df.rename(
         columns={
             'question_path': 'Question path',
@@ -478,11 +460,7 @@ def _source_questions_table(rows: list[dict]) -> str:
         },
     )
     table_md = df.to_markdown(index=False)
-    return (
-        '<details>\n<summary>Source questions</summary>\n\n'
-        + table_md
-        + '\n\n</details>'
-    )
+    return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
 
 
 def _generate_section(
@@ -612,7 +590,8 @@ if __name__ == '__main__':
     )
 
     pathlib.Path(file_paths.output_markdown).write_text(
-        markdown, encoding='utf-8',
+        markdown,
+        encoding='utf-8',
     )
     logger.debug('DMP saved to %s', file_paths.output_markdown)
     logger.debug(

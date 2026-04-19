@@ -86,25 +86,18 @@ class TreeChunker:
         for path in self.paths:
             # Calculate tokens only for nodes not already in the current chunk
             new_tokens = sum(
-                self.node_registry[node_id]['tokens']
-                for node_id in path
-                if node_id not in current_chunk_ids
+                self.node_registry[node_id]['tokens'] for node_id in path if node_id not in current_chunk_ids
             )
 
             # If adding this path exceeds the limit (and the chunk isn't empty)
-            if (
-                current_tokens + new_tokens > self.max_tokens
-                and current_chunk_paths
-            ):
+            if current_tokens + new_tokens > self.max_tokens and current_chunk_paths:
                 # 1. Finalize the current chunk
                 chunks.append(self._reconstruct(current_chunk_paths))
 
                 # 2. Reset the tracking variables for the new chunk
                 current_chunk_paths = [path]
                 current_chunk_ids = set(path)
-                current_tokens = sum(
-                    self.node_registry[nid]['tokens'] for nid in path
-                )
+                current_tokens = sum(self.node_registry[nid]['tokens'] for nid in path)
             else:
                 # Add the path to the current chunk
                 current_chunk_paths.append(path)

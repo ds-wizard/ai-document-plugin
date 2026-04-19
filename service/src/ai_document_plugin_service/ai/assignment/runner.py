@@ -63,8 +63,7 @@ def run_assignment(
                 logger.debug('Path not found for question id %s', question_id)
                 continue
             result_mapping[question_path] = [
-                section_formatter.get_original_id(section_id)
-                for section_id in section_ids
+                section_formatter.get_original_id(section_id) for section_id in section_ids
             ]
 
     assignments = convert_mappings_to_assignment_tree(
@@ -82,7 +81,8 @@ def main() -> None:
     with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
         template_data = json.load(f)
     with pathlib.Path(file_paths.knowledge_model).open(
-        'r', encoding='utf-8',
+        'r',
+        encoding='utf-8',
     ) as f:
         km_data = json.load(f)
 

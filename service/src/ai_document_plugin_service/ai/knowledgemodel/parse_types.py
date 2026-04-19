@@ -264,12 +264,7 @@ def get_option_reply(
 ) -> str:
     """Get the reply for the question."""
     reply = replies.get(path, {}).get('value', {}).get('value', '')
-    return (
-        km.get('entities', {})
-        .get('answers', {})
-        .get(reply, {})
-        .get('label', '')
-    )
+    return km.get('entities', {}).get('answers', {}).get(reply, {}).get('label', '')
 
 
 def parse_multi_choice_question(
@@ -287,10 +282,7 @@ def parse_multi_choice_question(
         uuid=question_uuid,
         title=question['title'],
         text=question.get('text'),
-        choices=[
-            parse_choice(choice_uuid, km)
-            for choice_uuid in question.get('choiceUuids', [])
-        ],
+        choices=[parse_choice(choice_uuid, km) for choice_uuid in question.get('choiceUuids', [])],
         parent_question=parent_question,
         parent_answer=parent_answer,
     )
@@ -311,11 +303,7 @@ def get_multichoice_reply(
     """Get the reply for the question."""
     reply_values = replies.get(path, {}).get('value', {}).get('value', '')
     return [
-        km.get('entities', {})
-        .get('answers', {})
-        .get(reply_value, {})
-        .get('label', '')
-        for reply_value in reply_values
+        km.get('entities', {}).get('answers', {}).get(reply_value, {}).get('label', '') for reply_value in reply_values
     ]
 
 

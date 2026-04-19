@@ -36,10 +36,7 @@ def build_question_chunks(
     child_questions = root.accept(DirectSubquestionVisitor()) or []
 
     question_id_to_path: dict[str, str] = {}
-    xml_nodes = [
-        _question_to_xml_node(question, question_id_to_path)
-        for question in child_questions
-    ]
+    xml_nodes = [_question_to_xml_node(question, question_id_to_path) for question in child_questions]
     tree_root = {'tag': 'root', 'children': xml_nodes}
 
     chunker = TreeChunker(tree_root, max_tokens=max_chunk_tokens)
@@ -48,9 +45,7 @@ def build_question_chunks(
     for chunk in chunks:
         parts: list[str] = []
         for chunk_root in chunk:
-            parts.extend(
-                _xml_node_to_string(child) for child in chunk_root['children']
-            )
+            parts.extend(_xml_node_to_string(child) for child in chunk_root['children'])
         chunk_xml.append('\n'.join(parts))
 
     return chunk_xml, question_id_to_path
@@ -82,10 +77,7 @@ def _question_to_xml_node(
     node: dict[str, Any] = {
         'tag': tag,
         'title': title,
-        'children': [
-            _question_to_xml_node(child, question_id_to_path)
-            for child in child_questions
-        ],
+        'children': [_question_to_xml_node(child, question_id_to_path) for child in child_questions],
     }
     if text:
         node['text'] = text
@@ -106,11 +98,7 @@ def _xml_node_to_string(node: dict[str, Any]) -> str:
     title = node.get('title', '')
     text = node.get('text')
     children = node.get('children', [])
-    attrs = (
-        f' id="{escape(str(node["id"]))}"'
-        if tag == 'question' and 'id' in node
-        else ''
-    )
+    attrs = f' id="{escape(str(node["id"]))}"' if tag == 'question' and 'id' in node else ''
 
     parts = [f'<{tag}{attrs}>']
     if title:

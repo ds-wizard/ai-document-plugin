@@ -43,17 +43,13 @@ class SectionAssignment:
 
     key: str
     assignments: AssignmentTree | None = None  # leaf: matched questions
-    children: list['SectionAssignment'] | None = (
-        None  # non-leaf: nested section assignments
-    )
+    children: list['SectionAssignment'] | None = None  # non-leaf: nested section assignments
 
     def to_dict(self) -> dict:
         return {
             'key': self.key,
             'assignments': self.assignments or None,
-            'children': [c.to_dict() for c in self.children]
-            if self.children
-            else None,
+            'children': [c.to_dict() for c in self.children] if self.children else None,
         }
 
 

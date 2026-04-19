@@ -91,7 +91,8 @@ if __name__ == '__main__':
     )
 
     pathlib.Path(file_paths.output_markdown).write_text(
-        polished, encoding='utf-8',
+        polished,
+        encoding='utf-8',
     )
 
     logger.debug('Polished DMP saved to %s', file_paths.output_markdown)

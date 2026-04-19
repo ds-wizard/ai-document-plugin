@@ -75,8 +75,7 @@ def _get_log_level(config: dict) -> str:
     allowed_levels = {'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'NOTSET'}
     if level not in allowed_levels:
         raise ValueError(
-            "Invalid config value: 'logging.level' must be one of "
-            + ', '.join(sorted(allowed_levels)),
+            "Invalid config value: 'logging.level' must be one of " + ', '.join(sorted(allowed_levels)),
         )
     return level
 

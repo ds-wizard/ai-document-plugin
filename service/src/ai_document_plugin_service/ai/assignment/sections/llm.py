@@ -14,9 +14,9 @@ from ai_document_plugin_service.ai.common.types import AssignmentStats
 class SectionIdGenerator(ABC):
     @abstractmethod
     def generate_leaf_section_ids(
-        self,
-        leaf_sections: list[tuple[str, str]],
-        stats: AssignmentStats,
+            self,
+            leaf_sections: list[tuple[str, str]],
+            stats: AssignmentStats,
     ) -> dict[str, str]:
         """Return section_key -> section_id, or None to use generated letter IDs."""
 
@@ -27,9 +27,9 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
         self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
 
     def generate_leaf_section_ids(
-        self,
-        leaf_sections: list[tuple[str, str]],
-        stats: AssignmentStats,
+            self,
+            leaf_sections: list[tuple[str, str]],
+            stats: AssignmentStats,
     ) -> dict[str, str]:
         """Generate one short unique ID per leaf section.
 
@@ -81,7 +81,23 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
 def _normalize_section_id(raw: str) -> str:
     """Short alphanumeric + hyphen/underscore id, or empty if nothing usable."""
     s = (
-        ''.join(c for c in raw if c.isalnum() or c in '-_').strip('-_')
-        or raw[:12]
+            ''.join(c for c in raw if c.isalnum() or c in '-_').strip('-_')
+            or raw[:12]
     )
     return s[:24] if s else ''
+
+
+class LoggingNoopSectionIdGenerator(SectionIdGenerator):
+    def __init__(self, config: Config):
+        self.config = config
+        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
+
+    def generate_leaf_section_ids(
+            self,
+            leaf_sections: list[tuple[str, str]],
+            stats: AssignmentStats,
+    ) -> dict[str, str] | None:
+        res = {}
+        for i, (section_key, _) in tqdm(enumerate(leaf_sections)):
+            res[section_key] = section_key + str(i)
+        return res

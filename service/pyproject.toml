@@ -18,6 +18,14 @@ classifiers = [
 requires-python = ">=3.13, <4"
 dependencies = [
     "fastapi>=0.120,<1.0",
+    "genson",
+    "json-repair",
+    "openai",
+    "pandas",
+    "pyyaml",
+    "tabulate",
+    "tiktoken",
+    "tqdm",
 ]
 
 [dependency-groups]
@@ -25,6 +33,7 @@ dev = [
     "uvicorn",
     "ruff",
     "ty",
+    "pytest",
 ]
 
 [build-system]
@@ -36,7 +45,7 @@ module-root = "src"
 
 [tool.ruff]
 target-version = "py313"
-line-length = 80
+line-length = 120
 indent-width = 4
 include = ["src/**/*.py"]
 
@@ -46,6 +55,13 @@ ignore = [
     "D",
     "CPY",
     "PGH003",
+    "FIX002",
+    "TD002",
+    "DOC201",
+    "PLR0913",
+    "PLR0914",
+    "PLR0917",
+    "COM812"
 ]
 preview = true
 

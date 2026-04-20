@@ -25,6 +25,7 @@ from ai_document_plugin_service.ai.assignment.sections.sections_formatter import
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config, load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parse_types import (
     parse_questionnaire,
 )
@@ -77,14 +78,12 @@ def run_assignment(
 def main() -> None:
     config = load_config()
     file_paths = config.files
+    questionnaire_uuid = config.questionnaire_uuid
+    token = config.token
 
     with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
         template_data = json.load(f)
-    with pathlib.Path(file_paths.knowledge_model).open(
-        'r',
-        encoding='utf-8',
-    ) as f:
-        km_data = json.load(f)
+    km_data = get_questionnaire_detail(questionnaire_uuid, token)
 
     top_questions = parse_questionnaire(km_data)
     assignments, stats = run_assignment(

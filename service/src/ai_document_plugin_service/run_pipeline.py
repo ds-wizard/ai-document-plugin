@@ -14,6 +14,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator import (
     generate_dmp_markdown,
 )
 from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
 
 # Cost per million tokens (USD) - adjust for your model
@@ -44,15 +45,15 @@ def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return '\n'.join(lines)
 
 
-def run_pipeline() -> None:
+def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     t1 = time.time()
     config = load_config()
     configure_logging(config.log_level)
     model_name = config.model
     file_paths = config.files
 
-    with pathlib.Path(file_paths.knowledge_model).open(encoding='utf-8') as f:
-        km_data = json.load(f)
+    km_data = get_questionnaire_detail(questionnaire_uuid, token)
+
     with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
         template_data = json.load(f)
 
@@ -184,4 +185,8 @@ def run_pipeline() -> None:
 
 
 if __name__ == '__main__':
-    run_pipeline()
+    config = load_config()
+    questionnaire_uuid = config.questionnaire_uuid
+    token = config.token
+
+    run_pipeline(questionnaire_uuid, token)

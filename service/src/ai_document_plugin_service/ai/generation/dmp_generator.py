@@ -10,6 +10,7 @@ import pandas as pd
 
 from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
     OpenAIGenerationLLM,
@@ -576,8 +577,8 @@ if __name__ == '__main__':
     ) as f:
         data = json.load(f)
     selection = data['assignments']
-    with pathlib.Path(file_paths.knowledge_model).open(encoding='utf-8') as f:
-        dmp = json.load(f)
+    dmp = get_questionnaire_detail(questionnaire_uuid, token)
+
     replies = dmp['replies']
     km = dmp['knowledgeModel']
 

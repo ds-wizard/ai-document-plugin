@@ -4,12 +4,16 @@ llm_response_generation:
   api_url: https://llm.ai.e-infra.cz/v1/
   api_key: "xxx"
 
+dsw:
+  api_url: ""
+  questionnaire_uuid: ""
+  token: ""
+
 logging:
   level: "INFO"
 
 files:
   dmp_template: "jsons/he-template.json"
-  knowledge_model: ""
   config_path: "config.yaml"
   prompts_path: "prompts.yaml"
   assignments_output: "question_section_assignments_OpenAILayerMatcher.json"

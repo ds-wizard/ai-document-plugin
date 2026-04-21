@@ -16,6 +16,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator import (
 from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
+from haystack import Pipeline
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -60,6 +61,8 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     replies = km_data['replies']
     km = km_data['knowledgeModel']
     all_stats: list[tuple[str, AssignmentStats]] = []
+
+    pipeline = Pipeline()
 
     # Step 1: Hierarchical assignment (returns assignments)
     logger.debug('Step 1: Assigning questions to sections...')

@@ -26,7 +26,7 @@ from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config, load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
-from ai_document_plugin_service.ai.knowledgemodel.parse_types import (
+from ai_document_plugin_service.ai.knowledgemodel.parser_component import (
     parse_questionnaire,
 )
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData

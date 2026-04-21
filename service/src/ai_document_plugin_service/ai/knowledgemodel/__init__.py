@@ -1,5 +1,5 @@
 from .direct_subquestion_visitor import DirectSubquestionVisitor
-from .parse_types import parse_questionnaire
+from .parser_component import parse_questionnaire
 from .question_visitor import QuestionVisitor
 from .types import (
     BlankQuestion,

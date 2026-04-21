@@ -1,8 +1,10 @@
 import json
 import logging
 import pathlib
+from email.parser import Parser
 from typing import Any
 
+from haystack import component
 from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
@@ -27,53 +29,59 @@ from ai_document_plugin_service.ai.common.config import Config, load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import (
-    parse_questionnaire,
+    parse_questionnaire, ParserComponent,
 )
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
 logger = logging.getLogger(__name__)
 
 
-def run_assignment(
-    template_data: dict[str, Any],
-    top_questions: list[QuestionData],
-    config: Config,
-    km: dict[str, Any],
-) -> tuple[list[SectionAssignment], AssignmentStats]:
-    """Assign KM questions to template sections using the configured matcher."""
-    sections = build_section_records(template_data)
-    question_chunks, question_id_to_path = build_question_chunks(top_questions)
-    matcher = OpenAILayerMatcher(config)
-    stats = AssignmentStats()
 
-    section_formatter = SectionFormatter(sections)
-    section_formatter.create_mappings(OpenAISectionIdGenerator(config), stats)
-    sections_xml = section_formatter.get_sections_as_xml()
+@component
+class AssignmentComponent:
+    @component.output_types(data=tuple[list[SectionAssignment], AssignmentStats])
+    def run(self,
+            template_data: dict[str, Any],
+            top_questions: list[QuestionData],
+            config: Config,
+            km: dict[str, Any],):
+        """Assign KM questions to template sections using the configured matcher."""
+        sections = build_section_records(template_data)
+        question_chunks, question_id_to_path = build_question_chunks(top_questions)
+        matcher = OpenAILayerMatcher(config)
+        stats = AssignmentStats()
 
-    result_mapping = {}
-    for question_chunk in tqdm(question_chunks, desc='Question chunks'):
-        question_to_section_ids = matcher.match_questions_to_sections(
-            sections_xml,
-            question_chunk,
-            stats,
+        section_formatter = SectionFormatter(sections)
+        section_formatter.create_mappings(OpenAISectionIdGenerator(config), stats)
+        sections_xml = section_formatter.get_sections_as_xml()
+
+        result_mapping = {}
+        for question_chunk in tqdm(question_chunks, desc='Question chunks'):
+            question_to_section_ids = matcher.match_questions_to_sections(
+                sections_xml,
+                question_chunk,
+                stats,
+            )
+
+            for question_id, section_ids in question_to_section_ids.items():
+                question_path = question_id_to_path.get(question_id)
+                if not question_path:
+                    logger.debug('Path not found for question id %s', question_id)
+                    continue
+                result_mapping[question_path] = [
+                    section_formatter.get_original_id(section_id) for section_id in section_ids
+                ]
+
+        assignments = convert_mappings_to_assignment_tree(
+            sections,
+            result_mapping,
+            km,
         )
 
-        for question_id, section_ids in question_to_section_ids.items():
-            question_path = question_id_to_path.get(question_id)
-            if not question_path:
-                logger.debug('Path not found for question id %s', question_id)
-                continue
-            result_mapping[question_path] = [
-                section_formatter.get_original_id(section_id) for section_id in section_ids
-            ]
-
-    assignments = convert_mappings_to_assignment_tree(
-        sections,
-        result_mapping,
-        km,
-    )
-    return assignments, stats
-
+        return {
+            "assignments": assignments,
+            "stats": stats
+        }
 
 def main() -> None:
     config = load_config()
@@ -85,8 +93,10 @@ def main() -> None:
         template_data = json.load(f)
     km_data = get_questionnaire_detail(questionnaire_uuid, token)
 
-    top_questions = parse_questionnaire(km_data)
-    assignments, stats = run_assignment(
+    parser_component = ParserComponent()
+    top_questions = parser_component.run(km_data)
+    assignment_component = AssignmentComponent()
+    assignments, stats = assignment_component.run(
         template_data,
         top_questions,
         config,

@@ -66,10 +66,16 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
     assignment_saver = AssignmentSaverComponent()
+
+    # COMPONENTS
     pipeline.add_component("parser_component", parser_component)
     pipeline.add_component("assignment_component", assignment_component)
     pipeline.add_component("assignment_saver_component", assignment_saver)
+
+    # CONNECTIONS
+    # parser_component -> assignment_component
     pipeline.connect('parser_component.data', 'assignment_component.data')
+    # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
 

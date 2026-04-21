@@ -1,5 +1,5 @@
 from .direct_subquestion_visitor import DirectSubquestionVisitor
-from .parser_component import parse_questionnaire
+from .parser_component import ParserComponent
 from .question_visitor import QuestionVisitor
 from .types import (
     BlankQuestion,
@@ -29,5 +29,5 @@ __all__ = [
     'QuestionVisitor',
     'QuestionnaireElement',
     'ValueQuestion',
-    'parse_questionnaire',
+    'ParserComponent',
 ]

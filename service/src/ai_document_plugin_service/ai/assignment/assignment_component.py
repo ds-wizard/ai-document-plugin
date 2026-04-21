@@ -28,9 +28,7 @@ from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config, load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
-from ai_document_plugin_service.ai.knowledgemodel.parser_component import (
-    parse_questionnaire, ParserComponent,
-)
+from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
 logger = logging.getLogger(__name__)
@@ -39,15 +37,15 @@ logger = logging.getLogger(__name__)
 
 @component
 class AssignmentComponent:
-    @component.output_types(data=tuple[list[SectionAssignment], AssignmentStats])
+    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     def run(self,
+            data: list[QuestionData],
             template_data: dict[str, Any],
-            top_questions: list[QuestionData],
             config: Config,
             km: dict[str, Any],):
         """Assign KM questions to template sections using the configured matcher."""
         sections = build_section_records(template_data)
-        question_chunks, question_id_to_path = build_question_chunks(top_questions)
+        question_chunks, question_id_to_path = build_question_chunks(data)
         matcher = OpenAILayerMatcher(config)
         stats = AssignmentStats()
 
@@ -94,14 +92,16 @@ def main() -> None:
     km_data = get_questionnaire_detail(questionnaire_uuid, token)
 
     parser_component = ParserComponent()
-    top_questions = parser_component.run(km_data)
+    top_questions = parser_component.run(km_data)['data']
     assignment_component = AssignmentComponent()
-    assignments, stats = assignment_component.run(
-        template_data,
-        top_questions,
-        config,
-        km_data['knowledgeModel'],
+    result = assignment_component.run(
+        data=top_questions,
+        template_data=template_data,
+        config=config,
+        km=km_data['knowledgeModel'],
     )
+    assignments = result['assignments']
+    stats = result['stats']
     save_assignments(assignments, file_paths.assignments_output, stats=stats)
 
     logger.debug('Saved assignments to %s', file_paths.assignments_output)

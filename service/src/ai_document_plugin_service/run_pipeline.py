@@ -3,7 +3,7 @@ import logging
 import pathlib
 import time
 
-from ai_document_plugin_service.ai.assignment import run_assignment, AssignmentComponent
+from ai_document_plugin_service.ai.assignment import AssignmentComponent
 from ai_document_plugin_service.ai.assignment.io import save_assignments
 from ai_document_plugin_service.ai.common import (
     AssignmentStats,
@@ -13,7 +13,6 @@ from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.generation.dmp_generator import (
     generate_dmp_markdown,
 )
-from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
@@ -66,9 +65,19 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     pipeline = Pipeline()
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
-    pipeline.add_component(parser_component)
-    pipeline.add_component(assignment_component)
-    pipeline.run()
+    pipeline.add_component("parser_component", parser_component)
+    pipeline.add_component("assignment_component", assignment_component)
+    pipeline.connect('parser_component.data', 'assignment_component.data')
+    pipeline.run(
+        data={
+            'parser_component': {'data': km_data},
+            'assignment_component': {
+                'template_data': template_data,
+                'config': config,
+                'km': km,
+            },
+        },
+    )
 
     # # Step 1: Hierarchical assignment (returns assignments)
     # logger.debug('Step 1: Assigning questions to sections...')

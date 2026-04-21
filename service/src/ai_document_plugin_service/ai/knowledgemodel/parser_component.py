@@ -35,7 +35,7 @@ class ParserComponent:
         for chapter_dict in self._iterate_km_chapters():
             parsed_chapter = self.parse_chapter(chapter_dict['uuid'], replies)
             top_level_questions.append(parsed_chapter)
-        return top_level_questions
+        return {'data': top_level_questions}
 
     def _iterate_km_chapters(self) -> Iterator[dict]:
         for chapter_uuid in self.km['chapterUuids']:
@@ -382,4 +382,3 @@ class ParserComponent:
             )
         error_message = f'Unknown question type: {question_type}'
         raise ValueError(error_message)
-

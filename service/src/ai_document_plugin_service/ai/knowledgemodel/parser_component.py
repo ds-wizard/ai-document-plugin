@@ -24,25 +24,27 @@ QUESTION_TYPES = [
 
 @component
 class ParserComponent:
-    @component.output_types(text=str)
+    def __init__(self) -> None:
+        self.km: dict = {}
+
+    @component.output_types(data=list[QuestionData])
     def run(self, data: dict):
-        km = data['knowledgeModel']
+        self.km = data['knowledgeModel']
         replies = data['replies']
         top_level_questions: list[QuestionData] = []
-        for chapter_dict in self._iterate_km_chapters(km):
-            parsed_chapter = self.parse_chapter(chapter_dict['uuid'], km, replies)
+        for chapter_dict in self._iterate_km_chapters():
+            parsed_chapter = self.parse_chapter(chapter_dict['uuid'], replies)
             top_level_questions.append(parsed_chapter)
         return top_level_questions
 
+    def _iterate_km_chapters(self) -> Iterator[dict]:
+        for chapter_uuid in self.km['chapterUuids']:
+            yield self.km['entities']['chapters'][chapter_uuid]
 
-    def _iterate_km_chapters(km: dict) -> Iterator[dict]:
-        for chapter_uuid in km['chapterUuids']:
-            yield km['entities']['chapters'][chapter_uuid]
 
-
-    def parse_chapter(self, chapter_uuid: str, km: dict, replies: dict) -> Chapter:
+    def parse_chapter(self, chapter_uuid: str, replies: dict) -> Chapter:
         """Parse a Chapter from the knowledge model."""
-        chapter_data = km['entities']['chapters'][chapter_uuid]
+        chapter_data = self.km['entities']['chapters'][chapter_uuid]
 
         # Create chapter first (without questions)
         chapter = Chapter(
@@ -57,7 +59,6 @@ class ParserComponent:
         questions = [
             self.parse_question(
                 question_uuid,
-                km,
                 replies,
                 chapter.uuid + '.' + question_uuid,
                 parent_question=chapter,
@@ -69,22 +70,21 @@ class ParserComponent:
         return chapter
 
 
-    def parse_choice(self, choice_uuid: str, km: dict) -> Choice:
+    def parse_choice(self, choice_uuid: str) -> Choice:
         """Parse a Choice from the knowledge model."""
-        choice_data = km['entities']['choices'][choice_uuid]
+        choice_data = self.km['entities']['choices'][choice_uuid]
         return Choice(label=choice_data['label'], uuid=choice_uuid)
 
 
     def parse_options_answer(
         self,
         answer_uuid: str,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: OptionsQuestion | None = None,
     ) -> OptionsAnswer:
         """Parse an OptionsAnswer from the knowledge model."""
-        answer_data = km['entities']['answers'][answer_uuid]
+        answer_data = self.km['entities']['answers'][answer_uuid]
 
         # Create answer first (without followups)
         answer = OptionsAnswer(
@@ -98,7 +98,6 @@ class ParserComponent:
         followup_questions = [
             self.parse_question(
                 question_uuid,
-                km,
                 replies,
                 parent_question=None,
                 parent_answer=answer,
@@ -115,7 +114,6 @@ class ParserComponent:
         self,
         question_uuid: str,
         question: dict,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: QuestionData | None = None,
@@ -131,14 +129,13 @@ class ParserComponent:
             parent_answer=parent_answer,
         )
 
-        value_question.reply = self.get_value_reply(km, replies, value_question, path)
+        value_question.reply = self.get_value_reply(replies, value_question, path)
 
         return value_question
 
 
     def get_value_reply(
         self,
-        _km: dict,
         replies: dict,
         _question: QuestionData,
         path: str,
@@ -151,7 +148,6 @@ class ParserComponent:
         self,
         question_uuid: str,
         question: dict,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: QuestionData | None = None,
@@ -168,7 +164,6 @@ class ParserComponent:
         )
 
         integration_question.reply = self.get_integration_reply(
-            km,
             replies,
             integration_question,
             path,
@@ -179,7 +174,6 @@ class ParserComponent:
 
     def get_integration_reply(
         self,
-        _km: dict,
         replies: dict,
         _question: QuestionData,
         path: str,
@@ -192,7 +186,6 @@ class ParserComponent:
         self,
         question_uuid: str,
         question: dict,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: QuestionData | None = None,
@@ -211,7 +204,6 @@ class ParserComponent:
         questions = [
             self.parse_question(
                 nested_question_uuid,
-                km,
                 replies,
                 path + '.*.' + nested_question_uuid,
                 parent_question=list_question,
@@ -227,7 +219,6 @@ class ParserComponent:
         self,
         question_uuid: str,
         question: dict,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: QuestionData | None = None,
@@ -248,7 +239,6 @@ class ParserComponent:
         answers = [
             self.parse_options_answer(
                 answer_uuid,
-                km,
                 replies,
                 path + '.' + answer_uuid,
                 parent_question=options_question,
@@ -259,7 +249,6 @@ class ParserComponent:
         options_question.answers = answers
 
         options_question.reply = self.get_option_reply(
-            km,
             replies,
             options_question,
             path,
@@ -270,21 +259,19 @@ class ParserComponent:
 
     def get_option_reply(
         self,
-        km: dict,
         replies: dict,
         _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
         reply = replies.get(path, {}).get('value', {}).get('value', '')
-        return km.get('entities', {}).get('answers', {}).get(reply, {}).get('label', '')
+        return self.km.get('entities', {}).get('answers', {}).get(reply, {}).get('label', '')
 
 
     def parse_multi_choice_question(
         self,
         question_uuid: str,
         question: dict,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: QuestionData | None = None,
@@ -296,13 +283,13 @@ class ParserComponent:
             uuid=question_uuid,
             title=question['title'],
             text=question.get('text'),
-            choices=[self.parse_choice(choice_uuid, km) for choice_uuid in question.get('choiceUuids', [])],
+            choices=[self.parse_choice(choice_uuid) for choice_uuid in question.get('choiceUuids', [])],
             parent_question=parent_question,
             parent_answer=parent_answer,
         )
 
         multichoice_question.reply = '\n'.join(
-            self.get_multichoice_reply(km, replies, multichoice_question, path),
+            self.get_multichoice_reply(replies, multichoice_question, path),
         )
 
         return multichoice_question
@@ -310,7 +297,6 @@ class ParserComponent:
 
     def get_multichoice_reply(
         self,
-        km: dict,
         replies: dict,
         _question: QuestionData,
         path: str,
@@ -318,14 +304,14 @@ class ParserComponent:
         """Get the reply for the question."""
         reply_values = replies.get(path, {}).get('value', {}).get('value', '')
         return [
-            km.get('entities', {}).get('answers', {}).get(reply_value, {}).get('label', '') for reply_value in reply_values
+            self.km.get('entities', {}).get('answers', {}).get(reply_value, {}).get('label', '')
+            for reply_value in reply_values
         ]
 
 
     def parse_question(
         self,
         question_uuid: str,
-        km: dict,
         replies: dict,
         path: str,
         parent_question: QuestionData | None = None,
@@ -335,7 +321,6 @@ class ParserComponent:
 
         Args:
             question_uuid: UUID of the question to parse
-            km: Knowledge model dictionary
             parent_question: Optional parent question for nested questions or
                 chapter-level questions
             parent_answer: Optional parent answer (for followup questions)
@@ -347,14 +332,13 @@ class ParserComponent:
             ValueError: If the question type is unknown.
 
         """
-        question = km['entities']['questions'][question_uuid]
+        question = self.km['entities']['questions'][question_uuid]
         question_type = question.get('questionType')
 
         if question_type == 'ValueQuestion':
             return self.parse_value_question(
                 question_uuid,
                 question,
-                km,
                 replies,
                 path,
                 parent_question,
@@ -364,7 +348,6 @@ class ParserComponent:
             return self.parse_list_question(
                 question_uuid,
                 question,
-                km,
                 replies,
                 path,
                 parent_question,
@@ -374,7 +357,6 @@ class ParserComponent:
             return self.parse_options_question(
                 question_uuid,
                 question,
-                km,
                 replies,
                 path,
                 parent_question,
@@ -384,7 +366,6 @@ class ParserComponent:
             return self.parse_multi_choice_question(
                 question_uuid,
                 question,
-                km,
                 replies,
                 path,
                 parent_question,
@@ -394,7 +375,6 @@ class ParserComponent:
             return self.parse_integration_question(
                 question_uuid,
                 question,
-                km,
                 replies,
                 path,
                 parent_question,
@@ -402,3 +382,4 @@ class ParserComponent:
             )
         error_message = f'Unknown question type: {question_type}'
         raise ValueError(error_message)
+

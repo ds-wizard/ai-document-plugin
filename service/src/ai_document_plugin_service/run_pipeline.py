@@ -10,9 +10,7 @@ from ai_document_plugin_service.ai.common import (
     configure_logging,
 )
 from ai_document_plugin_service.ai.common.config import load_config
-from ai_document_plugin_service.ai.generation.dmp_generator import (
-    generate_dmp_markdown,
-)
+from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
@@ -60,17 +58,20 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
+    # TODO - it is not appending individual stats
     all_stats: list[tuple[str, AssignmentStats]] = []
 
     pipeline = Pipeline()
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
-    assignment_saver = AssignmentSaverComponent()
+    assignment_saver_component = AssignmentSaverComponent()
+    dmp_generator_component = DmpGeneratorComponent()
 
     # COMPONENTS
     pipeline.add_component("parser_component", parser_component)
     pipeline.add_component("assignment_component", assignment_component)
-    pipeline.add_component("assignment_saver_component", assignment_saver)
+    pipeline.add_component("assignment_saver_component", assignment_saver_component)
+    pipeline.add_component("dmp_generator_component", dmp_generator_component)
 
     # CONNECTIONS
     # parser_component -> assignment_component
@@ -78,7 +79,11 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
+    # assignment_saver_component -> dmp_generator_component
+    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
 
+    # OTHER INPUTS
+    stats3 = AssignmentStats()
     pipeline.run(
         data={
             'parser_component': {'data': km_data},
@@ -89,6 +94,11 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
             },
             'assignment_saver_component': {
                 'output_path': file_paths.assignments_output
+            },
+            'dmp_generator_component': {
+                'replies': replies,
+                'km': km,
+                'stats': stats3
             }
         },
     )

@@ -10,7 +10,6 @@ from tqdm import tqdm
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
 )
-from ai_document_plugin_service.ai.assignment.io import save_assignments
 from ai_document_plugin_service.ai.assignment.llm import OpenAILayerMatcher
 from ai_document_plugin_service.ai.assignment.question_tree import (
     build_question_chunks,
@@ -34,7 +33,6 @@ from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 logger = logging.getLogger(__name__)
 
 
-
 @component
 class AssignmentComponent:
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
@@ -44,6 +42,8 @@ class AssignmentComponent:
             config: Config,
             km: dict[str, Any],):
         """Assign KM questions to template sections using the configured matcher."""
+        logger.debug('Step 1: Assigning questions to sections...')
+
         sections = build_section_records(template_data)
         question_chunks, question_id_to_path = build_question_chunks(data)
         matcher = OpenAILayerMatcher(config)

@@ -4,7 +4,7 @@ import pathlib
 import time
 
 from ai_document_plugin_service.ai.assignment import AssignmentComponent
-from ai_document_plugin_service.ai.assignment.io import save_assignments
+from ai_document_plugin_service.ai.assignment.assignment_saver_component import AssignmentSaverComponent
 from ai_document_plugin_service.ai.common import (
     AssignmentStats,
     configure_logging,
@@ -65,9 +65,14 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     pipeline = Pipeline()
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
+    assignment_saver = AssignmentSaverComponent()
     pipeline.add_component("parser_component", parser_component)
     pipeline.add_component("assignment_component", assignment_component)
+    pipeline.add_component("assignment_saver_component", assignment_saver)
     pipeline.connect('parser_component.data', 'assignment_component.data')
+    pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
+    pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
+
     pipeline.run(
         data={
             'parser_component': {'data': km_data},
@@ -76,6 +81,9 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
                 'config': config,
                 'km': km,
             },
+            'assignment_saver_component': {
+                'output_path': file_paths.assignments_output
+            }
         },
     )
 

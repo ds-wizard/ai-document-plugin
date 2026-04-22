@@ -91,23 +91,17 @@ def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> Non
                 'config': config,
                 'km': km,
             },
-            'assignment_saver_component': {
-                'output_path': file_paths.assignments_output
-            },
+            'assignment_saver_component': {'output_path': file_paths.assignments_output},
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
             },
-            'prepolished_saver_component': {
-                'file_path': file_paths.output_pre_polish_markdown
-            },
+            'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
             'dmp_polisher_component': {
                 'config_path': file_paths.config_path,
                 'template_data': template_data,
             },
-            'polished_saver_component': {
-                'file_path': file_paths.output_markdown
-            }
+            'polished_saver_component': {'file_path': file_paths.output_markdown},
         },
         include_outputs_from={
             'assignment_saver_component',

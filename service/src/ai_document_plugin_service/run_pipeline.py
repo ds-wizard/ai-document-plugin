@@ -11,6 +11,7 @@ from ai_document_plugin_service.ai.common import (
 )
 from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
+from ai_document_plugin_service.ai.generation.file_saver_component import FileSaverComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
@@ -66,12 +67,16 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     assignment_component = AssignmentComponent()
     assignment_saver_component = AssignmentSaverComponent()
     dmp_generator_component = DmpGeneratorComponent()
+    prepolished_saver_component = FileSaverComponent()
+    polished_saver_component = FileSaverComponent()
+
 
     # COMPONENTS
     pipeline.add_component("parser_component", parser_component)
     pipeline.add_component("assignment_component", assignment_component)
     pipeline.add_component("assignment_saver_component", assignment_saver_component)
     pipeline.add_component("dmp_generator_component", dmp_generator_component)
+    pipeline.add_component("prepolished_saver_component", prepolished_saver_component)
 
     # CONNECTIONS
     # parser_component -> assignment_component
@@ -81,6 +86,10 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
+    # dmp_generator_component -> prepolished_saver_component
+    pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
+    pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
+
 
     # OTHER INPUTS
     stats3 = AssignmentStats()
@@ -99,6 +108,9 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
                 'replies': replies,
                 'km': km,
                 'stats': stats3
+            },
+            'prepolished_saver_component': {
+                'file_path': file_paths.output_pre_polish_markdown
             }
         },
     )

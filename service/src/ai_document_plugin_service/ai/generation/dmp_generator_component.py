@@ -4,7 +4,7 @@ import math
 import pathlib
 import re
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 DEPTH_INCLUDE_ALL_ANSWERS = 2
 
 
+class DmpGeneratorComponentResult(TypedDict):
+    markdown: str
+    debug_markdown: str
+    stats: AssignmentStats
+
+
 @component
 class DmpGeneratorComponent:
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
@@ -34,7 +40,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM | None = None,
-    ) -> dict[str, str | AssignmentStats]:
+    ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
         Returns (markdown, debug_markdown, stats). Use markdown for the polished DMP;
@@ -597,7 +603,7 @@ if __name__ == '__main__':
     km = dmp['knowledgeModel']
 
     dmp_generator_component = DmpGeneratorComponent()
-    result = dmp_generator_component.run(
+    result: DmpGeneratorComponentResult = dmp_generator_component.run(
         assignments=selection,
         replies=replies,
         km=km,

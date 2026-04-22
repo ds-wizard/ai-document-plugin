@@ -119,15 +119,40 @@ class PipelineMetricsCollector:
         )
 
 
-def get_component_output(
+def _get_component_dict(
     pipeline_result: Mapping[str, object],
     component_name: str,
-    output_name: str,
-) -> object | None:
+) -> dict[str, object] | None:
     component_result = pipeline_result.get(component_name)
-    if not isinstance(component_result, Mapping):
+    if not isinstance(component_result, dict):
         return None
-    return component_result.get(output_name)
+    return {str(key): value for key, value in component_result.items()}
+
+
+def get_component_stats(
+    pipeline_result: Mapping[str, object],
+    component_name: str,
+) -> AssignmentStats | None:
+    component_result = _get_component_dict(pipeline_result, component_name)
+    if component_result is None:
+        return None
+    stats = component_result.get('stats')
+    if isinstance(stats, AssignmentStats):
+        return stats
+    return None
+
+
+def get_component_markdown(
+    pipeline_result: Mapping[str, object],
+    component_name: str,
+) -> str | None:
+    component_result = _get_component_dict(pipeline_result, component_name)
+    if component_result is None:
+        return None
+    markdown = component_result.get('markdown')
+    if isinstance(markdown, str):
+        return markdown
+    return None
 
 
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:

@@ -11,7 +11,8 @@ from ai_document_plugin_service.ai.assignment.assignment_saver_component import 
 from ai_document_plugin_service.ai.common import (
     PipelineMetricsCollector,
     configure_logging,
-    get_component_output,
+    get_component_markdown,
+    get_component_stats,
 )
 from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
@@ -133,18 +134,18 @@ def write_metrics(
     )
     metrics.add_step(
         '1. Hierarchical assignment',
-        get_component_output(result, 'assignment_saver_component', 'stats'),
+        get_component_stats(result, 'assignment_saver_component'),
     )
     metrics.add_step(
         '2. DMP generator',
-        get_component_output(result, 'dmp_generator_component', 'stats'),
+        get_component_stats(result, 'dmp_generator_component'),
     )
     metrics.add_step(
         '3. DMP polisher',
-        get_component_output(result, 'dmp_polisher_component', 'stats'),
+        get_component_stats(result, 'dmp_polisher_component'),
     )
 
-    polished_markdown = get_component_output(result, 'polished_saver_component', 'markdown')
+    polished_markdown = get_component_markdown(result, 'polished_saver_component')
     if polished_markdown is None:
         polished_markdown = pathlib.Path(output_path).read_text(
             encoding='utf-8',

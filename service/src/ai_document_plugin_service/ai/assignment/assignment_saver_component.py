@@ -2,6 +2,7 @@ import json
 import logging
 import pathlib
 import typing
+from typing import TypedDict
 
 from haystack import component
 
@@ -11,15 +12,21 @@ from ai_document_plugin_service.ai.common.types import AssignmentStats
 logger = logging.getLogger(__name__)
 
 
+class AssignmentSaverComponentResult(TypedDict):
+    assignments: list[SectionAssignment]
+    stats: AssignmentStats | None
+
+
 @component
 class AssignmentSaverComponent:
     @typing.override
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
-    def run(self,
+    def run(
+        self,
         assignments: list[SectionAssignment],
         output_path: str,
         stats: AssignmentStats | None = None,
-    ) -> dict[str, list[SectionAssignment] | AssignmentStats | None]:
+    ) -> AssignmentSaverComponentResult:
         """Save assignments to JSON, optionally including token usage stats."""
         serializable = [assignment.to_dict() for assignment in assignments]
         if stats is None:

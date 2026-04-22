@@ -2,7 +2,7 @@ import json
 import logging
 import pathlib
 import typing
-from typing import Any
+from typing import Any, TypedDict
 
 from haystack import component
 from tqdm import tqdm
@@ -36,15 +36,22 @@ from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 logger = logging.getLogger(__name__)
 
 
+class AssignmentComponentResult(TypedDict):
+    assignments: list[SectionAssignment]
+    stats: AssignmentStats
+
+
 @component
 class AssignmentComponent:
     @typing.override
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
-    def run(self,
-            data: list[QuestionData],
-            template_data: dict[str, Any],
-            config: Config,
-            km: dict[str, Any]) -> dict[str, list[SectionAssignment] | AssignmentStats]:
+    def run(
+        self,
+        data: list[QuestionData],
+        template_data: dict[str, Any],
+        config: Config,
+        km: dict[str, Any],
+    ) -> AssignmentComponentResult:
         """Assign KM questions to template sections using the configured matcher."""
         logger.debug('Step 1: Assigning questions to sections...')
 
@@ -99,7 +106,7 @@ def main() -> None:
     parser_component = ParserComponent()
     top_questions = parser_component.run(km_data)['data']
     assignment_component = AssignmentComponent()
-    result = assignment_component.run(
+    result: AssignmentComponentResult = assignment_component.run(
         data=top_questions,
         template_data=template_data,
         config=config,

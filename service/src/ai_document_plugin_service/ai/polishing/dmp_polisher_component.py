@@ -8,6 +8,7 @@ import json
 import logging
 import pathlib
 import typing
+from typing import TypedDict
 
 from haystack import component
 
@@ -21,6 +22,11 @@ from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 logger = logging.getLogger(__name__)
 
 
+class DmpPolisherComponentResult(TypedDict):
+    markdown: str
+    stats: AssignmentStats
+
+
 @component
 class DmpPolisherComponent:
     @typing.override
@@ -30,7 +36,7 @@ class DmpPolisherComponent:
         markdown: str,
         config_path: str = DEFAULT_CONFIG_PATH,
         template_data: dict | None = None,
-    ) -> dict[str, str | AssignmentStats]:
+    ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
@@ -94,7 +100,7 @@ if __name__ == '__main__':
         template_data = json.load(f)
 
     dmp_polisher_component = DmpPolisherComponent()
-    result = dmp_polisher_component.run(
+    result: DmpPolisherComponentResult = dmp_polisher_component.run(
         markdown=markdown,
         config_path=file_paths.config_path,
         template_data=template_data,

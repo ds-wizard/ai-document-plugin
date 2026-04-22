@@ -1,23 +1,25 @@
 import json
 import logging
 import pathlib
+import typing
+
+from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-
-from haystack import component
 
 logger = logging.getLogger(__name__)
 
 
 @component
 class AssignmentSaverComponent:
+    @typing.override
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     def run(self,
         assignments: list[SectionAssignment],
         output_path: str,
         stats: AssignmentStats | None = None,
-    ):
+    ) -> dict[str, list[SectionAssignment] | AssignmentStats | None]:
         """Save assignments to JSON, optionally including token usage stats."""
         serializable = [assignment.to_dict() for assignment in assignments]
         if stats is None:
@@ -38,7 +40,6 @@ class AssignmentSaverComponent:
         logger.debug('Saved assignments to %s', output_path)
 
         return {
-            "assignments": assignments,
-            "stats": stats
+            'assignments': assignments,
+            'stats': stats,
         }
-

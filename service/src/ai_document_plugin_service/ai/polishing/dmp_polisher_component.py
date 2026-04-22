@@ -7,6 +7,8 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 import json
 import logging
 import pathlib
+import typing
+
 from haystack import component
 
 from ai_document_plugin_service.ai.common.config import (
@@ -18,14 +20,17 @@ from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 
 logger = logging.getLogger(__name__)
 
+
 @component
 class DmpPolisherComponent:
+    @typing.override
     @component.output_types(markdown=str, stats=AssignmentStats)
-    def run(self,
+    def run(
+        self,
         markdown: str,
         config_path: str = DEFAULT_CONFIG_PATH,
         template_data: dict | None = None,
-    ):
+    ) -> dict[str, str | AssignmentStats]:
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
@@ -38,7 +43,7 @@ class DmpPolisherComponent:
 
         """
         stats = AssignmentStats()
-        structure_str = self._build_template_structure_string(template_data)
+        structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
         llm = OpenAIGenerationLLM(config_path=config_path)
         file = llm.polish_dmp(
             markdown=markdown,
@@ -50,7 +55,8 @@ class DmpPolisherComponent:
             'stats': stats,
         }
 
-    def _format_template_structure(self, nodes: list, depth: int = 0) -> list[str]:
+    @staticmethod
+    def _format_template_structure(nodes: list, depth: int = 0) -> list[str]:
         """Format section tree as # Section, ## Subsection, ### Subsubsection, etc."""
         lines = []
         prefix = '#' * (depth + 1) + ' '
@@ -59,12 +65,11 @@ class DmpPolisherComponent:
             lines.append(prefix + str(key))
             children = node.get('children') or node.get('sections')
             if children:
-                lines.extend(self._format_template_structure(children, depth + 1))
+                lines.extend(DmpPolisherComponent._format_template_structure(children, depth + 1))
         return lines
 
-
+    @staticmethod
     def _build_template_structure_string(
-        self,
         template_data: dict | None = None,
     ) -> str:
         """Build the required section structure string from template data (dict with 'sections' key)."""
@@ -73,7 +78,7 @@ class DmpPolisherComponent:
         nodes = template_data.get('sections', [])
         if not nodes:
             return ''
-        lines = self._format_template_structure(nodes)
+        lines = DmpPolisherComponent._format_template_structure(nodes)
         return '\n'.join(lines)
 
 
@@ -88,14 +93,14 @@ if __name__ == '__main__':
     with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
         template_data = json.load(f)
 
-    stats = AssignmentStats()
     dmp_polisher_component = DmpPolisherComponent()
-    polished = dmp_polisher_component.run(
+    result = dmp_polisher_component.run(
         markdown=markdown,
         config_path=file_paths.config_path,
-        stats=stats,
         template_data=template_data,
-    )['markdown']
+    )
+    polished = result['markdown']
+    stats = result['stats']
 
     pathlib.Path(file_paths.output_markdown).write_text(
         polished,

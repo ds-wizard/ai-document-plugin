@@ -1,12 +1,15 @@
 import json
 import logging
 import pathlib
-from email.parser import Parser
+import typing
 from typing import Any
 
 from haystack import component
 from tqdm import tqdm
 
+from ai_document_plugin_service.ai.assignment.assignment_saver_component import (
+    AssignmentSaverComponent,
+)
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
 )
@@ -35,12 +38,13 @@ logger = logging.getLogger(__name__)
 
 @component
 class AssignmentComponent:
+    @typing.override
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     def run(self,
             data: list[QuestionData],
             template_data: dict[str, Any],
             config: Config,
-            km: dict[str, Any],):
+            km: dict[str, Any]) -> dict[str, list[SectionAssignment] | AssignmentStats]:
         """Assign KM questions to template sections using the configured matcher."""
         logger.debug('Step 1: Assigning questions to sections...')
 
@@ -77,9 +81,10 @@ class AssignmentComponent:
         )
 
         return {
-            "assignments": assignments,
-            "stats": stats
+            'assignments': assignments,
+            'stats': stats,
         }
+
 
 def main() -> None:
     config = load_config()
@@ -102,7 +107,12 @@ def main() -> None:
     )
     assignments = result['assignments']
     stats = result['stats']
-    save_assignments(assignments, file_paths.assignments_output, stats=stats)
+    assignment_saver_component = AssignmentSaverComponent()
+    assignment_saver_component.run(
+        assignments=assignments,
+        output_path=file_paths.assignments_output,
+        stats=stats,
+    )
 
     logger.debug('Saved assignments to %s', file_paths.assignments_output)
     logger.debug('Total LLM calls: %s', stats.total_calls)

@@ -2,6 +2,9 @@ import json
 import logging
 import pathlib
 import time
+from collections.abc import Mapping
+
+from haystack import Pipeline
 
 from ai_document_plugin_service.ai.assignment import AssignmentComponent
 from ai_document_plugin_service.ai.assignment.assignment_saver_component import AssignmentSaverComponent
@@ -16,13 +19,13 @@ from ai_document_plugin_service.ai.generation.file_saver_component import FileSa
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
-from haystack import Pipeline
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
 COST_PER_MIL_OUTPUT = 2.0
 
 logger = logging.getLogger(__name__)
+
 
 def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
@@ -35,13 +38,13 @@ def build_pipeline() -> Pipeline:
     polished_saver_component = FileSaverComponent()
 
     # COMPONENTS
-    pipeline.add_component("parser_component", parser_component)
-    pipeline.add_component("assignment_component", assignment_component)
-    pipeline.add_component("assignment_saver_component", assignment_saver_component)
-    pipeline.add_component("dmp_generator_component", dmp_generator_component)
-    pipeline.add_component("prepolished_saver_component", prepolished_saver_component)
-    pipeline.add_component("dmp_polisher_component", dmp_polisher_component)
-    pipeline.add_component("polished_saver_component", polished_saver_component)
+    pipeline.add_component('parser_component', parser_component)
+    pipeline.add_component('assignment_component', assignment_component)
+    pipeline.add_component('assignment_saver_component', assignment_saver_component)
+    pipeline.add_component('dmp_generator_component', dmp_generator_component)
+    pipeline.add_component('prepolished_saver_component', prepolished_saver_component)
+    pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
+    pipeline.add_component('polished_saver_component', polished_saver_component)
 
     # CONNECTIONS
     # parser_component -> assignment_component
@@ -116,7 +119,13 @@ def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> Non
     write_metrics(result, model_name, file_paths.output_markdown, file_paths.output_with_stats, t1)
 
 
-def write_metrics(result, model_name, output_path, output_with_stats_path, t1):
+def write_metrics(
+    result: Mapping[str, object],
+    model_name: str,
+    output_path: str,
+    output_with_stats_path: str,
+    t1: float,
+) -> None:
     metrics = PipelineMetricsCollector(
         model_name=model_name,
         cost_per_mil_input=COST_PER_MIL_INPUT,

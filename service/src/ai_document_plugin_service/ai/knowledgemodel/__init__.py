@@ -25,9 +25,9 @@ __all__ = [
     'MultiChoiceQuestion',
     'OptionsAnswer',
     'OptionsQuestion',
+    'ParserComponent',
     'QuestionData',
     'QuestionVisitor',
     'QuestionnaireElement',
     'ValueQuestion',
-    'ParserComponent',
 ]

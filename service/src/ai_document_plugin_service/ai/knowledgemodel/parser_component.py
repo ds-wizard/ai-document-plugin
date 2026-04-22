@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+
 from haystack import component
 
 from ai_document_plugin_service.ai.knowledgemodel.types import (
@@ -21,14 +22,13 @@ QUESTION_TYPES = [
 ]
 
 
-
 @component
 class ParserComponent:
     def __init__(self) -> None:
         self.km: dict = {}
 
     @component.output_types(data=list[QuestionData])
-    def run(self, data: dict):
+    def run(self, data: dict) -> dict[str, list[QuestionData]]:
         self.km = data['knowledgeModel']
         replies = data['replies']
         top_level_questions: list[QuestionData] = []
@@ -40,7 +40,6 @@ class ParserComponent:
     def _iterate_km_chapters(self) -> Iterator[dict]:
         for chapter_uuid in self.km['chapterUuids']:
             yield self.km['entities']['chapters'][chapter_uuid]
-
 
     def parse_chapter(self, chapter_uuid: str, replies: dict) -> Chapter:
         """Parse a Chapter from the knowledge model."""
@@ -69,12 +68,10 @@ class ParserComponent:
         chapter.questions = questions
         return chapter
 
-
     def parse_choice(self, choice_uuid: str) -> Choice:
         """Parse a Choice from the knowledge model."""
         choice_data = self.km['entities']['choices'][choice_uuid]
         return Choice(label=choice_data['label'], uuid=choice_uuid)
-
 
     def parse_options_answer(
         self,
@@ -109,7 +106,6 @@ class ParserComponent:
         answer.followup_questions = followup_questions
         return answer
 
-
     def parse_value_question(
         self,
         question_uuid: str,
@@ -133,16 +129,14 @@ class ParserComponent:
 
         return value_question
 
-
+    @staticmethod
     def get_value_reply(
-        self,
         replies: dict,
         _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
         return replies.get(path, {}).get('value', {}).get('value', '')
-
 
     def parse_integration_question(
         self,
@@ -171,16 +165,14 @@ class ParserComponent:
 
         return integration_question
 
-
+    @staticmethod
     def get_integration_reply(
-        self,
         replies: dict,
         _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
         return replies.get(path, {}).get('value', {}).get('value', {}).get('value', '')
-
 
     def parse_list_question(
         self,
@@ -213,7 +205,6 @@ class ParserComponent:
 
         list_question.questions = questions
         return list_question
-
 
     def parse_options_question(
         self,
@@ -256,7 +247,6 @@ class ParserComponent:
 
         return options_question
 
-
     def get_option_reply(
         self,
         replies: dict,
@@ -266,7 +256,6 @@ class ParserComponent:
         """Get the reply for the question."""
         reply = replies.get(path, {}).get('value', {}).get('value', '')
         return self.km.get('entities', {}).get('answers', {}).get(reply, {}).get('label', '')
-
 
     def parse_multi_choice_question(
         self,
@@ -294,7 +283,6 @@ class ParserComponent:
 
         return multichoice_question
 
-
     def get_multichoice_reply(
         self,
         replies: dict,
@@ -307,7 +295,6 @@ class ParserComponent:
             self.km.get('entities', {}).get('answers', {}).get(reply_value, {}).get('label', '')
             for reply_value in reply_values
         ]
-
 
     def parse_question(
         self,

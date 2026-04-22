@@ -4,20 +4,20 @@ import math
 import pathlib
 import re
 from collections.abc import Iterable
-from haystack import component
 from typing import Any
 
 import pandas as pd
+from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
     OpenAIGenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +28,13 @@ DEPTH_INCLUDE_ALL_ANSWERS = 2
 @component
 class DmpGeneratorComponent:
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
-    def run(self,
-            assignments: list[SectionAssignment],
-            replies: dict,
-            km: dict,
-            llm: GenerationLLM | None = None,
-    ):
+    def run(
+        self,
+        assignments: list[SectionAssignment],
+        replies: dict,
+        km: dict,
+        llm: GenerationLLM | None = None,
+    ) -> dict[str, str | AssignmentStats]:
         """Generate full DMP markdown from nested assignments tree.
 
         Returns (markdown, debug_markdown, stats). Use markdown for the polished DMP;
@@ -59,7 +60,8 @@ class DmpGeneratorComponent:
             'stats': stats,
         }
 
-    def _get_reply_keys_at_level(self, replies: dict[str, Any], prefix: str) -> list[str]:
+    @staticmethod
+    def _get_reply_keys_at_level(replies: dict[str, Any], prefix: str) -> list[str]:
         """Return reply keys that are prefix + exactly one more segment (neighbouring replies)."""
         if not prefix:
             return [k for k in replies if '.' not in k]
@@ -67,8 +69,8 @@ class DmpGeneratorComponent:
         expected_dots = prefix.count('.') + 1
         return [k for k in replies if k.startswith(prefix_dot) and k.count('.') == expected_dots]
 
-
-    def get_wildcard_uuids(self, template: str, paths: Iterable[str]) -> list[str]:
+    @staticmethod
+    def get_wildcard_uuids(template: str, paths: Iterable[str]) -> list[str]:
         """Extract the UUIDs that fill each ``*`` wildcard in *template* by matching against *paths*."""
         pattern = '^' + re.escape(template).replace(r'\*', r'([^.]+)') + '$'
 
@@ -81,19 +83,18 @@ class DmpGeneratorComponent:
 
         return uuids
 
-
-    def is_multianswer_question(self, path: str) -> bool:
+    @staticmethod
+    def is_multianswer_question(path: str) -> bool:
         """Checks if the current path contains *."""
         return '*' in path
 
-
-    def get_question_path(self, question: dict[str, Any], override_uuids: list[str]) -> str:
+    @staticmethod
+    def get_question_path(question: dict[str, Any], override_uuids: list[str]) -> str:
         """Gets question_path from question, overrides wildcards with uuids."""
         path = question['question_path']
         for replacement in override_uuids:
             path = re.sub(r'\*', replacement, path, count=1)
         return path
-
 
     def match_replies_selection(
         self,
@@ -158,7 +159,6 @@ class DmpGeneratorComponent:
             override_uuids,
         )
 
-
     def handle_multi_replies(
         self,
         questions: dict[str, Any],
@@ -210,7 +210,6 @@ class DmpGeneratorComponent:
             )
             has_answer = True
         return result_items, has_answer
-
 
     def handle_single_reply(
         self,
@@ -271,7 +270,6 @@ class DmpGeneratorComponent:
 
         return result_items, has_answer
 
-
     def _build_single_question_result(
         self,
         item: dict[str, Any],
@@ -311,7 +309,6 @@ class DmpGeneratorComponent:
         res['children'] = children
         return res, child_has_answer
 
-
     def _get_neighbour_prefix(
         self,
         questions: dict[str, Any],
@@ -325,7 +322,6 @@ class DmpGeneratorComponent:
         if override_uuids:
             return '.'.join(override_uuids)
         return ''
-
 
     def _collect_neighbouring_reply_items(
         self,
@@ -347,9 +343,8 @@ class DmpGeneratorComponent:
                 synthetic_items.append(synthetic)
         return synthetic_items
 
-
+    @staticmethod
     def _build_synthetic_question_item(
-        self,
         key: str,
         replies: dict,
         km: dict,
@@ -386,15 +381,15 @@ class DmpGeneratorComponent:
             'children': [],
         }
 
-
-    def sanitize(self, text: str | None) -> str | None:
+    @staticmethod
+    def sanitize(text: str | None) -> str | None:
         """Replace newlines with spaces, pass through ``None`` unchanged."""
         if text is None:
             return None
         return text.replace('\n', ' ')
 
-
-    def _sanitize_table_cell(self, text: object | None) -> str:
+    @staticmethod
+    def _sanitize_table_cell(text: object | None) -> str:
         """Sanitize text for use in a markdown table cell (avoid breaking rows/columns)."""
         if text is None:
             return ''
@@ -404,7 +399,6 @@ class DmpGeneratorComponent:
         s = s.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
         s = s.replace('|', '&#124;')  # pipe would break column
         return s.strip()
-
 
     def construct_chapter_prompt(
         self,
@@ -434,9 +428,8 @@ class DmpGeneratorComponent:
         qs = [construct_question_answers(q, 0) for q in replies]
         return system_prompt + '\n'.join(qs) + '\n'
 
-
+    @staticmethod
     def llm_section_from_qa(
-        self,
         llm: GenerationLLM,
         prompt: str,
         stats: AssignmentStats | None = None,
@@ -449,11 +442,10 @@ class DmpGeneratorComponent:
             previously_generated=previously_generated,
         )
 
-
-    def _heading(self, depth: int, title: str) -> str:
+    @staticmethod
+    def _heading(depth: int, title: str) -> str:
         """Markdown heading with # count based on depth (depth 0 -> #, depth 1 -> ##, ...)."""
         return '#' * (depth + 1) + ' ' + title
-
 
     def _flatten_matched_questions(
         self,
@@ -484,7 +476,6 @@ class DmpGeneratorComponent:
         walk(matches)
         return rows
 
-
     def _source_questions_table(self, rows: list[dict]) -> str:
         """Format source-question rows as a markdown table for debugging."""
         if not rows:
@@ -508,7 +499,6 @@ class DmpGeneratorComponent:
         )
         table_md = df.to_markdown(index=False)
         return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
-
 
     def _generate_section(
         self,
@@ -544,7 +534,6 @@ class DmpGeneratorComponent:
         debug_res = heading + '\n\n' + children_markdown_debug
         return res, debug_res
 
-
     def _generate_leaf_section(
         self,
         node: dict,
@@ -564,7 +553,6 @@ class DmpGeneratorComponent:
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content
         return section, heading + '\n\n' + debug_body
-
 
     def _generate_children_sections(
         self,
@@ -608,16 +596,13 @@ if __name__ == '__main__':
     replies = dmp['replies']
     km = dmp['knowledgeModel']
 
-    stats = AssignmentStats()
     dmp_generator_component = DmpGeneratorComponent()
     result = dmp_generator_component.run(
-        selection,
-        replies,
-        km,
-        stats=stats,
+        assignments=selection,
+        replies=replies,
+        km=km,
     )
     markdown = result['markdown']
-    debug_markdown = result['debug_markdown']
     stats = result['stats']
 
     pathlib.Path(file_paths.output_markdown).write_text(

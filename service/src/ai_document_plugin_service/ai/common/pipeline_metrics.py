@@ -1,7 +1,7 @@
 import logging
 import pathlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
 
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 
@@ -120,12 +120,12 @@ class PipelineMetricsCollector:
 
 
 def get_component_output(
-    pipeline_result: dict[str, Any],
+    pipeline_result: Mapping[str, object],
     component_name: str,
     output_name: str,
-) -> Any:
+) -> object | None:
     component_result = pipeline_result.get(component_name)
-    if not isinstance(component_result, dict):
+    if not isinstance(component_result, Mapping):
         return None
     return component_result.get(output_name)
 

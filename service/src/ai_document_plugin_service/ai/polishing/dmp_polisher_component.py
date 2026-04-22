@@ -20,11 +20,10 @@ logger = logging.getLogger(__name__)
 
 @component
 class DmpPolisherComponent:
-    @component.output_types(markdown=str)
+    @component.output_types(markdown=str, stats=AssignmentStats)
     def run(self,
         markdown: str,
         config_path: str = DEFAULT_CONFIG_PATH,
-        stats: AssignmentStats | None = None,
         template_data: dict | None = None,
     ):
         """Polish the DMP by moving content to relevant sections and improving structure.
@@ -32,13 +31,13 @@ class DmpPolisherComponent:
         Args:
             markdown: The raw DMP markdown to polish.
             config_path: Path to OpenAI config file.
-            stats: Optional stats object to record token usage.
             template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
 
         Returns:
             The polished DMP markdown.
 
         """
+        stats = AssignmentStats()
         structure_str = self._build_template_structure_string(template_data)
         llm = OpenAIGenerationLLM(config_path=config_path)
         file = llm.polish_dmp(
@@ -48,6 +47,7 @@ class DmpPolisherComponent:
         )
         return {
             'markdown': file,
+            'stats': stats,
         }
 
     def _format_template_structure(self, nodes: list, depth: int = 0) -> list[str]:

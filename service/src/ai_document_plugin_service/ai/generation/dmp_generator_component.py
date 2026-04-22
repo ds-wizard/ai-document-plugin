@@ -33,7 +33,6 @@ class DmpGeneratorComponent:
             replies: dict,
             km: dict,
             llm: GenerationLLM | None = None,
-            stats: AssignmentStats | None = None,
     ):
         """Generate full DMP markdown from nested assignments tree.
 
@@ -43,10 +42,11 @@ class DmpGeneratorComponent:
         logger.debug('Step 2: Generating DMP markdown...')
         assignments_tree = [a.to_dict() for a in assignments]
 
+        stats = AssignmentStats()
+
         if llm is None:
             llm = OpenAIGenerationLLM()
-        if stats is None:
-            stats = AssignmentStats()
+
         parts = []
         for node in assignments_tree:
             section, debug = self._generate_section(node, 0, replies, km, llm, stats)

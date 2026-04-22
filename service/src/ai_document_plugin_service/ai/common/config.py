@@ -30,6 +30,7 @@ class FilePaths:
     prompts_path: str
     assignments_output: str
     output_markdown: str
+    output_with_stats: str
     output_pre_polish_markdown: str
 
 
@@ -136,6 +137,7 @@ def load_config(
             prompts_path=configured_prompts_path,
             assignments_output=_get_file_path(config, 'assignments_output'),
             output_markdown=_get_file_path(config, 'output_markdown'),
+            output_with_stats=_get_file_path(config, 'output_with_stats'),
             output_pre_polish_markdown=_get_file_path(
                 config,
                 'output_pre_polish_markdown',

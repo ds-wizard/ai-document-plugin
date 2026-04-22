@@ -24,22 +24,7 @@ COST_PER_MIL_OUTPUT = 2.0
 
 logger = logging.getLogger(__name__)
 
-
-def run_pipeline(questionnaire_uuid: str, token: str) -> None:
-    t1 = time.time()
-    config = load_config()
-    configure_logging(config.log_level)
-    model_name = config.model
-    file_paths = config.files
-
-    km_data = get_questionnaire_detail(questionnaire_uuid, token)
-
-    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
-        template_data = json.load(f)
-
-    replies = km_data['replies']
-    km = km_data['knowledgeModel']
-
+def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
@@ -48,7 +33,6 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     prepolished_saver_component = FileSaverComponent()
     dmp_polisher_component = DmpPolisherComponent()
     polished_saver_component = FileSaverComponent()
-
 
     # COMPONENTS
     pipeline.add_component("parser_component", parser_component)
@@ -76,6 +60,23 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.debug_markdown')
     pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.markdown')
 
+    return pipeline
+
+
+def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> None:
+    t1 = time.time()
+    config = load_config()
+    configure_logging(config.log_level)
+    model_name = config.model
+    file_paths = config.files
+
+    km_data = get_questionnaire_detail(questionnaire_uuid, token)
+
+    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
+        template_data = json.load(f)
+
+    replies = km_data['replies']
+    km = km_data['knowledgeModel']
 
     # OTHER INPUTS
     result = pipeline.run(
@@ -156,4 +157,5 @@ if __name__ == '__main__':
     questionnaire_uuid = config.questionnaire_uuid
     token = config.token
 
-    run_pipeline(questionnaire_uuid, token)
+    pipeline = build_pipeline()
+    run_pipeline(questionnaire_uuid, token, pipeline)

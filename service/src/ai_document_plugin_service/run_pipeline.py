@@ -14,7 +14,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import Dmp
 from ai_document_plugin_service.ai.generation.file_saver_component import FileSaverComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
-from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
+from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 from haystack import Pipeline
 
 # Cost per million tokens (USD) - adjust for your model
@@ -61,6 +61,7 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     km = km_data['knowledgeModel']
     # TODO - it is not appending individual stats
     all_stats: list[tuple[str, AssignmentStats]] = []
+    # TODO - missing stats1, stats2
 
     pipeline = Pipeline()
     parser_component = ParserComponent()
@@ -68,6 +69,7 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     assignment_saver_component = AssignmentSaverComponent()
     dmp_generator_component = DmpGeneratorComponent()
     prepolished_saver_component = FileSaverComponent()
+    dmp_polisher_component = DmpPolisherComponent()
     polished_saver_component = FileSaverComponent()
 
 
@@ -77,6 +79,8 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     pipeline.add_component("assignment_saver_component", assignment_saver_component)
     pipeline.add_component("dmp_generator_component", dmp_generator_component)
     pipeline.add_component("prepolished_saver_component", prepolished_saver_component)
+    pipeline.add_component("dmp_polisher_component", dmp_polisher_component)
+    pipeline.add_component("polished_saver_component", polished_saver_component)
 
     # CONNECTIONS
     # parser_component -> assignment_component
@@ -89,10 +93,16 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
     # dmp_generator_component -> prepolished_saver_component
     pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
     pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
+    # prepolisher_saver_component -> dmp_polisher_component
+    pipeline.connect('prepolished_saver_component.markdown', 'dmp_polisher_component.markdown')
+    # dmp_polisher_component -> polished_saver_component
+    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.debug_markdown')
+    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.markdown')
 
 
     # OTHER INPUTS
     stats3 = AssignmentStats()
+    stats4 = AssignmentStats()
     pipeline.run(
         data={
             'parser_component': {'data': km_data},
@@ -111,6 +121,14 @@ def run_pipeline(questionnaire_uuid: str, token: str) -> None:
             },
             'prepolished_saver_component': {
                 'file_path': file_paths.output_pre_polish_markdown
+            },
+            'dmp_polisher_component': {
+                'config_path': file_paths.config_path,
+                'stats': stats4,
+                'template_data': template_data,
+            },
+            'polished_saver_component': {
+                'file_path': file_paths.output_markdown
             }
         },
     )

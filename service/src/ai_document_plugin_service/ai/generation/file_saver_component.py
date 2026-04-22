@@ -7,18 +7,18 @@ logger = logging.getLogger(__name__)
 
 @component
 class FileSaverComponent:
-    @component.output_types(file=str)
+    @component.output_types(markdown=str)
     def run(self, debug_markdown: str, markdown: str, file_path: str):
+        content = debug_markdown if debug_markdown is not None else markdown
         pathlib.Path(file_path).write_text(
-            debug_markdown,
+            content,
             encoding='utf-8',
         )
         logger.debug(
-            'Saved pre-polished DMP to %s',
+            'Saved markdown to %s',
             file_path,
         )
 
         return {
-            'file': markdown,
+            'markdown': markdown,
         }
-

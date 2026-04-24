@@ -25,12 +25,12 @@ class SystemPrompt:
 
 @dataclass(frozen=True)
 class FilePaths:
-    knowledge_model: str
     dmp_template: str
     config_path: str
     prompts_path: str
     assignments_output: str
     output_markdown: str
+    output_with_stats: str
     output_pre_polish_markdown: str
 
 
@@ -38,6 +38,9 @@ class FilePaths:
 class Config:
     api_key: str
     api_url: str
+    dsw_api_url: str
+    questionnaire_uuid: str
+    token: str
     model: str
     log_level: str
     files: FilePaths
@@ -122,11 +125,11 @@ def load_config(
         ),
         api_url=_get(config, 'llm_response_generation', 'api_url'),
         model=_get(config, 'llm_response_generation', 'model'),
+        dsw_api_url=_get(config, 'dsw', 'api_url'),
+        questionnaire_uuid=_get(config, 'dsw', 'questionnaire_uuid'),
+        token=_get(config, 'dsw', 'token'),
         log_level=_get_log_level(config),
         files=FilePaths(
-            knowledge_model=_resolve_existing_path(
-                _get_file_path(config, 'knowledge_model'),
-            ),
             dmp_template=_resolve_existing_path(
                 _get_file_path(config, 'dmp_template'),
             ),
@@ -134,6 +137,7 @@ def load_config(
             prompts_path=configured_prompts_path,
             assignments_output=_get_file_path(config, 'assignments_output'),
             output_markdown=_get_file_path(config, 'output_markdown'),
+            output_with_stats=_get_file_path(config, 'output_with_stats'),
             output_pre_polish_markdown=_get_file_path(
                 config,
                 'output_pre_polish_markdown',

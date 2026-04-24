@@ -1,3 +1,6 @@
+import json
+import os
+
 import pytest
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
@@ -5,6 +8,7 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     expand_assignment_paths,
 )
 from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
+from ai_document_plugin_service.ai.assignment.types import SectionRecord, SectionNode, SectionAssignment
 
 
 def _km_fixture() -> dict:
@@ -81,3 +85,55 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
     assert "q1" in data_assignments["ch1"]["children"]
     assert "q2" in data_assignments["ch1"]["children"]
     assert "q2" in methods_assignments["ch1"]["children"]
+
+
+def test_convert_mappings_real_km():
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    resource_path = os.path.join(test_dir, "../resources/dsw_root_km.json.json")
+    with open(resource_path, encoding='utf-8', mode='r') as f:
+        km = json.load(f)
+
+    sections = [
+        SectionRecord(
+            'Data management plan',
+            SectionNode({
+                'title': 'Data management plan'
+            }),
+            None,
+            [
+                SectionRecord(
+                    'Project',
+                    SectionNode({'title': 'Project'}),
+                    "[PARENT SECTION]\nTitle: Data management plan\n\n[MOST SPECIFIC SECTION]\nTitle: Project\nContent:\nIt contains project number, project acronym, project name.'",
+                    None
+                )
+            ]
+        )
+    ]
+    result_mapping = {
+        '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b':
+            ['Project']
+    }
+
+    mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km, )
+    sec_dmp = mappings[0]
+    assert sec_dmp.assignments is None
+    assert sec_dmp.children is not None
+    sec_project: SectionAssignment = sec_dmp.children[0]
+    assert sec_project.children is None
+    assert sec_project.assignments is not None
+    assert len(sec_project.assignments) > 0
+    administrative_info = list(sec_project.assignments.values())[0]
+    assert administrative_info['question_title'] == 'Administrative information'
+
+    # Research Project
+    research_proj_key = list(administrative_info['children'])[0]
+    assert research_proj_key == 'c3dabaaf-c946-4a0d-889c-ede966f97667'
+    research_proj = administrative_info['children'][research_proj_key]
+    assert research_proj['question_title'] == 'Research Project(s)'
+
+    # Project name
+    proj_name_key = list(research_proj['children'])[0]
+    assert proj_name_key == 'f0ef08fd-d733-465c-bc66-5de0b826c41b'
+    proj_name = research_proj['children'][proj_name_key]
+    assert proj_name['question_title'] == 'Project name'

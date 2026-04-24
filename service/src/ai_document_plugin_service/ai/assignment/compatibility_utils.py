@@ -43,7 +43,7 @@ def convert_mappings_to_assignment_tree_recursive(
                 SectionAssignment(
                     key=section.key,
                     assignments=None,
-                    children=convert_mappings_to_assignment_tree(
+                    children=convert_mappings_to_assignment_tree_recursive(
                         section.children,
                         section_to_path_mapping,
                         km,

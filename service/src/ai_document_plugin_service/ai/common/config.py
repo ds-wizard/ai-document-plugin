@@ -48,6 +48,7 @@ class Config:
     section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
     dmp_polishing: SystemAndUserPrompt
+    parallel_workers: int
 
 
 def _expand_env_vars(value: str) -> str:
@@ -86,6 +87,19 @@ def _get_log_level(config: dict) -> str:
 def _get_file_path(config: dict, key: str) -> str:
     value = _get(config, 'files', key)
     return str(value).strip()
+
+
+def _get_parallel_workers(config: dict[str, Any]) -> int:
+    workers = config.get('llm_response_generation', {}).get('workers', 1)
+    try:
+        workers_int = int(workers)
+    except (TypeError, ValueError) as exc:
+        msg = "Invalid config value: 'parallelism.workers' must be an integer >= 1"
+        raise ValueError(msg) from exc
+    if workers_int < 1:
+        msg = "Invalid config value: 'parallelism.workers' must be >= 1"
+        raise ValueError(msg)
+    return workers_int
 
 
 def _resolve_existing_path(path: str) -> str:
@@ -166,4 +180,5 @@ def load_config(
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
+        parallel_workers=_get_parallel_workers(config),
     )

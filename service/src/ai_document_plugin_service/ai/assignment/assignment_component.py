@@ -1,11 +1,10 @@
 import json
 import logging
 import pathlib
-import typing
 from typing import Any, TypedDict
 
 from haystack import component
-from tqdm import tqdm
+from tqdm.contrib.concurrent import thread_map
 
 from ai_document_plugin_service.ai.assignment.assignment_saver_component import (
     AssignmentSaverComponent,
@@ -43,7 +42,38 @@ class AssignmentComponentResult(TypedDict):
 
 @component
 class AssignmentComponent:
-    @typing.override
+    @staticmethod
+    def _add_chunk_mapping_to_result(
+        *,
+        result_mapping: dict[str, list[str]],
+        question_to_section_ids: dict[str, list[str]],
+        question_id_to_path: dict[str, str],
+        section_formatter: SectionFormatter,
+    ) -> None:
+        for question_id, section_ids in question_to_section_ids.items():
+            question_path = question_id_to_path.get(question_id)
+            if not question_path:
+                logger.debug('Path not found for question id %s', question_id)
+                continue
+            result_mapping[question_path] = [
+                section_formatter.get_original_id(section_id) for section_id in section_ids
+            ]
+
+    @staticmethod
+    def _match_single_chunk(
+        *,
+        config: Config,
+        sections_xml: str,
+        question_chunk: str,
+        stats: AssignmentStats,
+    ) -> dict[str, list[str]]:
+        matcher = OpenAILayerMatcher(config)
+        return matcher.match_questions_to_sections(
+            sections_xml,
+            question_chunk,
+            stats,
+        )
+
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     def run(
         self,
@@ -57,7 +87,6 @@ class AssignmentComponent:
 
         sections = build_section_records(template_data)
         question_chunks, question_id_to_path = build_question_chunks(data)
-        matcher = OpenAILayerMatcher(config)
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
@@ -65,21 +94,27 @@ class AssignmentComponent:
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping = {}
-        for question_chunk in tqdm(question_chunks, desc='Question chunks'):
-            question_to_section_ids = matcher.match_questions_to_sections(
-                sections_xml,
-                question_chunk,
-                stats,
+
+        def match_chunk(question_chunk: str) -> dict[str, list[str]]:
+            return self._match_single_chunk(
+                config=config,
+                sections_xml=sections_xml,
+                question_chunk=question_chunk,
+                stats=stats,
             )
 
-            for question_id, section_ids in question_to_section_ids.items():
-                question_path = question_id_to_path.get(question_id)
-                if not question_path:
-                    logger.debug('Path not found for question id %s', question_id)
-                    continue
-                result_mapping[question_path] = [
-                    section_formatter.get_original_id(section_id) for section_id in section_ids
-                ]
+        for question_to_section_ids in thread_map(
+            match_chunk,
+            question_chunks,
+            max_workers=config.parallel_workers,
+            desc=f'Question chunks ({config.parallel_workers} workers)',
+        ):
+            self._add_chunk_mapping_to_result(
+                result_mapping=result_mapping,
+                question_to_section_ids=question_to_section_ids,
+                question_id_to_path=question_id_to_path,
+                section_formatter=section_formatter,
+            )
 
         assignments = convert_mappings_to_assignment_tree(
             sections,

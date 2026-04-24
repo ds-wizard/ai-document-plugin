@@ -8,6 +8,7 @@ from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
+from tqdm.contrib.concurrent import thread_map
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import load_config
@@ -40,6 +41,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM | None = None,
+        workers: int = 1,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -54,10 +56,15 @@ class DmpGeneratorComponent:
         if llm is None:
             llm = OpenAIGenerationLLM()
 
-        parts = []
-        for node in assignments_tree:
-            section, debug = self._generate_section(node, 0, replies, km, llm, stats)
-            parts.append((section, debug))
+        def generate_node(node: dict[str, Any]) -> tuple[str, str]:
+            return self._generate_section(node, 0, replies, km, llm, stats)
+
+        parts = thread_map(
+            generate_node,
+            assignments_tree,
+            max_workers=workers,
+            desc=f'Sections ({workers} workers)',
+        )
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
         return {
@@ -607,6 +614,7 @@ if __name__ == '__main__':
         assignments=selection,
         replies=replies,
         km=km,
+        workers=config.parallel_workers,
     )
     markdown = result['markdown']
     stats = result['stats']

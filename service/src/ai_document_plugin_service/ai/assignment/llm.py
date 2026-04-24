@@ -2,7 +2,6 @@ import json
 import logging
 import pathlib
 from abc import ABC, abstractmethod
-from dataclasses import asdict
 from json import JSONDecodeError
 from typing import TYPE_CHECKING
 
@@ -141,7 +140,7 @@ class LoggingNoopLayerMatcher(LayerMatcher):
         record = {
             'sections_xml': sections_xml,
             'question_chunk_xml': question_chunk_xml,
-            'stats': asdict(stats),
+            'stats': stats.to_dict(),
         }
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         with self._log_path.open('a', encoding='utf-8') as handle:

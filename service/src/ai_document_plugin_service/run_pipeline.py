@@ -2,19 +2,24 @@ import json
 import logging
 import pathlib
 import time
+from collections.abc import Mapping
 
-from ai_document_plugin_service.ai.assignment import run_assignment
-from ai_document_plugin_service.ai.assignment.io import save_assignments
+from haystack import Pipeline
+
+from ai_document_plugin_service.ai.assignment import AssignmentComponent
+from ai_document_plugin_service.ai.assignment.assignment_saver_component import AssignmentSaverComponent
 from ai_document_plugin_service.ai.common import (
-    AssignmentStats,
+    PipelineMetricsCollector,
     configure_logging,
+    get_component_markdown,
+    get_component_stats,
 )
 from ai_document_plugin_service.ai.common.config import load_config
-from ai_document_plugin_service.ai.generation.dmp_generator import (
-    generate_dmp_markdown,
-)
-from ai_document_plugin_service.ai.knowledgemodel import parse_questionnaire
-from ai_document_plugin_service.ai.polishing.dmp_polisher import polish_dmp
+from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
+from ai_document_plugin_service.ai.generation.file_saver_component import FileSaverComponent
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
+from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -23,165 +28,138 @@ COST_PER_MIL_OUTPUT = 2.0
 logger = logging.getLogger(__name__)
 
 
-def _price(stats: AssignmentStats) -> tuple[float, float, float]:
-    input_cost = stats.total_input_tokens * COST_PER_MIL_INPUT / 1_000_000
-    output_cost = stats.total_output_tokens * COST_PER_MIL_OUTPUT / 1_000_000
-    return input_cost, output_cost, input_cost + output_cost
+def build_pipeline() -> Pipeline:
+    pipeline = Pipeline()
+    parser_component = ParserComponent()
+    assignment_component = AssignmentComponent()
+    assignment_saver_component = AssignmentSaverComponent()
+    dmp_generator_component = DmpGeneratorComponent()
+    prepolished_saver_component = FileSaverComponent()
+    dmp_polisher_component = DmpPolisherComponent()
+    polished_saver_component = FileSaverComponent()
+
+    # COMPONENTS
+    pipeline.add_component('parser_component', parser_component)
+    pipeline.add_component('assignment_component', assignment_component)
+    pipeline.add_component('assignment_saver_component', assignment_saver_component)
+    pipeline.add_component('dmp_generator_component', dmp_generator_component)
+    pipeline.add_component('prepolished_saver_component', prepolished_saver_component)
+    pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
+    pipeline.add_component('polished_saver_component', polished_saver_component)
+
+    # CONNECTIONS
+    # parser_component -> assignment_component
+    pipeline.connect('parser_component.data', 'assignment_component.data')
+    # assignment_component -> assignment_saver_component
+    pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
+    pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
+    # assignment_saver_component -> dmp_generator_component
+    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
+    # dmp_generator_component -> prepolished_saver_component
+    pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
+    pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
+    # prepolisher_saver_component -> dmp_polisher_component
+    pipeline.connect('prepolished_saver_component.markdown', 'dmp_polisher_component.markdown')
+    # dmp_polisher_component -> polished_saver_component
+    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.debug_markdown')
+    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.markdown')
+
+    return pipeline
 
 
-def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
-    widths = [len(header) for header in headers]
-    for row in rows:
-        for index, cell in enumerate(row):
-            widths[index] = max(widths[index], len(cell))
-
-    def format_row(row: list[str]) -> str:
-        return '| ' + ' | '.join(cell.ljust(widths[index]) for index, cell in enumerate(row)) + ' |'
-
-    separator = '| ' + ' | '.join('-' * width for width in widths) + ' |'
-    lines = [format_row(headers), separator]
-    lines.extend(format_row(row) for row in rows)
-    return '\n'.join(lines)
-
-
-def run_pipeline() -> None:
+def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> None:
     t1 = time.time()
     config = load_config()
     configure_logging(config.log_level)
     model_name = config.model
     file_paths = config.files
 
-    with pathlib.Path(file_paths.knowledge_model).open(encoding='utf-8') as f:
-        km_data = json.load(f)
+    km_data = get_questionnaire_detail(questionnaire_uuid, token)
+
     with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
         template_data = json.load(f)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    all_stats: list[tuple[str, AssignmentStats]] = []
 
-    # Step 1: Hierarchical assignment (returns assignments)
-    logger.debug('Step 1: Assigning questions to sections...')
-    top_questions = parse_questionnaire(km_data)
-    assignments, stats2 = run_assignment(
-        template_data,
-        top_questions,
-        config,
-        km,
-    )
-    save_assignments(assignments, file_paths.assignments_output, stats=stats2)
-    all_stats.append(('2. Hierarchical assignment', stats2))
-    logger.debug('Saved assignments to %s', file_paths.assignments_output)
-
-    # Step 2: DMP generator (returns markdown and debug markdown)
-    logger.debug('Step 2: Generating DMP markdown...')
-    assignments_as_dict = [a.to_dict() for a in assignments]
-    stats3 = AssignmentStats()
-    markdown, debug_markdown, stats3 = generate_dmp_markdown(
-        assignments_as_dict,
-        replies,
-        km,
-        stats=stats3,
-    )
-    all_stats.append(('2. DMP generator', stats3))
-
-    # Save pre-polished version before step 4
-    pathlib.Path(file_paths.output_pre_polish_markdown).write_text(
-        debug_markdown,
-        encoding='utf-8',
-    )
-    logger.debug(
-        'Saved pre-polished DMP to %s',
-        file_paths.output_pre_polish_markdown,
+    # OTHER INPUTS
+    result = pipeline.run(
+        data={
+            'parser_component': {'data': km_data},
+            'assignment_component': {
+                'template_data': template_data,
+                'config': config,
+                'km': km,
+            },
+            'assignment_saver_component': {'output_path': file_paths.assignments_output},
+            'dmp_generator_component': {
+                'replies': replies,
+                'km': km,
+            },
+            'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
+            'dmp_polisher_component': {
+                'config_path': file_paths.config_path,
+                'template_data': template_data,
+            },
+            'polished_saver_component': {'file_path': file_paths.output_markdown},
+        },
+        include_outputs_from={
+            'assignment_saver_component',
+            'dmp_generator_component',
+            'dmp_polisher_component',
+            'polished_saver_component',
+        },
     )
 
-    # Step 3: DMP polisher (reorganize content into relevant sections)
-    logger.debug(
-        'Step 3: Polishing DMP (moving content to relevant sections)...',
-    )
-    stats4 = AssignmentStats()
-    markdown = polish_dmp(
-        markdown,
-        config_path=file_paths.config_path,
-        stats=stats4,
-        template_data=template_data,
-    )
-    all_stats.append(('4. DMP polisher', stats4))
+    write_metrics(result, model_name, file_paths.output_markdown, file_paths.output_with_stats, t1)
 
-    # Build token/cost summary table
-    total_input = sum(s.total_input_tokens for _, s in all_stats)
-    total_output = sum(s.total_output_tokens for _, s in all_stats)
-    total_cost = sum(_price(s)[2] for _, s in all_stats)
 
-    table_rows = [
-        [
-            step_name,
-            str(stats.total_calls),
-            str(stats.total_input_tokens),
-            str(stats.total_output_tokens),
-            f'{_price(stats)[2]:.2f}',
-        ]
-        for step_name, stats in all_stats
-    ]
-    table_rows.append(
-        [
-            '**Total**',
-            '',
-            str(total_input),
-            str(total_output),
-            f'**{total_cost:.2f}**',
-        ],
+def write_metrics(
+    result: Mapping[str, object],
+    model_name: str,
+    output_path: str,
+    output_with_stats_path: str,
+    t1: float,
+) -> None:
+    metrics = PipelineMetricsCollector(
+        model_name=model_name,
+        cost_per_mil_input=COST_PER_MIL_INPUT,
+        cost_per_mil_output=COST_PER_MIL_OUTPUT,
     )
-    table_md = _markdown_table(
-        ['Step', 'LLM calls', 'Input tokens', 'Output tokens', 'Cost (USD)'],
-        table_rows,
+    metrics.add_step(
+        '1. Hierarchical assignment',
+        get_component_stats(result, 'assignment_saver_component'),
     )
-    t2 = time.time()
-
-    summary_section = '\n'.join(
-        [
-            '',
-            '',
-            '---',
-            '',
-            '## Pipeline token usage and cost',
-            '',
-            table_md,
-            '',
-            (
-                f'*Model: {model_name}.'
-                f'Cost per million tokens: input {COST_PER_MIL_INPUT} USD,'
-                f'output {COST_PER_MIL_OUTPUT} USD.*'
-            ),
-            f'Total time: {t2 - t1}s',
-        ],
+    metrics.add_step(
+        '2. DMP generator',
+        get_component_stats(result, 'dmp_generator_component'),
     )
-    full_markdown = markdown + summary_section
-
-    pathlib.Path(file_paths.output_markdown).write_text(
-        full_markdown,
-        encoding='utf-8',
+    metrics.add_step(
+        '3. DMP polisher',
+        get_component_stats(result, 'dmp_polisher_component'),
     )
 
-    logger.debug('Saved DMP to %s', file_paths.output_markdown)
-    logger.debug('Token usage and cost:')
-    for step_name, stats in all_stats:
-        _, _, tot = _price(stats)
-        logger.debug(
-            '%s: %s calls, %s in / %s out tokens, %.2f USD',
-            step_name,
-            f'{stats.total_calls:,}',
-            f'{stats.total_input_tokens:,}',
-            f'{stats.total_output_tokens:,}',
-            tot,
+    polished_markdown = get_component_markdown(result, 'polished_saver_component')
+    if polished_markdown is None:
+        polished_markdown = pathlib.Path(output_path).read_text(
+            encoding='utf-8',
         )
-    logger.debug(
-        'Total: %s in / %s out tokens, %.2f USD',
-        f'{total_input:,}',
-        f'{total_output:,}',
-        total_cost,
+
+    t2 = time.time()
+    metrics.write_output(
+        markdown=polished_markdown,
+        output_path=output_with_stats_path,
+        elapsed_seconds=t2 - t1,
     )
+
+    logger.debug('Saved DMP to %s', output_with_stats_path)
+    metrics.log_summary(logger)
 
 
 if __name__ == '__main__':
-    run_pipeline()
+    config = load_config()
+    questionnaire_uuid = config.questionnaire_uuid
+    token = config.token
+
+    pipeline = build_pipeline()
+    run_pipeline(questionnaire_uuid, token, pipeline)

@@ -217,3 +217,8 @@ __marimo__/
 
 # Custom:
 config.yaml
+jsons
+dmp_output.md
+dmp_output_pre_polish.md
+dmp_output_with_stats.md
+question_section_assignments_OpenAILayerMatcher.json

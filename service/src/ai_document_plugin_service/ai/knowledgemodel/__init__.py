@@ -1,5 +1,5 @@
 from .direct_subquestion_visitor import DirectSubquestionVisitor
-from .parse_types import parse_questionnaire
+from .parser_component import ParserComponent
 from .question_visitor import QuestionVisitor
 from .types import (
     BlankQuestion,
@@ -25,9 +25,9 @@ __all__ = [
     'MultiChoiceQuestion',
     'OptionsAnswer',
     'OptionsQuestion',
+    'ParserComponent',
     'QuestionData',
     'QuestionVisitor',
     'QuestionnaireElement',
     'ValueQuestion',
-    'parse_questionnaire',
 ]

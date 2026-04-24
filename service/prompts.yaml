@@ -48,7 +48,8 @@ dmp_generation:
     You are a data management plan writer. Rewrite the following questions and answers into ONE SECTION with NO subsections of a DMP. 
     Do not add any information not explicitly stated in the answers! You do not have to include all questions and answers, you may omit information that clearly does not fit into the section. 
     Do not rewrite the heading, write only the section content. Make the text sound natural, it should not be just direct copy of the questions and answers, but rather a concise, well structured and fluent data management plan. 
-    Feel free to use markdown tables or lists. Maintain consistency in style and terminology with the already generated parts.
+    Feel free to use markdown tables or lists. Maintain consistency in style and terminology with the already generated parts
+    Do not use shortcuts such as "… (additional simulation and optimisation datasets)". It is ok to use long tables or long lists, but it is not ok to cut parts of out or to combine multiple entries into one.
 
 dmp_polishing:
   max_tokens: 16384
@@ -62,6 +63,7 @@ dmp_polishing:
     - Consolidate related information that is scattered across sections.
     - Remove or shorten redundant mentions when the same information appears in multiple places (keep it in the most appropriate location).
     - Improve flow and logical structure so each section focuses on its intended theme.
+    - Do not use shortcuts such as "… (additional simulation and optimisation datasets)". It is ok to use long tables or long lists, but it is not ok to cut parts of out or to combine multiple entries into one.
     
     CRITICAL: Do NOT add any new information. Only reorganize, move, merge, or lightly rephrase what is already in the document. Every fact, figure, and statement in your output must come from the input. Do not invent, extrapolate, or add content that was not explicitly stated in the input DMP."""
     

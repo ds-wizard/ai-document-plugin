@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from haystack import Pipeline
 
 from ai_document_plugin_service.ai.assignment import AssignmentComponent
-from ai_document_plugin_service.ai.assignment.assignment_saver_component import AssignmentSaverComponent
 from ai_document_plugin_service.ai.common import (
     PipelineMetricsCollector,
     configure_logging,
@@ -16,9 +15,10 @@ from ai_document_plugin_service.ai.common import (
 )
 from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
-from ai_document_plugin_service.ai.generation.file_saver_component import FileSaverComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent
+from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
 # Cost per million tokens (USD) - adjust for your model
@@ -34,9 +34,9 @@ def build_pipeline() -> Pipeline:
     assignment_component = AssignmentComponent()
     assignment_saver_component = AssignmentSaverComponent()
     dmp_generator_component = DmpGeneratorComponent()
-    prepolished_saver_component = FileSaverComponent()
+    prepolished_saver_component = SaverComponent()
     dmp_polisher_component = DmpPolisherComponent()
-    polished_saver_component = FileSaverComponent()
+    polished_saver_component = SaverComponent()
 
     # COMPONENTS
     pipeline.add_component('parser_component', parser_component)
@@ -67,7 +67,11 @@ def build_pipeline() -> Pipeline:
     return pipeline
 
 
-def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> None:
+def run_pipeline(questionnaire_uuid: str,
+                 token: str,
+                 template_uuid: str,
+                 template_title: str,
+                 pipeline: Pipeline) -> None:
     t1 = time.time()
     config = load_config()
     configure_logging(config.log_level)
@@ -81,6 +85,9 @@ def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> Non
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
+    knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
+    knowledge_model_name = km_data['knowledgeModelPackage']['name']
+    knowledge_model_version = km_data['knowledgeModelPackage']['version']
 
     # OTHER INPUTS
     result = pipeline.run(
@@ -91,7 +98,14 @@ def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> Non
                 'config': config,
                 'km': km,
             },
-            'assignment_saver_component': {'output_path': file_paths.assignments_output},
+            'assignment_saver_component': {
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'knowledge_model_name': knowledge_model_name,
+                'knowledge_model_version': knowledge_model_version,
+                'template_uuid': template_uuid,
+                'template_title': template_title,
+                'template_data': template_data,
+            },
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
@@ -161,6 +175,14 @@ if __name__ == '__main__':
     config = load_config()
     questionnaire_uuid = config.questionnaire_uuid
     token = config.token
+    template_uuid = config.template_uuid
+    template_title = config.template_title
 
     pipeline = build_pipeline()
-    run_pipeline(questionnaire_uuid, token, pipeline)
+    run_pipeline(
+        questionnaire_uuid,
+        token,
+        template_uuid,
+        template_title,
+        pipeline,
+    )

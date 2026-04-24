@@ -10,6 +10,10 @@ dsw:
   questionnaire_uuid: ""
   token: ""
 
+metadata:
+  template_uuid: ""
+  template_title: ""
+
 logging:
   level: "INFO"
 
@@ -17,7 +21,6 @@ files:
   dmp_template: "jsons/he-template.json"
   config_path: "config.yaml"
   prompts_path: "prompts.yaml"
-  assignments_output: "question_section_assignments_OpenAILayerMatcher.json"
   output_markdown: "dmp_output.md"
   output_with_stats: "dmp_output_with_stats.md"
   output_pre_polish_markdown: "dmp_output_pre_polish.md"

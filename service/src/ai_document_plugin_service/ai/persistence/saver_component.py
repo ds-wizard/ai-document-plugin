@@ -13,19 +13,13 @@ class FileSaverComponentResult(TypedDict):
 
 
 @component
-class FileSaverComponent:
+class SaverComponent:
     @typing.override
     @component.output_types(markdown=str)
     def run(self, debug_markdown: str, markdown: str, file_path: str) -> FileSaverComponentResult:
-        content = debug_markdown if debug_markdown is not None else markdown
-        pathlib.Path(file_path).write_text(
-            content,
-            encoding='utf-8',
-        )
-        logger.debug(
-            'Saved markdown to %s',
-            file_path,
-        )
+        output_path = pathlib.Path(file_path)
+        output_path.write_text(debug_markdown, encoding='utf-8')
+        logger.debug('Saved markdown to %s', output_path)
 
         return {
             'markdown': markdown,

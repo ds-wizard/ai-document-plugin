@@ -25,3 +25,7 @@ dev:
 .PHONY: build
 build:
 	uv build
+
+.PHONY: db
+db:
+	docker compose up -d postgres

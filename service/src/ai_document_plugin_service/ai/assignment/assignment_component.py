@@ -6,7 +6,7 @@ from typing import Any, TypedDict
 from haystack import component
 from tqdm.contrib.concurrent import thread_map
 
-from ai_document_plugin_service.ai.assignment.assignment_saver_component import (
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
     AssignmentSaverComponent,
 )
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
@@ -150,11 +150,10 @@ def main() -> None:
     assignment_saver_component = AssignmentSaverComponent()
     assignment_saver_component.run(
         assignments=assignments,
-        output_path=file_paths.assignments_output,
         stats=stats,
     )
-
-    logger.debug('Saved assignments to %s', file_paths.assignments_output)
+    # TODO add filesaver
+    # logger.debug('Saved assignments to %s', file_paths.assignments_output)
     logger.debug('Total LLM calls: %s', stats.total_calls)
     logger.debug('Total input tokens: %s', f'{stats.total_input_tokens:,}')
     logger.debug('Total output tokens: %s', f'{stats.total_output_tokens:,}')

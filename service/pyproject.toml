@@ -24,6 +24,7 @@ dependencies = [
     "openai",
     "pandas",
     "pyyaml",
+    "sqlalchemy",
     "tabulate",
     "tiktoken",
     "tqdm",

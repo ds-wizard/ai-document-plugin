@@ -8,7 +8,7 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     expand_assignment_paths,
 )
 from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
-from ai_document_plugin_service.ai.assignment.types import SectionRecord, SectionNode
+from ai_document_plugin_service.ai.assignment.types import SectionRecord, SectionNode, SectionAssignment
 
 
 def _km_fixture() -> dict:
@@ -118,8 +118,10 @@ def test_convert_mappings_real_km():
     mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km, )
     sec_dmp = mappings[0]
     assert sec_dmp.assignments is None
-    sec_project = sec_dmp.children[0]
+    assert sec_dmp.children is not None
+    sec_project: SectionAssignment = sec_dmp.children[0]
     assert sec_project.children is None
+    assert sec_project.assignments is not None
     assert len(sec_project.assignments) > 0
     administrative_info = list(sec_project.assignments.values())[0]
     assert administrative_info['question_title'] == 'Administrative information'

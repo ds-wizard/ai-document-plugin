@@ -545,8 +545,8 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM,
+        executor: ThreadPoolExecutor,
         stats: AssignmentStats | None = None,
-        executor: ThreadPoolExecutor | None = None,
     ) -> _ScheduledSection:
         """Recursively schedule leaf-section jobs using a shared executor."""
         key = node['key']
@@ -556,7 +556,7 @@ class DmpGeneratorComponent:
             return self._handle_leaf_section(executor, heading, km, llm, node, replies, stats)
         return self._handle_children_section(depth, executor, heading, km, llm, node, replies, stats)
 
-    def _handle_children_section(self, depth: int, executor: ThreadPoolExecutor | None, heading: str, km: dict,
+    def _handle_children_section(self, depth: int, executor: ThreadPoolExecutor, heading: str, km: dict,
                                  llm: GenerationLLM, node: dict, replies: dict,
                                  stats: AssignmentStats | None) -> _ScheduledSection:
         return _ScheduledSection(
@@ -575,7 +575,7 @@ class DmpGeneratorComponent:
             ],
         )
 
-    def _handle_leaf_section(self, executor: ThreadPoolExecutor | None, heading: str, km: dict, llm: GenerationLLM,
+    def _handle_leaf_section(self, executor: ThreadPoolExecutor, heading: str, km: dict, llm: GenerationLLM,
                              node: dict, replies: dict, stats: AssignmentStats | None) -> _ScheduledSection:
         if node.get("assignments") is not None:
             return _ScheduledSection(
@@ -594,7 +594,7 @@ class DmpGeneratorComponent:
 
     @staticmethod
     def _is_leaf_section(node: dict) -> Any | None:
-        return node.get('children') is None or len(node.get('children')) == 0
+        return not node.get('children')
 
     def _generate_leaf_section(
         self,

@@ -34,6 +34,16 @@ class FilePaths:
 
 
 @dataclass(frozen=True)
+class DatabaseConfig:
+    host: str
+    port: int
+    name: str
+    user: str
+    password: str
+    schema: str
+
+
+@dataclass(frozen=True)
 class Config:
     api_key: str
     api_url: str
@@ -44,6 +54,7 @@ class Config:
     template_title: str
     model: str
     log_level: str
+    database: DatabaseConfig
     files: FilePaths
     assignment: SystemAndUserPrompt
     section_id: SystemAndUserPrompt
@@ -146,6 +157,14 @@ def load_config(
         template_uuid=_get(config, 'metadata', 'template_uuid'),
         template_title=_get(config, 'metadata', 'template_title'),
         log_level=_get_log_level(config),
+        database=DatabaseConfig(
+            host=_expand_env_vars(_get(config, 'database', 'host')),
+            port=int(_expand_env_vars(str(_get(config, 'database', 'port')))),
+            name=_expand_env_vars(_get(config, 'database', 'name')),
+            user=_expand_env_vars(_get(config, 'database', 'user')),
+            password=_expand_env_vars(_get(config, 'database', 'password')),
+            schema=_expand_env_vars(_get(config, 'database', 'schema')),
+        ),
         files=FilePaths(
             dmp_template=_resolve_existing_path(
                 _get_file_path(config, 'dmp_template'),

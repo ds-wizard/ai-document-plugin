@@ -7,6 +7,9 @@ from typing import Any
 
 from sqlalchemy import JSON, Column, DateTime, MetaData, Table, Text, create_engine, func
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.engine import URL
+
+from ai_document_plugin_service.ai.common.config import DatabaseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +42,17 @@ class Database(ABC):
 class PostgresDB(Database):
     def __init__(
         self,
-        dsn: str,
-        schema_name: str = 'public',
+        config: DatabaseConfig,
     ) -> None:
-        self.dsn = dsn
-        self.schema_name = _validate_identifier(schema_name)
+        self.dsn = URL.create(
+            drivername='postgresql+psycopg',
+            username=config.user,
+            password=config.password,
+            host=config.host,
+            port=config.port,
+            database=config.name,
+        )
+        self.schema_name = _validate_identifier(config.schema)
         self.engine = create_engine(self.dsn)
         self.metadata = MetaData(schema=self.schema_name)
         self.assignments_table = Table(
@@ -90,7 +99,7 @@ class PostgresDB(Database):
         )
         upsert_statement = statement.on_conflict_do_update(
             index_elements=[
-                self.assignments_table.c.knowledge_model_package_id,
+                self.assignments_table.c.knowledge_model_uuid,
             ],
             set_={
                 'created_at': statement.excluded.created_at,

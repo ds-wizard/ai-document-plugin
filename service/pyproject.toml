@@ -23,6 +23,7 @@ dependencies = [
     "json-repair",
     "openai",
     "pandas",
+    "psycopg[binary]",
     "pyyaml",
     "sqlalchemy",
     "tabulate",

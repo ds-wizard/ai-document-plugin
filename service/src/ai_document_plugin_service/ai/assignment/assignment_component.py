@@ -135,6 +135,7 @@ def main() -> None:
     with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
         template_data = json.load(f)
     km_data = get_questionnaire_detail(questionnaire_uuid, token)
+    knowledge_model_package = km_data['knowledgeModelPackage']
 
     parser_component = ParserComponent()
     top_questions = parser_component.run(km_data)['data']
@@ -149,6 +150,13 @@ def main() -> None:
     stats = result['stats']
     assignment_saver_component = AssignmentSaverComponent()
     assignment_saver_component.run(
+        knowledge_model_uuid=knowledge_model_package['uuid'],
+        knowledge_model_name=knowledge_model_package['name'],
+        knowledge_model_version=knowledge_model_package['version'],
+        template_uuid=config.template_uuid,
+        template_title=config.template_title,
+        template_data=template_data,
+        database_config=config.database,
         assignments=assignments,
         stats=stats,
     )

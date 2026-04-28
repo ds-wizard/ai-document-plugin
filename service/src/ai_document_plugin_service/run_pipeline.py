@@ -105,6 +105,7 @@ def run_pipeline(questionnaire_uuid: str,
                 'template_uuid': template_uuid,
                 'template_title': template_title,
                 'template_data': template_data,
+                'database_config': config.database,
             },
             'dmp_generator_component': {
                 'replies': replies,

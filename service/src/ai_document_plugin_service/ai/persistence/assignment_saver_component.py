@@ -12,8 +12,9 @@ from typing import Any, TypedDict
 from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.common.config import DatabaseConfig
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.persistence.database import Database
+from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,12 @@ class AssignmentSaverComponent:
     def run(
         self,
         knowledge_model_uuid: uuid.UUID,
-        knowledge_model_name: uuid.UUID,
-        knowledge_model_version: uuid.UUID,
+        knowledge_model_name: str,
+        knowledge_model_version: str,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
+        database_config: DatabaseConfig,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
     ) -> AssignmentSaverComponentResult:
@@ -52,9 +54,8 @@ class AssignmentSaverComponent:
                 },
             }
 
-        # TODO dependency
-        file_saver = FileSaver()
-        file_saver.save(
+        database_saver = DBSaver(PostgresDB(database_config))
+        database_saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
@@ -96,7 +97,7 @@ class FileSaver(Saver):
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        stats: AssignmentStats,
+        stats: JsonValue,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
@@ -136,8 +137,8 @@ class FileSaver(Saver):
 
 
 class DBSaver(Saver):
-    def __init__(self, backend: Database) -> None:
-        self.backend = backend
+    def __init__(self, database: Database) -> None:
+        self.database = database
 
     def save(
         self,
@@ -145,18 +146,18 @@ class DBSaver(Saver):
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        stats: AssignmentStats,
+        stats: JsonValue,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
         created_at: datetime | None = None,
     ) -> None:
-        self.backend.save_template(
+        self.database.save_template(
             uuid=template_uuid,
             title=template_title,
             content=template_data,
         )
-        self.backend.save_assignments(
+        self.database.save_assignments(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,

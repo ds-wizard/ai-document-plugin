@@ -17,6 +17,14 @@ metadata:
 logging:
   level: "INFO"
 
+database:
+  host: "localhost"
+  port: "5432"
+  name: "ai_document_plugin"
+  user: "ai_document_plugin"
+  password: "ai_document_plugin"
+  schema: "public"
+
 files:
   dmp_template: "jsons/he-template.json"
   config_path: "config.yaml"

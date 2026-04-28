@@ -32,7 +32,7 @@ def call_with_retry[T](
         except (APIConnectionError, APITimeoutError, RateLimitError) as e:
             err = e
             if attempt < max_retries - 1:
-                logger.debug('Error calling LLM, retrying: %s', e)
+                logger.warning('Error calling LLM, retrying: %s', e)
                 time.sleep(delay)
     if err is not None:
         raise err
@@ -66,6 +66,4 @@ def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
     if stats is None:
         return
     input_tokens, output_tokens = extract_usage_tokens(response)
-    stats.total_calls += 1
-    stats.total_input_tokens += input_tokens
-    stats.total_output_tokens += output_tokens
+    stats.add_usage(input_tokens, output_tokens)

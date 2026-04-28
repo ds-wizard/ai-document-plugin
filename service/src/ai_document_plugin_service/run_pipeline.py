@@ -95,6 +95,7 @@ def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> Non
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
+                'workers': config.parallel_workers,
             },
             'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
             'dmp_polisher_component': {

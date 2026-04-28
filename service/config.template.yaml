@@ -3,6 +3,7 @@ llm_response_generation:
   model: "gpt-oss-120b"
   api_url: https://llm.ai.e-infra.cz/v1/
   api_key: "xxx"
+  workers: 4
 
 dsw:
   api_url: ""

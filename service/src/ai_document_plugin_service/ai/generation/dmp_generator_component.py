@@ -4,10 +4,13 @@ import math
 import pathlib
 import re
 from collections.abc import Iterable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
+from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import load_config
@@ -31,6 +34,14 @@ class DmpGeneratorComponentResult(TypedDict):
     stats: AssignmentStats
 
 
+@dataclass
+class _ScheduledSection:
+    heading: str
+    future: Future[tuple[str, str]] | None = None
+    children: list['_ScheduledSection'] = field(default_factory=list)
+    no_data: bool = False
+
+
 @component
 class DmpGeneratorComponent:
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
@@ -40,6 +51,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM | None = None,
+        workers: int = 1,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -54,10 +66,30 @@ class DmpGeneratorComponent:
         if llm is None:
             llm = OpenAIGenerationLLM()
 
-        parts = []
-        for node in assignments_tree:
-            section, debug = self._generate_section(node, 0, replies, km, llm, stats)
-            parts.append((section, debug))
+        worker_count = max(1, workers)
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            scheduled_sections = [
+                self._schedule_section(
+                    node=node,
+                    depth=0,
+                    replies=replies,
+                    km=km,
+                    llm=llm,
+                    stats=stats,
+                    executor=executor,
+                )
+                for node in assignments_tree
+            ]
+            leaf_futures = []
+            for scheduled in scheduled_sections:
+                leaf_futures.extend(self._collect_leaf_futures(scheduled))
+            for _ in tqdm(
+                as_completed(leaf_futures),
+                total=len(leaf_futures),
+                desc=f'Generating sections ({worker_count} workers)',
+            ):
+                pass
+            parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
         return {
@@ -506,39 +538,79 @@ class DmpGeneratorComponent:
         table_md = df.to_markdown(index=False)
         return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
 
-    def _generate_section(
+    def _schedule_section(
         self,
         node: dict,
         depth: int,
         replies: dict,
         km: dict,
         llm: GenerationLLM,
+        executor: ThreadPoolExecutor,
         stats: AssignmentStats | None = None,
-    ) -> tuple[str, str]:
-        """Recursively generate markdown for one section node.
-        Leaf: content from Q&A via LLM. Parent: summary of children via LLM.
-        Returns (section_markdown, debug_markdown).
-        """
+    ) -> _ScheduledSection:
+        """Recursively schedule leaf-section jobs using a shared executor."""
         key = node['key']
         heading = self._heading(depth, key)
 
-        if node.get('assignments') is not None:
-            return self._generate_leaf_section(node, heading, replies, km, llm, stats)
+        if self._is_leaf_section(node):
+            return self._handle_leaf_section(executor, heading, km, llm, node, replies, stats)
+        return self._handle_children_section(depth, executor, heading, km, llm, node, replies, stats)
 
-        if not node.get('children'):
-            res = heading + '\nNo data'
-            return res, res
-        children_markdown, children_markdown_debug = self._generate_children_sections(
-            node['children'],
-            depth,
-            replies,
-            km,
-            llm,
-            stats,
+    def _handle_children_section(
+        self,
+        depth: int,
+        executor: ThreadPoolExecutor,
+        heading: str,
+        km: dict,
+        llm: GenerationLLM,
+        node: dict,
+        replies: dict,
+        stats: AssignmentStats | None,
+    ) -> _ScheduledSection:
+        return _ScheduledSection(
+            heading=heading,
+            children=[
+                self._schedule_section(
+                    node=child,
+                    depth=depth + 1,
+                    replies=replies,
+                    km=km,
+                    llm=llm,
+                    stats=stats,
+                    executor=executor,
+                )
+                for child in node['children']
+            ],
         )
-        res = heading + '\n\n' + children_markdown
-        debug_res = heading + '\n\n' + children_markdown_debug
-        return res, debug_res
+
+    def _handle_leaf_section(
+        self,
+        executor: ThreadPoolExecutor,
+        heading: str,
+        km: dict,
+        llm: GenerationLLM,
+        node: dict,
+        replies: dict,
+        stats: AssignmentStats | None,
+    ) -> _ScheduledSection:
+        if node.get('assignments') is not None:
+            return _ScheduledSection(
+                heading=heading,
+                future=executor.submit(
+                    self._generate_leaf_section,
+                    node,
+                    heading,
+                    replies,
+                    km,
+                    llm,
+                    stats,
+                ),
+            )
+        return _ScheduledSection(heading=heading, no_data=True)
+
+    @staticmethod
+    def _is_leaf_section(node: dict) -> bool:
+        return not node.get('children')
 
     def _generate_leaf_section(
         self,
@@ -560,30 +632,32 @@ class DmpGeneratorComponent:
         section = heading + '\n\n' + content
         return section, heading + '\n\n' + debug_body
 
-    def _generate_children_sections(
+    def _collect_leaf_futures(
         self,
-        children: list[dict],
-        depth: int,
-        replies: dict,
-        km: dict,
-        llm: GenerationLLM,
-        stats: AssignmentStats | None = None,
+        scheduled: _ScheduledSection,
+    ) -> list[Future[tuple[str, str]]]:
+        if scheduled.future is not None:
+            return [scheduled.future]
+        futures = []
+        for child in scheduled.children:
+            futures.extend(self._collect_leaf_futures(child))
+        return futures
+
+    def _render_scheduled_section(
+        self,
+        scheduled: _ScheduledSection,
     ) -> tuple[str, str]:
-        """Generate and join markdown/debug markdown from child nodes."""
-        children_parts = []
-        for child in children:
-            child_section, child_debug = self._generate_section(
-                child,
-                depth + 1,
-                replies,
-                km,
-                llm,
-                stats,
-            )
-            children_parts.append((child_section, child_debug))
+        if scheduled.future is not None:
+            return scheduled.future.result()
+        if scheduled.no_data:
+            res = scheduled.heading + '\nNo data'
+            return res, res
+        children_parts = [self._render_scheduled_section(child) for child in scheduled.children]
         children_markdown = '\n\n'.join([s for s, _ in children_parts])
         children_markdown_debug = '\n\n'.join([d for _, d in children_parts])
-        return children_markdown, children_markdown_debug
+        section = scheduled.heading + '\n\n' + children_markdown
+        debug_section = scheduled.heading + '\n\n' + children_markdown_debug
+        return section, debug_section
 
 
 if __name__ == '__main__':
@@ -607,6 +681,7 @@ if __name__ == '__main__':
         assignments=selection,
         replies=replies,
         km=km,
+        workers=config.parallel_workers,
     )
     markdown = result['markdown']
     stats = result['stats']

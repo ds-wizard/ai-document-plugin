@@ -1,25 +1,31 @@
+import uuid
 from typing import Any
 from xml.sax.saxutils import escape
 
 from ai_document_plugin_service.ai.assignment.types import (
+    LeafSection,
     SectionNode,
     SectionRecord,
 )
 
 
 def build_section_records(template_data: dict[str, Any]) -> list[SectionRecord]:
-    """Build section records from loaded template JSON data."""
+    """Build section records from loaded template JSON data.
+
+    Each record receives a synthetic UUID id. Ids are unique across the whole tree and
+    decoupled from the section title, so duplicate titles never collide downstream.
+    """
     return _build_records_recursively(template_data['sections'], [])
 
 
 def collect_leaf_section_texts(
     sections: list[SectionRecord],
-) -> list[tuple[str, str]]:
-    """Return all leaf sections as (section_key, section_text) in tree order."""
-    leaves: list[tuple[str, str]] = []
+) -> list[LeafSection]:
+    """Return all leaf sections as `LeafSection` records in tree order."""
+    leaves: list[LeafSection] = []
     for section in sections:
         if section.children is None:
-            leaves.append((section.key, section.text or ''))
+            leaves.append(LeafSection(id=section.id, title=section.title, text=section.text or ''))
             continue
         leaves.extend(collect_leaf_section_texts(section.children))
     return leaves
@@ -27,12 +33,13 @@ def collect_leaf_section_texts(
 
 def render_section_tree_as_xml(
     sections: list[SectionRecord],
-    section_key_to_id: dict[str, str] | None = None,
+    record_id_to_sid: dict[str, str] | None = None,
 ) -> str:
     """Render the section tree as XML.
 
-    Only leaf sections receive an `id` attribute.
-    Returns (xml, id_to_section_key).
+    Only leaf sections receive a short `id` attribute (the LLM-facing sid). When
+    `record_id_to_sid` is provided, the leaf's `SectionRecord.id` is looked up in it;
+    otherwise a sequential letter id (A, B, ...) is generated.
     """
     leaf_index = [0]
 
@@ -40,7 +47,7 @@ def render_section_tree_as_xml(
         _section_record_to_xml_node(
             section=section,
             leaf_index=leaf_index,
-            section_key_to_id=section_key_to_id,
+            record_id_to_sid=record_id_to_sid,
         )
         for section in sections
     ]
@@ -59,10 +66,12 @@ def _build_records_recursively(
     for section_dict in sections:
         node = SectionNode(section_dict)
         title = node.title
+        record_id = str(uuid.uuid4())
         if not node.subsections:
             records.append(
                 SectionRecord(
-                    key=title,
+                    id=record_id,
+                    title=title,
                     section=node,
                     text=_format_section(node, parent_sections),
                     children=None,
@@ -71,7 +80,8 @@ def _build_records_recursively(
             continue
         records.append(
             SectionRecord(
-                key=title,
+                id=record_id,
+                title=title,
                 section=node,
                 text=None,
                 children=_build_records_recursively(
@@ -96,17 +106,17 @@ def _section_index_to_letter_id(index: int) -> str:
 def _section_record_to_xml_node(
     section: SectionRecord,
     leaf_index: list[int],
-    section_key_to_id: dict[str, str] | None,
+    record_id_to_sid: dict[str, str] | None,
 ) -> dict[str, Any]:
     if section.children is not None:
         node: dict[str, Any] = {
             'tag': 'section',
-            'title': section.key,
+            'title': section.title,
             'children': [
                 _section_record_to_xml_node(
                     section=child,
                     leaf_index=leaf_index,
-                    section_key_to_id=section_key_to_id,
+                    record_id_to_sid=record_id_to_sid,
                 )
                 for child in section.children
             ],
@@ -115,13 +125,13 @@ def _section_record_to_xml_node(
             node['content'] = section.section.content.strip()
         return node
 
-    if section_key_to_id is not None and section.key in section_key_to_id:
-        section_id = section_key_to_id[section.key]
+    if record_id_to_sid is not None and section.id in record_id_to_sid:
+        sid = record_id_to_sid[section.id]
     else:
-        section_id = _section_index_to_letter_id(leaf_index[0])
+        sid = _section_index_to_letter_id(leaf_index[0])
         leaf_index[0] += 1
 
-    node = {'tag': 'section', 'id': section_id, 'title': section.key}
+    node = {'tag': 'section', 'id': sid, 'title': section.title}
     if section.section.content:
         node['content'] = section.section.content.strip()
     return node

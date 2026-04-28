@@ -13,42 +13,40 @@ class SectionFormatter:
     def __init__(self, sections: list[SectionRecord]) -> None:
         self.sections = sections
         self.leaf_sections = collect_leaf_section_texts(sections)
-        self.section_key_to_id: dict[str, str] | None = None
-        self.section_id_to_key: dict[str, str] | None = None
+        self.id_to_sid: dict[str, str] | None = None
+        self.sid_to_id: dict[str, str] | None = None
 
     def create_mappings(
         self,
         section_id_generator: SectionIdGenerator,
         stats: AssignmentStats,
     ) -> None:
-        section_key_to_id = section_id_generator.generate_leaf_section_ids(
+        id_to_sid = section_id_generator.generate_leaf_section_ids(
             self.leaf_sections,
             stats,
         )
-        self.section_key_to_id = section_key_to_id
-        # Build reverse mapping: id -> key, resolve collisions by appending _1, _2, ...
-        self.section_id_to_key = {}
-        for key, sec_id in section_key_to_id.items():
-            new_id = sec_id
-            i = 1
-            while new_id in self.section_id_to_key:
-                new_id = f'{sec_id}_{i}'
-                i += 1
-            self.section_id_to_key[new_id] = key
+        self.id_to_sid = id_to_sid
+        # Forward keys (record ids) and sid values are both unique by construction:
+        # record ids come from _build_records_recursively (monotonic counter) and the
+        # sid generator de-duplicates via its own `used_ids` set. So a clean inverse exists.
+        self.sid_to_id = {sid: rec_id for rec_id, sid in id_to_sid.items()}
 
     def get_sections_as_xml(self) -> str:
-        if self.section_key_to_id is None:
+        if self.id_to_sid is None:
             msg = 'Class not initialized, call create_mappings first'
-            raise RuntimeError(
-                msg,
-            )
+            raise RuntimeError(msg)
 
         return render_section_tree_as_xml(
             sections=self.sections,
-            section_key_to_id=self.section_key_to_id,
+            record_id_to_sid=self.id_to_sid,
         )
 
-    def get_original_id(self, section_id: str) -> str:
-        if self.section_id_to_key is None:
-            return section_id
-        return self.section_id_to_key.get(section_id, section_id)
+    def record_id_for_sid(self, sid: str) -> str:
+        """Resolve an LLM-facing sid back to the synthetic record id.
+
+        Falls back to returning the input unchanged when no mapping is registered yet,
+        matching the previous lenient behaviour.
+        """
+        if self.sid_to_id is None:
+            return sid
+        return self.sid_to_id.get(sid, sid)

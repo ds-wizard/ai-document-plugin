@@ -549,8 +549,8 @@ class DmpGeneratorComponent:
         stats: AssignmentStats | None = None,
     ) -> _ScheduledSection:
         """Recursively schedule leaf-section jobs using a shared executor."""
-        key = node['key']
-        heading = self._heading(depth, key)
+        title = node['title']
+        heading = self._heading(depth, title)
 
         if self._is_leaf_section(node):
             return self._handle_leaf_section(executor, heading, km, llm, node, replies, stats)
@@ -622,11 +622,11 @@ class DmpGeneratorComponent:
         stats: AssignmentStats | None = None,
     ) -> tuple[str, str]:
         """Generate markdown/debug markdown for a leaf node with assignments."""
-        key = node['key']
+        title = node['title']
         matches, _ = self.match_replies_selection(node['assignments'], replies, km)
-        rows = self._flatten_matched_questions(matches, key)
+        rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
-        prompt = self.construct_chapter_prompt(key, matches)
+        prompt = self.construct_chapter_prompt(title, matches)
         content = self.llm_section_from_qa(llm, prompt, stats) if prompt else 'No data'
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content

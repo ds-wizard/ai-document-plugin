@@ -56,7 +56,7 @@ class AssignmentComponent:
                 logger.debug('Path not found for question id %s', question_id)
                 continue
             result_mapping[question_path] = [
-                section_formatter.get_original_id(section_id) for section_id in section_ids
+                section_formatter.record_id_for_sid(sid) for sid in section_ids
             ]
 
     @staticmethod

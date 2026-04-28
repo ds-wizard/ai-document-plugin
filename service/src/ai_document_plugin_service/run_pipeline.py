@@ -5,6 +5,7 @@ import time
 from collections.abc import Mapping
 
 from haystack import Pipeline
+from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
@@ -18,7 +19,9 @@ from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent, DBSaver
+from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent, DBSaver, \
+    JsonValue
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
@@ -32,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
+    loader_component = AssignmentLoaderComponent() # TODO load based on both km_uuid and template
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
     assignment_saver_component = AssignmentSaverComponent()
@@ -40,7 +44,28 @@ def build_pipeline() -> Pipeline:
     dmp_polisher_component = DmpPolisherComponent()
     polished_saver_component = SaverComponent()
 
+    # ROUTES
+    routes = [
+        {
+            "condition": "{{ not found }}",
+            "output": "{{ found }}",
+            "output_name": "missing_assignment",
+            "output_type": bool,
+        },
+        {
+            "condition": "{{ found }}",
+            "output": "{{ assignments }}",
+            "output_name": "retrieved_assignment",
+            "output_type": JsonValue,
+        }
+    ]
+    router = ConditionalRouter(
+        routes=routes
+    )
+
     # COMPONENTS
+    pipeline.add_component('loader_component', loader_component)
+    pipeline.add_component('router', router)
     pipeline.add_component('parser_component', parser_component)
     pipeline.add_component('assignment_component', assignment_component)
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
@@ -49,14 +74,22 @@ def build_pipeline() -> Pipeline:
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
     pipeline.add_component('polished_saver_component', polished_saver_component)
 
+
     # CONNECTIONS
+    # loader_component -> router
+    pipeline.connect('loader_component.assignments', 'router.assignments')
+    pipeline.connect('loader_component.found', 'router.found')
+    # no assignments saved -> continue to parser_component
+    pipeline.connect('router.missing_assignment', 'parser_component.trigger')
+    # assignments already done -> continue to dmp_generator_component
+    pipeline.connect('router.retrieved_assignment', 'dmp_generator_component.db_assignments')
     # parser_component -> assignment_component
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
-    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
+    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> prepolished_saver_component
     pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
     pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
@@ -90,12 +123,18 @@ def run_pipeline(questionnaire_uuid: str,
     knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
-    saver = DBSaver(PostgresDB(config.database))
+    database = PostgresDB(config.database)
+    saver = DBSaver(database)
 
     # OTHER INPUTS
     result = pipeline.run(
         data={
-            'parser_component': {'data': km_data},
+            'loader_component': {
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': template_uuid,
+                'database': database,
+            },
+            'parser_component': {'data': km_data },
             'assignment_component': {
                 'template_data': template_data,
                 'config': config,

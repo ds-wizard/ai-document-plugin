@@ -28,7 +28,7 @@ class ParserComponent:
         self.km: dict = {}
 
     @component.output_types(data=list[QuestionData])
-    def run(self, data: dict) -> dict[str, list[QuestionData]]:
+    def run(self, data: dict, trigger: bool) -> dict[str, list[QuestionData]]:
         self.km = data['knowledgeModel']
         replies = data['replies']
         top_level_questions: list[QuestionData] = []

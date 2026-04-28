@@ -29,7 +29,7 @@ class AssignmentSaverComponentResult(TypedDict):
 @component
 class AssignmentSaverComponent:
     @typing.override
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=JsonValue, stats=AssignmentStats)
     def run(
         self,
         saver: Saver,
@@ -65,6 +65,8 @@ class AssignmentSaverComponent:
             template_data=template_data,
             created_at=datetime.now(),
         )
+
+        assignments = [a.to_dict() for a in assignments]
 
         return {
             'assignments': assignments,
@@ -163,6 +165,7 @@ class DBSaver(Saver):
             assignments=assignments,
             stats=stats,
             created_at=created_at,
+            template_uuid=template_uuid,
         )
 
 

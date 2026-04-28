@@ -21,6 +21,7 @@ from ai_document_plugin_service.ai.generation.llm import (
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import JsonValue
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,12 @@ class DmpGeneratorComponent:
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
     def run(
         self,
-        assignments: list[SectionAssignment],
         replies: dict,
         km: dict,
         llm: GenerationLLM | None = None,
         workers: int = 1,
+        new_assignments: JsonValue | None = None,
+        db_assignments: JsonValue | None = None,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -59,7 +61,8 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        assignments_tree = [a.to_dict() for a in assignments]
+        # assignments_tree = [a.to_dict() for a in assignments]
+        assignments = db_assignments if db_assignments else new_assignments
 
         stats = AssignmentStats()
 
@@ -78,7 +81,7 @@ class DmpGeneratorComponent:
                     stats=stats,
                     executor=executor,
                 )
-                for node in assignments_tree
+                for node in assignments
             ]
             leaf_futures = []
             for scheduled in scheduled_sections:

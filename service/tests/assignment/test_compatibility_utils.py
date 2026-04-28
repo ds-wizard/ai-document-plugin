@@ -108,8 +108,12 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
         ]
     }
     sections = build_section_records(template_data)
-    desc_a_id = sections[0].children[0].id
-    desc_b_id = sections[1].children[0].id
+    parent_a_children = sections[0].children
+    parent_b_children = sections[1].children
+    assert parent_a_children is not None
+    assert parent_b_children is not None
+    desc_a_id = parent_a_children[0].id
+    desc_b_id = parent_b_children[0].id
     assert desc_a_id != desc_b_id
 
     path_to_sections = {

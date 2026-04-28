@@ -63,7 +63,7 @@ dmp_polishing:
     - Consolidate related information that is scattered across sections.
     - Remove or shorten redundant mentions when the same information appears in multiple places (keep it in the most appropriate location).
     - Improve flow and logical structure so each section focuses on its intended theme.
-    - Do not use shortcuts such as "… (additional simulation and optimisation datasets)". It is ok to use long tables or long lists, but it is not ok to cut parts of out or to combine multiple entries into one.
+    - Do not merge multiple rows from tables into one. Do not remove rows from tables. It is ok to include very long tables with many rows. 
     
     CRITICAL: Do NOT add any new information. Only reorganize, move, merge, or lightly rephrase what is already in the document. Every fact, figure, and statement in your output must come from the input. Do not invent, extrapolate, or add content that was not explicitly stated in the input DMP."""
     

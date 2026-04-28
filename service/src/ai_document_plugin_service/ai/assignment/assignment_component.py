@@ -55,9 +55,7 @@ class AssignmentComponent:
             if not question_path:
                 logger.debug('Path not found for question id %s', question_id)
                 continue
-            result_mapping[question_path] = [
-                section_formatter.record_id_for_sid(sid) for sid in section_ids
-            ]
+            result_mapping[question_path] = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
 
     @staticmethod
     def _match_single_chunk(

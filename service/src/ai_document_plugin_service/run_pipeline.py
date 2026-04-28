@@ -14,10 +14,12 @@ from ai_document_plugin_service.ai.common import (
     get_component_stats,
 )
 from ai_document_plugin_service.ai.common.config import load_config
+
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent, DBSaver
+from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
@@ -88,6 +90,7 @@ def run_pipeline(questionnaire_uuid: str,
     knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
+    saver = DBSaver(PostgresDB(config.database))
 
     # OTHER INPUTS
     result = pipeline.run(
@@ -99,13 +102,13 @@ def run_pipeline(questionnaire_uuid: str,
                 'km': km,
             },
             'assignment_saver_component': {
+                'saver': saver,
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'knowledge_model_name': knowledge_model_name,
                 'knowledge_model_version': knowledge_model_version,
                 'template_uuid': template_uuid,
                 'template_title': template_title,
                 'template_data': template_data,
-                'database_config': config.database,
             },
             'dmp_generator_component': {
                 'replies': replies,

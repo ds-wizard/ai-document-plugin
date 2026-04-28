@@ -666,10 +666,10 @@ if __name__ == '__main__':
     questionnaire_uuid = config.questionnaire_uuid
     token = config.token
 
-    # with pathlib.Path(file_paths.assignments_output).open( TODO add filesaver
-    #     encoding='utf-8',
-    # ) as f:
-    #     data = json.load(f)
+    with pathlib.Path(file_paths.assignments_output).open(
+        encoding='utf-8',
+    ) as f:
+        data = json.load(f)
     selection = data['assignments']
     dmp = get_questionnaire_detail(questionnaire_uuid, token)
 

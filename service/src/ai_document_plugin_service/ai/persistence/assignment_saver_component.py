@@ -32,13 +32,13 @@ class AssignmentSaverComponent:
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     def run(
         self,
+        saver: Saver,
         knowledge_model_uuid: uuid.UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
-        database_config: DatabaseConfig,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
     ) -> AssignmentSaverComponentResult:
@@ -54,8 +54,7 @@ class AssignmentSaverComponent:
                 },
             }
 
-        database_saver = DBSaver(PostgresDB(database_config))
-        database_saver.save(
+        saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,

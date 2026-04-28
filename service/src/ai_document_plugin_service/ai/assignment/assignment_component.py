@@ -7,7 +7,7 @@ from haystack import component
 from tqdm.contrib.concurrent import thread_map
 
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
-    AssignmentSaverComponent,
+    AssignmentSaverComponent, FileSaver,
 )
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
@@ -148,7 +148,7 @@ def main() -> None:
     )
     assignments = result['assignments']
     stats = result['stats']
-    assignment_saver_component = AssignmentSaverComponent()
+    assignment_saver_component = AssignmentSaverComponent(FileSaver())
     assignment_saver_component.run(
         knowledge_model_uuid=knowledge_model_package['uuid'],
         knowledge_model_name=knowledge_model_package['name'],
@@ -160,7 +160,7 @@ def main() -> None:
         assignments=assignments,
         stats=stats,
     )
-    # TODO add filesaver
+
     # logger.debug('Saved assignments to %s', file_paths.assignments_output)
     logger.debug('Total LLM calls: %s', stats.total_calls)
     logger.debug('Total input tokens: %s', f'{stats.total_input_tokens:,}')

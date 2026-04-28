@@ -107,7 +107,7 @@ class AssignmentComponent:
             match_chunk,
             question_chunks,
             max_workers=config.parallel_workers,
-            desc=f'Question chunks ({config.parallel_workers} workers)',
+            desc=f'Assigning questions to sections ({config.parallel_workers} workers)',
         ):
             self._add_chunk_mapping_to_result(
                 result_mapping=result_mapping,

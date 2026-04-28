@@ -556,9 +556,17 @@ class DmpGeneratorComponent:
             return self._handle_leaf_section(executor, heading, km, llm, node, replies, stats)
         return self._handle_children_section(depth, executor, heading, km, llm, node, replies, stats)
 
-    def _handle_children_section(self, depth: int, executor: ThreadPoolExecutor, heading: str, km: dict,
-                                 llm: GenerationLLM, node: dict, replies: dict,
-                                 stats: AssignmentStats | None) -> _ScheduledSection:
+    def _handle_children_section(
+        self,
+        depth: int,
+        executor: ThreadPoolExecutor,
+        heading: str,
+        km: dict,
+        llm: GenerationLLM,
+        node: dict,
+        replies: dict,
+        stats: AssignmentStats | None,
+    ) -> _ScheduledSection:
         return _ScheduledSection(
             heading=heading,
             children=[
@@ -575,9 +583,17 @@ class DmpGeneratorComponent:
             ],
         )
 
-    def _handle_leaf_section(self, executor: ThreadPoolExecutor, heading: str, km: dict, llm: GenerationLLM,
-                             node: dict, replies: dict, stats: AssignmentStats | None) -> _ScheduledSection:
-        if node.get("assignments") is not None:
+    def _handle_leaf_section(
+        self,
+        executor: ThreadPoolExecutor,
+        heading: str,
+        km: dict,
+        llm: GenerationLLM,
+        node: dict,
+        replies: dict,
+        stats: AssignmentStats | None,
+    ) -> _ScheduledSection:
+        if node.get('assignments') is not None:
             return _ScheduledSection(
                 heading=heading,
                 future=executor.submit(

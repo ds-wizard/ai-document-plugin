@@ -609,7 +609,7 @@ class DmpGeneratorComponent:
         return _ScheduledSection(heading=heading, no_data=True)
 
     @staticmethod
-    def _is_leaf_section(node: dict) -> Any | None:
+    def _is_leaf_section(node: dict) -> bool:
         return not node.get('children')
 
     def _generate_leaf_section(

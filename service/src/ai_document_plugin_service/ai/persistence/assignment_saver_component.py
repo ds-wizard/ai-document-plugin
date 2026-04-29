@@ -1,20 +1,23 @@
+from __future__ import annotations
+
 import json
 import logging
-import os
+import pathlib
 import re
 import typing
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from datetime import datetime
-from typing import Any, TypedDict
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
-from ai_document_plugin_service.ai.common.config import DatabaseConfig
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
+
+if TYPE_CHECKING:
+    from ai_document_plugin_service.ai.persistence.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +66,7 @@ class AssignmentSaverComponent:
             template_uuid=template_uuid,
             template_title=template_title,
             template_data=template_data,
-            created_at=datetime.now(),
+            created_at=datetime.now(tz=UTC),
         )
 
         assignments = [a.to_dict() for a in assignments]
@@ -104,23 +107,29 @@ class FileSaver(Saver):
         template_data: JsonValue,
         created_at: datetime | None = None,
     ) -> None:
-        output_name = self._build_filename(knowledge_model_uuid, knowledge_model_name, knowledge_model_version, created_at)
-        output_path = output_name + '.json'
-        output_path_stats = output_name + '.stats.json'
+        _ = (template_uuid, template_title, template_data)
+        output_name = self._build_filename(
+            knowledge_model_uuid,
+            knowledge_model_name,
+            knowledge_model_version,
+            created_at,
+        )
+        output_path = pathlib.Path(f'{output_name}.json')
+        output_path_stats = pathlib.Path(f'{output_name}.stats.json')
 
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(
-                json.dumps(assignments, indent=2, ensure_ascii=False),
-            )
+        output_path.write_text(
+            json.dumps(assignments, indent=2, ensure_ascii=False),
+            encoding='utf-8',
+        )
         if stats is not None:
-            with open(output_path_stats, 'w', encoding='utf-8') as f:
-                f.write(
-                    json.dumps(stats, indent=2, ensure_ascii=False),
-                )
+            output_path_stats.write_text(
+                json.dumps(stats, indent=2, ensure_ascii=False),
+                encoding='utf-8',
+            )
         logger.debug('Saved assignments to %s', output_path)
 
+    @staticmethod
     def _build_filename(
-        self,
         knowledge_model_uuid: uuid.UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,

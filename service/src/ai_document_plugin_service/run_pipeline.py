@@ -15,13 +15,15 @@ from ai_document_plugin_service.ai.common import (
     get_component_stats,
 )
 from ai_document_plugin_service.ai.common.config import load_config
-
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent, DBSaver, \
-    JsonValue
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
+    AssignmentSaverComponent,
+    DBSaver,
+    JsonValue,
+)
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
@@ -35,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 def build_pipeline() -> Pipeline:
     pipeline = Pipeline()
-    loader_component = AssignmentLoaderComponent() # TODO load based on both km_uuid and template
+    loader_component = AssignmentLoaderComponent()
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
     assignment_saver_component = AssignmentSaverComponent()
@@ -47,21 +49,19 @@ def build_pipeline() -> Pipeline:
     # ROUTES
     routes = [
         {
-            "condition": "{{ not found }}",
-            "output": "{{ found }}",
-            "output_name": "missing_assignment",
-            "output_type": bool,
+            'condition': '{{ not found }}',
+            'output': '{{ found }}',
+            'output_name': 'missing_assignment',
+            'output_type': bool,
         },
         {
-            "condition": "{{ found }}",
-            "output": "{{ assignments }}",
-            "output_name": "retrieved_assignment",
-            "output_type": JsonValue,
-        }
+            'condition': '{{ found }}',
+            'output': '{{ assignments }}',
+            'output_name': 'retrieved_assignment',
+            'output_type': JsonValue,
+        },
     ]
-    router = ConditionalRouter(
-        routes=routes
-    )
+    router = ConditionalRouter(routes=routes)
 
     # COMPONENTS
     pipeline.add_component('loader_component', loader_component)
@@ -73,7 +73,6 @@ def build_pipeline() -> Pipeline:
     pipeline.add_component('prepolished_saver_component', prepolished_saver_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
     pipeline.add_component('polished_saver_component', polished_saver_component)
-
 
     # CONNECTIONS
     # loader_component -> router
@@ -102,11 +101,9 @@ def build_pipeline() -> Pipeline:
     return pipeline
 
 
-def run_pipeline(questionnaire_uuid: str,
-                 token: str,
-                 template_uuid: str,
-                 template_title: str,
-                 pipeline: Pipeline) -> None:
+def run_pipeline(
+    questionnaire_uuid: str, token: str, template_uuid: str, template_title: str, pipeline: Pipeline
+) -> None:
     t1 = time.time()
     config = load_config()
     configure_logging(config.log_level)
@@ -134,7 +131,7 @@ def run_pipeline(questionnaire_uuid: str,
                 'template_uuid': template_uuid,
                 'database': database,
             },
-            'parser_component': {'data': km_data },
+            'parser_component': {'data': km_data},
             'assignment_component': {
                 'template_data': template_data,
                 'config': config,

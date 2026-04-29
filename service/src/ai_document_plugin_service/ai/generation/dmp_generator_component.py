@@ -12,7 +12,6 @@ import pandas as pd
 from haystack import component
 from tqdm import tqdm
 
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
@@ -61,8 +60,7 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        # assignments_tree = [a.to_dict() for a in assignments]
-        assignments = db_assignments if db_assignments else new_assignments
+        assignments = db_assignments or new_assignments
 
         stats = AssignmentStats()
 

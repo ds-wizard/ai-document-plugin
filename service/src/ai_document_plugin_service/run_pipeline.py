@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import json
 import logging
 import pathlib
 import time
-from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from haystack import Pipeline
 from haystack.components.routers import ConditionalRouter
@@ -22,11 +24,16 @@ from ai_document_plugin_service.ai.persistence.assignment_loader_component impor
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
     AssignmentSaverComponent,
     DBSaver,
-    JsonValue,
+    SerializedSectionAssignment,
 )
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from haystack.components.routers.conditional_router import Route
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -47,7 +54,7 @@ def build_pipeline() -> Pipeline:
     polished_saver_component = SaverComponent()
 
     # ROUTES
-    routes = [
+    routes: list[Route] = [
         {
             'condition': '{{ not found }}',
             'output': '{{ found }}',
@@ -58,7 +65,7 @@ def build_pipeline() -> Pipeline:
             'condition': '{{ found }}',
             'output': '{{ assignments }}',
             'output_name': 'retrieved_assignment',
-            'output_type': JsonValue,
+            'output_type': list[SerializedSectionAssignment],
         },
     ]
     router = ConditionalRouter(routes=routes)

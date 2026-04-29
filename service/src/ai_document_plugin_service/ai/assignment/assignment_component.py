@@ -149,15 +149,15 @@ def main() -> None:
     )
     assignments = result['assignments']
     stats = result['stats']
-    assignment_saver_component = AssignmentSaverComponent(FileSaver())
+    assignment_saver_component = AssignmentSaverComponent()
     assignment_saver_component.run(
+        saver=FileSaver(),
         knowledge_model_uuid=knowledge_model_package['uuid'],
         knowledge_model_name=knowledge_model_package['name'],
         knowledge_model_version=knowledge_model_package['version'],
         template_uuid=config.template_uuid,
         template_title=config.template_title,
         template_data=template_data,
-        database_config=config.database,
         assignments=assignments,
         stats=stats,
     )

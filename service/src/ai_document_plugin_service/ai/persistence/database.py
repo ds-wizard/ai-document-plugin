@@ -1,5 +1,4 @@
 import logging
-import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
@@ -21,11 +20,11 @@ class Database(ABC):
     @abstractmethod
     def save_assignments(
         self,
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        template_uuid: uuid.UUID,
+        template_uuid: str,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
@@ -43,9 +42,9 @@ class Database(ABC):
     @abstractmethod
     def get_assignments(
         self,
-        knowledge_model_uuid: uuid.UUID,
-        template_uuid: uuid.UUID,
-    ) -> JsonValue:
+        knowledge_model_uuid: str,
+        template_uuid: str,
+    ) -> JsonValue | None:
         """Get assignments from a database backend."""
 
 
@@ -91,11 +90,11 @@ class PostgresDB(Database):
 
     def save_assignments(
         self,
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        template_uuid: uuid.UUID,
+        template_uuid: str,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
@@ -161,8 +160,8 @@ class PostgresDB(Database):
 
     def get_assignments(
         self,
-        knowledge_model_uuid: uuid.UUID,
-        template_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
+        template_uuid: str,
     ) -> JsonValue | None:
         self.metadata.create_all(self.engine)
 

@@ -15,6 +15,13 @@ class AssignmentQuestionNode(TypedDict, total=False):
 AssignmentTree = dict[str, AssignmentQuestionNode]
 
 
+class SerializedSectionAssignment(TypedDict):
+    id: str
+    title: str
+    assignments: AssignmentTree | None
+    children: list['SerializedSectionAssignment'] | None
+
+
 class SectionNode:
     """Represents a section with a reference to its parent section.
     This allows navigation up the hierarchy tree.
@@ -64,7 +71,7 @@ class SectionAssignment:
     assignments: AssignmentTree | None = None  # leaf: matched questions
     children: list['SectionAssignment'] | None = None  # non-leaf: nested section assignments
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> SerializedSectionAssignment:
         return {
             'id': self.id,
             'title': self.title,

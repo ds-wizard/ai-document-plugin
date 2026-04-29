@@ -1,5 +1,4 @@
 from typing import Any
-from uuid import UUID
 
 from haystack import component
 
@@ -13,7 +12,7 @@ class AssignmentLoaderComponent:
         assignments=JsonValue | None,
         found=bool,
     )
-    def run(knowledge_model_uuid: UUID, template_uuid: UUID, database: Database) -> dict[str, Any]:
+    def run(knowledge_model_uuid: str, template_uuid: str, database: Database) -> dict[str, Any]:
         assignments = database.get_assignments(knowledge_model_uuid, template_uuid)
 
         return {

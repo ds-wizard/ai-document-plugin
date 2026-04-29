@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
@@ -10,6 +10,10 @@ from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 
 def _component() -> DmpGeneratorComponent:
     return DmpGeneratorComponent()
+
+
+def _serialize_assignments(assignments: list[SectionAssignment]) -> list[SerializedSectionAssignment]:
+    return [assignment.to_dict() for assignment in assignments]
 
 
 def _km_fixture() -> dict:
@@ -251,7 +255,12 @@ def test_run_renders_parent_and_leaf_sections() -> None:
     }
 
     stub = StubGenerationLLM()
-    result = component.run(assignments, replies, km, llm=stub)
+    result = component.run(
+        replies=replies,
+        km=km,
+        llm=stub,
+        new_assignments=_serialize_assignments(assignments),
+    )
     markdown = result['markdown']
     debug_markdown = result['debug_markdown']
     stats = result['stats']
@@ -273,7 +282,12 @@ def test_run_handles_empty_section() -> None:
     ]
 
     stub = StubGenerationLLM()
-    result = component.run(assignments, {}, km, llm=stub)
+    result = component.run(
+        replies={},
+        km=km,
+        llm=stub,
+        new_assignments=_serialize_assignments(assignments),
+    )
     markdown = result['markdown']
 
     assert '# Empty' in markdown

@@ -5,15 +5,17 @@ import logging
 import pathlib
 import re
 import typing
-import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 from haystack import component
 
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.assignment.types import (
+    SectionAssignment,
+    SerializedSectionAssignment,
+)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 if TYPE_CHECKING:
@@ -21,22 +23,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-JsonValue = Mapping[str, Any] | Sequence[Any]
+JsonValue = Mapping[str, object] | Sequence[object]
+StatsJson = dict[str, dict[str, int]]
 
 
 class AssignmentSaverComponentResult(TypedDict):
-    assignments: list[SectionAssignment]
+    assignments: list[SerializedSectionAssignment]
     stats: AssignmentStats | None
 
 
 @component
 class AssignmentSaverComponent:
     @typing.override
-    @component.output_types(assignments=JsonValue, stats=AssignmentStats)
+    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
     def run(
         self,
         saver: Saver,
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: str,
@@ -45,34 +48,24 @@ class AssignmentSaverComponent:
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
     ) -> AssignmentSaverComponentResult:
-        """Save assignments to JSON, optionally including token usage stats."""
+        """Save assignments to storage, optionally including token usage stats."""
         serializable = [assignment.to_dict() for assignment in assignments]
-
-        if stats is not None:
-            stats = {
-                'stats': {
-                    'total_calls': stats.total_calls,
-                    'total_input_tokens': stats.total_input_tokens,
-                    'total_output_tokens': stats.total_output_tokens,
-                },
-            }
+        stats_payload = _serialize_stats(stats)
 
         saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             assignments=serializable,
-            stats=stats,
+            stats=stats_payload,
             template_uuid=template_uuid,
             template_title=template_title,
             template_data=template_data,
             created_at=datetime.now(tz=UTC),
         )
 
-        assignments = [a.to_dict() for a in assignments]
-
         return {
-            'assignments': assignments,
+            'assignments': serializable,
             'stats': stats,
         }
 
@@ -81,11 +74,11 @@ class Saver(ABC):
     @abstractmethod
     def save(
         self,
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        stats: AssignmentStats,
+        stats: StatsJson | None,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
@@ -97,11 +90,11 @@ class Saver(ABC):
 class FileSaver(Saver):
     def save(
         self,
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        stats: JsonValue,
+        stats: StatsJson | None,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
@@ -130,7 +123,7 @@ class FileSaver(Saver):
 
     @staticmethod
     def _build_filename(
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         created_at: datetime | None = None,
@@ -152,11 +145,11 @@ class DBSaver(Saver):
 
     def save(
         self,
-        knowledge_model_uuid: uuid.UUID,
+        knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        stats: JsonValue,
+        stats: StatsJson | None,
         template_uuid: str,
         template_title: str,
         template_data: JsonValue,
@@ -176,6 +169,18 @@ class DBSaver(Saver):
             created_at=created_at,
             template_uuid=template_uuid,
         )
+
+
+def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
+    if stats is None:
+        return None
+    return {
+        'stats': {
+            'total_calls': stats.total_calls,
+            'total_input_tokens': stats.total_input_tokens,
+            'total_output_tokens': stats.total_output_tokens,
+        },
+    }
 
 
 def _normalize_filename_part(value: str) -> str:

@@ -1,7 +1,5 @@
-import json
 import logging
 import math
-import pathlib
 import re
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
@@ -12,15 +10,13 @@ import pandas as pd
 from haystack import component
 from tqdm import tqdm
 
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
     OpenAIGenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import JsonValue
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +47,8 @@ class DmpGeneratorComponent:
         km: dict,
         llm: GenerationLLM | None = None,
         workers: int = 1,
-        new_assignments: JsonValue | None = None,
-        db_assignments: JsonValue | None = None,
+        new_assignments: list[SerializedSectionAssignment] | None = None,
+        db_assignments: list[SerializedSectionAssignment] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -60,7 +56,7 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        assignments = db_assignments or new_assignments
+        assignments = db_assignments or new_assignments or []
 
         stats = AssignmentStats()
 
@@ -541,7 +537,7 @@ class DmpGeneratorComponent:
 
     def _schedule_section(
         self,
-        node: dict,
+        node: SerializedSectionAssignment,
         depth: int,
         replies: dict,
         km: dict,
@@ -564,7 +560,7 @@ class DmpGeneratorComponent:
         heading: str,
         km: dict,
         llm: GenerationLLM,
-        node: dict,
+        node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
     ) -> _ScheduledSection:
@@ -580,7 +576,7 @@ class DmpGeneratorComponent:
                     stats=stats,
                     executor=executor,
                 )
-                for child in node['children']
+                for child in (node.get('children') or [])
             ],
         )
 
@@ -590,7 +586,7 @@ class DmpGeneratorComponent:
         heading: str,
         km: dict,
         llm: GenerationLLM,
-        node: dict,
+        node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
     ) -> _ScheduledSection:
@@ -610,21 +606,29 @@ class DmpGeneratorComponent:
         return _ScheduledSection(heading=heading, no_data=True)
 
     @staticmethod
-    def _is_leaf_section(node: dict) -> bool:
+    def _is_leaf_section(node: SerializedSectionAssignment) -> bool:
         return not node.get('children')
 
     def _generate_leaf_section(
         self,
-        node: dict,
+        node: SerializedSectionAssignment,
         heading: str,
         replies: dict,
         km: dict,
         llm: GenerationLLM,
         stats: AssignmentStats | None = None,
     ) -> tuple[str, str]:
-        """Generate markdown/debug markdown for a leaf node with assignments."""
+        """Generate markdown/debug markdown for a leaf node with assignments.
+
+        Raises:
+            ValueError: If a leaf section is missing its assignments payload.
+        """
         title = node['title']
-        matches, _ = self.match_replies_selection(node['assignments'], replies, km)
+        assignments = node['assignments']
+        if assignments is None:
+            msg = f"Leaf section '{title}' is missing assignments"
+            raise ValueError(msg)
+        matches, _ = self.match_replies_selection(assignments, replies, km)
         rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
         prompt = self.construct_chapter_prompt(title, matches)
@@ -659,42 +663,3 @@ class DmpGeneratorComponent:
         section = scheduled.heading + '\n\n' + children_markdown
         debug_section = scheduled.heading + '\n\n' + children_markdown_debug
         return section, debug_section
-
-
-if __name__ == '__main__':
-    config = load_config()
-    file_paths = config.files
-    questionnaire_uuid = config.questionnaire_uuid
-    token = config.token
-
-    with pathlib.Path(file_paths.assignments_output).open(
-        encoding='utf-8',
-    ) as f:
-        data = json.load(f)
-    selection = data['assignments']
-    dmp = get_questionnaire_detail(questionnaire_uuid, token)
-
-    replies = dmp['replies']
-    km = dmp['knowledgeModel']
-
-    dmp_generator_component = DmpGeneratorComponent()
-    result: DmpGeneratorComponentResult = dmp_generator_component.run(
-        assignments=selection,
-        replies=replies,
-        km=km,
-        workers=config.parallel_workers,
-    )
-    markdown = result['markdown']
-    stats = result['stats']
-
-    pathlib.Path(file_paths.output_markdown).write_text(
-        markdown,
-        encoding='utf-8',
-    )
-    logger.debug('DMP saved to %s', file_paths.output_markdown)
-    logger.debug(
-        'LLM calls: %s, input tokens: %s, output tokens: %s',
-        stats.total_calls,
-        f'{stats.total_input_tokens:,}',
-        f'{stats.total_output_tokens:,}',
-    )

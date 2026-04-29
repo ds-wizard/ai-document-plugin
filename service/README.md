@@ -20,11 +20,12 @@ uv run python src/ai_document_plugin_service/run_pipeline.py
 
 This produces:
 
-| File                                  | Description                                      |
-|---------------------------------------|--------------------------------------------------|
-| `question_section_assignments_*.json` | Question-to-section mapping (step 1 output)      |
-| `dmp_output_pre_polish.md`            | Generated DMP with debug tables before polishing |
-| `dmp_output.md`                       | Final polished DMP with token-usage summary      |
+| File                       | Description                                      |
+|----------------------------|--------------------------------------------------|
+| `dmp_output_pre_polish.md` | Generated DMP with debug tables before polishing |
+| `dmp_output.md`            | Final polished DMP with token-usage summary      |
+
+Step 1 produces new record in the `assignments` table in the DB, when questions are assigned for the first time.
 
 ## Pipeline steps
 

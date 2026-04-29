@@ -228,10 +228,12 @@ def test_run_renders_parent_and_leaf_sections() -> None:
     km = _km_fixture()
     assignments = [
         SectionAssignment(
-            key='Root',
+            id='s0',
+            title='Root',
             children=[
                 SectionAssignment(
-                    key='Leaf',
+                    id='s1',
+                    title='Leaf',
                     assignments={
                         'itemQ': {
                             'question_path': 'ch.listQ.itemQ',
@@ -267,7 +269,7 @@ def test_run_handles_empty_section() -> None:
     component = _component()
     km = _km_fixture()
     assignments = [
-        SectionAssignment(key='Empty'),
+        SectionAssignment(id='s0', title='Empty'),
     ]
 
     stub = StubGenerationLLM()

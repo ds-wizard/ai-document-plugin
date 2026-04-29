@@ -27,11 +27,25 @@ class SectionNode:
         self.subsections = section_dict.get('sections', [])
 
 
+@dataclass(frozen=True)
+class LeafSection:
+    """Flattened view of a leaf `SectionRecord` used for ID generation and prompt building."""
+
+    id: str
+    title: str
+    text: str
+
+
 @dataclass
 class SectionRecord:
-    """A section in the template tree. Either a leaf (text set) or a parent (children set)."""
+    """A section in the template tree. Either a leaf (text set) or a parent (children set).
 
-    key: str
+    `id` is a synthetic identifier minted at JSON-load time and is unique across the tree.
+    `title` is the human-readable label and may collide with sibling/cousin titles.
+    """
+
+    id: str
+    title: str
     section: SectionNode
     text: str | None = None  # leaf: formatted content for matching
     children: list['SectionRecord'] | None = None  # non-leaf: nested sections
@@ -39,15 +53,21 @@ class SectionRecord:
 
 @dataclass
 class SectionAssignment:
-    """Assignment result for one section. Either a leaf (assignments set) or a parent (children set)."""
+    """Assignment result for one section. Either a leaf (assignments set) or a parent (children set).
 
-    key: str
+    `id` mirrors the synthetic identifier from the corresponding `SectionRecord` and is the
+    authoritative key for downstream processing. `title` is kept alongside for human-readable output.
+    """
+
+    id: str
+    title: str
     assignments: AssignmentTree | None = None  # leaf: matched questions
     children: list['SectionAssignment'] | None = None  # non-leaf: nested section assignments
 
     def to_dict(self) -> dict:
         return {
-            'key': self.key,
+            'id': self.id,
+            'title': self.title,
             'assignments': self.assignments or None,
             'children': [c.to_dict() for c in self.children] if self.children else None,
         }

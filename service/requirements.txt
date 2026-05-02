@@ -10,7 +10,7 @@ fastapi==0.136.1
     # via ai-document-plugin-service (pyproject.toml)
 idna==3.11
     # via anyio
-pydantic==2.12.5
+pydantic==2.13.3
     # via fastapi
 pydantic-core==2.41.5
     # via pydantic

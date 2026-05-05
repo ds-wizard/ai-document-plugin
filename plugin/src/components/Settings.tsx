@@ -9,32 +9,32 @@ export default function Settings({
     return (
         <div
             style={{
-                padding: '1.5rem',
                 maxWidth: '48rem',
                 display: 'grid',
                 gap: '1rem',
             }}
         >
             <div>
-                <h1 style={{ margin: 0 }}>AI Document Plugin Settings</h1>
                 <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                    Set the backend service URL explicitly when the plugin backend is not mounted
-                    on a discoverable DSW gateway path.
+                    Configure the LLM connection the plugin should use for pipeline execution.
+                    Please select a model that supports the OpenAI API to use this plugin. Default
+                    values from config: model <code>gpt-oss-120b</code> and API URL{' '}
+                    <code>https://llm.ai.e-infra.cz/v1/</code>.
                 </p>
             </div>
 
             <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>Backend service URL</span>
+                <span style={{ fontWeight: 600 }}>Model</span>
                 <input
-                    type="url"
-                    value={settings.serviceUrl || ''}
+                    type="text"
+                    value={settings.model || ''}
                     onChange={(event) =>
                         onSettingsChange({
                             ...settings,
-                            serviceUrl: event.target.value,
+                            model: event.target.value,
                         })
                     }
-                    placeholder="https://your-host/gateway/plugin-services/e9baedad-5817-4e94-8e76-5d0461a91845"
+                    placeholder="gpt-4.1-mini"
                     style={{
                         padding: '0.75rem',
                         borderRadius: '0.5rem',
@@ -44,19 +44,47 @@ export default function Settings({
                 />
             </label>
 
-            <div
-                style={{
-                    padding: '0.75rem 1rem',
-                    borderRadius: '0.75rem',
-                    background: '#f8fafc',
-                    color: '#475569',
-                    lineHeight: 1.6,
-                }}
-            >
-                Example:
-                <br />
-                <code>https://your-host/gateway/plugin-services/{'{plugin-uuid}'}</code>
-            </div>
+            <label style={{ display: 'grid', gap: '0.5rem' }}>
+                <span style={{ fontWeight: 600 }}>API key</span>
+                <input
+                    type="password"
+                    value={settings.apiKey || ''}
+                    onChange={(event) =>
+                        onSettingsChange({
+                            ...settings,
+                            apiKey: event.target.value,
+                        })
+                    }
+                    placeholder="sk-..."
+                    style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                    }}
+                />
+            </label>
+
+            <label style={{ display: 'grid', gap: '0.5rem' }}>
+                <span style={{ fontWeight: 600 }}>API URL</span>
+                <input
+                    type="url"
+                    value={settings.apiUrl || ''}
+                    onChange={(event) =>
+                        onSettingsChange({
+                            ...settings,
+                            apiUrl: event.target.value,
+                        })
+                    }
+                    placeholder="https://api.openai.com/v1"
+                    style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                    }}
+                />
+            </label>
         </div>
     )
 }

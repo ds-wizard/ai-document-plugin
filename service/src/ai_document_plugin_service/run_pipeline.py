@@ -18,8 +18,13 @@ from ai_document_plugin_service.ai.common import (
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.common.config import (
+    LLMConfigOverride,
+    apply_llm_override,
+    load_config,
+)
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
+from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
@@ -116,9 +121,10 @@ def run_pipeline(
     template_title: str,
     template_data: Mapping[str, object],
     pipeline: Pipeline,
+    llm_override: LLMConfigOverride | None = None,
 ) -> None:
     t1 = time.time()
-    config = load_config()
+    config = apply_llm_override(load_config(), llm_override)
     configure_logging(config.log_level)
     model_name = config.model
     file_paths = config.files
@@ -132,6 +138,7 @@ def run_pipeline(
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
     database = PostgresDB(config.database)
     saver = DBSaver(database)
+    generation_llm = OpenAIGenerationLLM(config=config)
 
     # OTHER INPUTS
     result = pipeline.run(
@@ -159,11 +166,13 @@ def run_pipeline(
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
+                'llm': generation_llm,
                 'workers': config.parallel_workers,
             },
             'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
             'dmp_polisher_component': {
                 'config_path': file_paths.config_path,
+                'config': config,
                 'template_data': template_data,
             },
             'polished_saver_component': {'file_path': file_paths.output_markdown},

@@ -1,6 +1,6 @@
 import os
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import yaml
@@ -56,6 +56,13 @@ class Config:
     dmp_generation: SystemPrompt
     dmp_polishing: SystemAndUserPrompt
     parallel_workers: int
+
+
+@dataclass(frozen=True)
+class LLMConfigOverride:
+    model: str | None = None
+    api_key: str | None = None
+    api_url: str | None = None
 
 
 def _expand_env_vars(value: str) -> str:
@@ -190,4 +197,16 @@ def load_config(
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
         parallel_workers=_get_parallel_workers(config),
+    )
+
+
+def apply_llm_override(config: Config, override: LLMConfigOverride | None = None) -> Config:
+    if override is None:
+        return config
+
+    return replace(
+        config,
+        model=override.model or config.model,
+        api_key=override.api_key or config.api_key,
+        api_url=override.api_url or config.api_url,
     )

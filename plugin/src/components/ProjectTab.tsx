@@ -621,6 +621,9 @@ export default function ProjectTab({
                     templateUuid: selectedTemplateUuid,
                     token,
                     apiUrl,
+                    llmModel: settings.model || null,
+                    llmApiKey: settings.apiKey || null,
+                    llmApiUrl: settings.apiUrl || null,
                 }),
             })
 

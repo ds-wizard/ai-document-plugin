@@ -13,6 +13,7 @@ from typing import TypedDict
 from haystack import component
 
 from ai_document_plugin_service.ai.common.config import (
+    Config,
     DEFAULT_CONFIG_PATH,
     load_config,
 )
@@ -35,6 +36,7 @@ class DmpPolisherComponent:
         self,
         markdown: str,
         config_path: str = DEFAULT_CONFIG_PATH,
+        config: Config | None = None,
         template_data: dict | None = None,
     ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.
@@ -50,7 +52,7 @@ class DmpPolisherComponent:
         """
         stats = AssignmentStats()
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        llm = OpenAIGenerationLLM(config_path=config_path)
+        llm = OpenAIGenerationLLM(config_path=config_path, config=config)
         file = llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,

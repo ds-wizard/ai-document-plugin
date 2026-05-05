@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 from pydantic import BaseModel
 
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
 
@@ -22,6 +22,9 @@ class PipelineRunRequest(BaseModel):
     templateUuid: str
     token: str
     apiUrl: str | None = None
+    llmModel: str | None = None
+    llmApiKey: str | None = None
+    llmApiUrl: str | None = None
 
 
 class PipelineRunResponse(BaseModel):
@@ -69,6 +72,7 @@ def _run_pipeline_job(
     template_title: str,
     token: str,
     api_url: str | None,
+    llm_override: LLMConfigOverride | None,
 ) -> None:
     config = load_config()
     database = PostgresDB(config.database)
@@ -100,6 +104,7 @@ def _run_pipeline_job(
             template_title=template['title'],
             template_data=template['content'],
             pipeline=pipeline,
+            llm_override=llm_override,
         )
         result_markdown = pathlib.Path(config.files.output_markdown).read_text(encoding='utf-8')
         _set_pipeline_status(
@@ -192,6 +197,11 @@ def create_app() -> fastapi.FastAPI:
             template['title'],
             payload.token,
             payload.apiUrl,
+            LLMConfigOverride(
+                model=payload.llmModel,
+                api_key=payload.llmApiKey,
+                api_url=payload.llmApiUrl,
+            ),
         )
         return PipelineRunResponse(
             status='accepted',

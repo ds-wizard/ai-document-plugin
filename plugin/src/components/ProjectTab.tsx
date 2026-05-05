@@ -9,6 +9,50 @@ type TemplateOption = {
     title: string
 }
 
+type PipelineRunResponse = {
+    status: string
+    runId: string
+    questionnaireUuid: string
+    templateUuid: string
+    templateTitle: string
+}
+
+type PipelineStatusResponse = {
+    runId: string
+    status: 'running' | 'succeeded' | 'failed'
+    questionnaireUuid: string
+    templateUuid: string
+    templateTitle: string
+    error: string | null
+    updatedAt: string
+}
+
+const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
+    if (!value || typeof value !== 'object') {
+        return false
+    }
+
+    return 'runId' in value && 'status' in value && 'templateTitle' in value
+}
+
+const readApiResponse = async <T,>(response: Response, url: string): Promise<T> => {
+    const responseText = await response.text()
+    const contentType = response.headers.get('content-type') || ''
+
+    if (!contentType.includes('application/json')) {
+        const preview = responseText.slice(0, 120).trim()
+        throw new Error(
+            `Endpoint ${url} returned an unexpected response instead of JSON (${response.status} ${response.statusText}): ${preview}`,
+        )
+    }
+
+    try {
+        return JSON.parse(responseText) as T
+    } catch {
+        throw new Error(`Endpoint ${url} returned invalid JSON.`)
+    }
+}
+
 export default function ProjectTab({
     settings: _settings,
     userSettings: _userSettings,
@@ -20,6 +64,8 @@ export default function ProjectTab({
     const [isRunningPipeline, setIsRunningPipeline] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
+    const [infoMessage, setInfoMessage] = useState<string | null>(null)
+    const [activeRunId, setActiveRunId] = useState<string | null>(null)
 
     useEffect(() => {
         let isMounted = true
@@ -29,12 +75,13 @@ export default function ProjectTab({
             setErrorMessage(null)
 
             try {
-                const response = await fetch(`${__API_URL__}/templates`)
-                if (!response.ok) {
-                    throw new Error(`Nepodarilo se nacist seznam sablon (${response.status}).`)
-                }
+                const url = `${__API_URL__}/templates`
+                const response = await fetch(url)
+                const data = await readApiResponse<TemplateOption[]>(response, url)
 
-                const data: TemplateOption[] = await response.json()
+                if (!response.ok) {
+                    throw new Error(`Failed to load the list of templates (${response.status}).`)
+                }
                 if (!isMounted) {
                     return
                 }
@@ -63,23 +110,95 @@ export default function ProjectTab({
         }
     }, [])
 
+    useEffect(() => {
+        if (!activeRunId) {
+            return
+        }
+
+        const pollStatus = async () => {
+            try {
+                const url = `${__API_URL__}/pipelines/status/${activeRunId}`
+                const response = await fetch(url)
+                const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(
+                    response,
+                    url,
+                )
+
+                if (!response.ok) {
+                    throw new Error(
+                        'detail' in data && data.detail
+                            ? data.detail
+                            : 'Failed to retrieve pipeline status.',
+                    )
+                }
+
+                if (!isPipelineStatusResponse(data)) {
+                    throw new Error('Invalid pipeline status returned.')
+                }
+
+                if (data.status === 'running') {
+                    setInfoMessage(`Pipeline is running for the template "${data.templateTitle}".`)
+                    return
+                }
+
+                setActiveRunId(null)
+                setIsRunningPipeline(false)
+                setInfoMessage(null)
+
+                if (data.status === 'succeeded') {
+                    setSuccessMessage(
+                        `Pipeline has been completed for the template "${data.templateTitle}".`,
+                    )
+                    setErrorMessage(null)
+                    return
+                }
+
+                setSuccessMessage(null)
+                setErrorMessage(
+                    data.error
+                        ? `Pipeline failed: ${data.error}`
+                        : `Pipeline failed for the template "${data.templateTitle}".`,
+                )
+            } catch (error) {
+                setActiveRunId(null)
+                setIsRunningPipeline(false)
+                setSuccessMessage(null)
+                setInfoMessage(null)
+                setErrorMessage(
+                    error instanceof Error ? error.message : 'Unable to determine pipeline status.',
+                )
+            }
+        }
+
+        void pollStatus()
+        const intervalId = window.setInterval(() => {
+            void pollStatus()
+        }, 2000)
+
+        return () => {
+            window.clearInterval(intervalId)
+        }
+    }, [activeRunId])
+
     const handleRunPipeline = async () => {
         if (!project) {
-            setErrorMessage('Projekt neni k dispozici.')
+            setErrorMessage('Project is not available.')
             return
         }
 
         if (!selectedTemplateUuid) {
-            setErrorMessage('Vyberte DMP template.')
+            setErrorMessage('Select a DMP template.')
             return
         }
 
         setIsRunningPipeline(true)
         setErrorMessage(null)
         setSuccessMessage(null)
+        setInfoMessage(null)
 
         try {
-            const response = await fetch(`${__API_URL__}/pipelines/run`, {
+            const url = `${__API_URL__}/pipelines/run`
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -90,17 +209,26 @@ export default function ProjectTab({
                 }),
             })
 
-            const data = (await response.json()) as { detail?: string; templateTitle?: string }
+            const data = await readApiResponse<PipelineRunResponse | { detail?: string }>(
+                response,
+                url,
+            )
 
             if (!response.ok) {
-                throw new Error(data.detail || 'Spusteni pipeline selhalo.')
+                throw new Error(
+                    'detail' in data && data.detail ? data.detail : 'Pipeline execution failed..',
+                )
             }
 
-            setSuccessMessage(`Pipeline byla spustena pro template "${data.templateTitle ?? 'bez nazvu'}".`)
+            if (!('runId' in data)) {
+                throw new Error('The backend did not return a pipeline run identifier.')
+            }
+
+            setActiveRunId(data.runId)
+            setInfoMessage(`Pipeline has been accepted for the template "${data.templateTitle}".`)
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Spusteni pipeline selhalo.'
+            const message = error instanceof Error ? error.message : 'Pipeline execution failed.'
             setErrorMessage(message)
-        } finally {
             setIsRunningPipeline(false)
         }
     }
@@ -214,6 +342,19 @@ export default function ProjectTab({
                     }}
                 >
                     {errorMessage}
+                </div>
+            ) : null}
+
+            {infoMessage ? (
+                <div
+                    style={{
+                        padding: '0.75rem 1rem',
+                        borderRadius: '0.5rem',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                    }}
+                >
+                    {infoMessage}
                 </div>
             ) : null}
 

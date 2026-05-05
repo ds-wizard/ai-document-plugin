@@ -6,9 +6,6 @@ from typing import Any, TypedDict
 from haystack import component
 from tqdm.contrib.concurrent import thread_map
 
-from ai_document_plugin_service.ai.assignment.assignment_saver_component import (
-    AssignmentSaverComponent,
-)
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
 )
@@ -31,6 +28,10 @@ from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
+    AssignmentSaverComponent,
+    FileSaver,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ def main() -> None:
     with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
         template_data = json.load(f)
     km_data = get_questionnaire_detail(questionnaire_uuid, token)
+    knowledge_model_package = km_data['knowledgeModelPackage']
 
     parser_component = ParserComponent()
     top_questions = parser_component.run(km_data)['data']
@@ -149,12 +151,17 @@ def main() -> None:
     stats = result['stats']
     assignment_saver_component = AssignmentSaverComponent()
     assignment_saver_component.run(
+        saver=FileSaver(),
+        knowledge_model_uuid=knowledge_model_package['uuid'],
+        knowledge_model_name=knowledge_model_package['name'],
+        knowledge_model_version=knowledge_model_package['version'],
+        template_uuid=config.template_uuid,
+        template_title=config.template_title,
+        template_data=template_data,
         assignments=assignments,
-        output_path=file_paths.assignments_output,
         stats=stats,
     )
 
-    logger.debug('Saved assignments to %s', file_paths.assignments_output)
     logger.debug('Total LLM calls: %s', stats.total_calls)
     logger.debug('Total input tokens: %s', f'{stats.total_input_tokens:,}')
     logger.debug('Total output tokens: %s', f'{stats.total_output_tokens:,}')

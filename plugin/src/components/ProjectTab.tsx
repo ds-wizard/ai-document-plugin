@@ -1,4 +1,5 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
+import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 import { useEffect, useState } from 'react'
 
 import { SettingsData } from '@/data/settings-data'
@@ -197,6 +198,11 @@ export default function ProjectTab({
         setInfoMessage(null)
 
         try {
+            const { apiUrl, token } = getApiUrlAndToken()
+            if (!token) {
+                throw new Error('Failed to retrieve the current user\'s authentication token.')
+            }
+
             const url = `${__API_URL__}/pipelines/run`
             const response = await fetch(url, {
                 method: 'POST',
@@ -206,6 +212,8 @@ export default function ProjectTab({
                 body: JSON.stringify({
                     questionnaireUuid: project.uuid,
                     templateUuid: selectedTemplateUuid,
+                    token,
+                    apiUrl,
                 }),
             })
 

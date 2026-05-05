@@ -110,6 +110,7 @@ def build_pipeline() -> Pipeline:
 def run_pipeline(
     questionnaire_uuid: str,
     token: str,
+    dsw_api_url: str | None,
     template_uuid: str,
     template_title: str,
     template_data: Mapping[str, object],
@@ -121,7 +122,7 @@ def run_pipeline(
     model_name = config.model
     file_paths = config.files
 
-    km_data = get_questionnaire_detail(questionnaire_uuid, token)
+    km_data = get_questionnaire_detail(questionnaire_uuid, token, dsw_api_url)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -232,6 +233,7 @@ if __name__ == '__main__':
     run_pipeline(
         questionnaire_uuid,
         token,
+        config.dsw_api_url,
         template_uuid,
         template_title,
         template_data,

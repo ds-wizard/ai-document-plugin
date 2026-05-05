@@ -19,6 +19,8 @@ class TemplateListItem(BaseModel):
 class PipelineRunRequest(BaseModel):
     questionnaireUuid: str
     templateUuid: str
+    token: str
+    apiUrl: str | None = None
 
 
 class PipelineRunResponse(BaseModel):
@@ -58,6 +60,8 @@ def _run_pipeline_job(
     questionnaire_uuid: str,
     template_uuid: str,
     template_title: str,
+    token: str,
+    api_url: str | None,
 ) -> None:
     config = load_config()
     database = PostgresDB(config.database)
@@ -81,7 +85,8 @@ def _run_pipeline_job(
         pipeline = build_pipeline()
         run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
-            token=config.token,
+            token=token,
+            dsw_api_url=api_url,
             template_uuid=template_uuid,
             template_title=template['title'],
             template_data=template['content'],
@@ -169,6 +174,8 @@ def create_app() -> fastapi.FastAPI:
             payload.questionnaireUuid,
             payload.templateUuid,
             template['title'],
+            payload.token,
+            payload.apiUrl,
         )
         return PipelineRunResponse(
             status='accepted',

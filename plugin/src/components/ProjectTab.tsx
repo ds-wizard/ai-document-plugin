@@ -449,8 +449,11 @@ export default function ProjectTab({
     const [infoMessage, setInfoMessage] = useState<string | null>(null)
     const [activeRunId, setActiveRunId] = useState<string | null>(null)
     const [resultMarkdown, setResultMarkdown] = useState<string | null>(null)
+    const [editableResultMarkdown, setEditableResultMarkdown] = useState('')
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [apiBaseUrl, setApiBaseUrl] = useState<string | null>(null)
+
+    const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
 
     useEffect(() => {
         let isMounted = true
@@ -538,6 +541,7 @@ export default function ProjectTab({
 
                 if (data.status === 'succeeded') {
                     setResultMarkdown(data.resultMarkdown)
+                    setEditableResultMarkdown(data.resultMarkdown || '')
                     setSuccessMessage(
                         `Pipeline has been completed for the template "${data.templateTitle}".`,
                     )
@@ -593,6 +597,7 @@ export default function ProjectTab({
         setSuccessMessage(null)
         setInfoMessage(null)
         setResultMarkdown(null)
+        setEditableResultMarkdown('')
 
         try {
             const { apiUrl, token } = getApiUrlAndToken()
@@ -849,19 +854,27 @@ export default function ProjectTab({
                             run.
                         </div>
                     ) : resultRenderMode === 'raw' ? (
-                        <pre
+                        <textarea
+                            value={editableResultMarkdown}
+                            onChange={(event) => setEditableResultMarkdown(event.target.value)}
                             style={{
                                 margin: 0,
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
                                 color: '#0f172a',
                                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                width: '100%',
+                                minHeight: '20rem',
+                                resize: 'vertical',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '0.75rem',
+                                padding: '1rem',
+                                background: '#fff',
+                                lineHeight: 1.6,
                             }}
                         >
-                            {resultMarkdown}
-                        </pre>
+                            {editableResultMarkdown}
+                        </textarea>
                     ) : (
-                        renderMarkdownBlocks(resultMarkdown)
+                        renderMarkdownBlocks(displayedResultMarkdown || '')
                     )}
                 </div>
             </section>

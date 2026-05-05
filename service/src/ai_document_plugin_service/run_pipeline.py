@@ -4,6 +4,7 @@ import json
 import logging
 import pathlib
 import time
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from haystack import Pipeline
@@ -31,8 +32,6 @@ from ai_document_plugin_service.ai.persistence.saver_component import SaverCompo
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from haystack.components.routers.conditional_router import Route
 
 # Cost per million tokens (USD) - adjust for your model
@@ -109,7 +108,12 @@ def build_pipeline() -> Pipeline:
 
 
 def run_pipeline(
-    questionnaire_uuid: str, token: str, template_uuid: str, template_title: str, pipeline: Pipeline
+    questionnaire_uuid: str,
+    token: str,
+    template_uuid: str,
+    template_title: str,
+    template_data: Mapping[str, object],
+    pipeline: Pipeline,
 ) -> None:
     t1 = time.time()
     config = load_config()
@@ -118,9 +122,6 @@ def run_pipeline(
     file_paths = config.files
 
     km_data = get_questionnaire_detail(questionnaire_uuid, token)
-
-    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
-        template_data = json.load(f)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -224,6 +225,8 @@ if __name__ == '__main__':
     token = config.token
     template_uuid = config.template_uuid
     template_title = config.template_title
+    with pathlib.Path(config.files.dmp_template).open(encoding='utf-8') as f:
+        template_data = json.load(f)
 
     pipeline = build_pipeline()
     run_pipeline(
@@ -231,5 +234,6 @@ if __name__ == '__main__':
         token,
         template_uuid,
         template_title,
+        template_data,
         pipeline,
     )

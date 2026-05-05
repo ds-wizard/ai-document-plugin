@@ -33,6 +33,7 @@ export default defineConfig(({ mode }) => {
         },
 
         build: {
+            target: 'esnext',
             lib: {
                 entry: {
                     plugin: 'src/plugin.ts',
@@ -44,7 +45,8 @@ export default defineConfig(({ mode }) => {
             // Dev: readable + sourcemaps
             // Prod: aggressive minify + hidden sourcemaps
             sourcemap: isProd ? 'hidden' : true,
-            minify: isProd ? 'terser' : 'esbuild',
+            minify: isProd ? 'terser' : false,
+            codeSplitting: false,
 
             // Only applies when minify === 'terser'
             terserOptions: isProd
@@ -65,9 +67,6 @@ export default defineConfig(({ mode }) => {
 
             // Single-file bundle (handy for plugin loaders)
             rollupOptions: {
-                output: {
-                    inlineDynamicImports: true,
-                },
                 plugins: [emitManifestPlugin(pluginMetadata)],
             },
         },

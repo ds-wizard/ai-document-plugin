@@ -47,6 +47,14 @@ class Database(ABC):
     ) -> JsonValue | None:
         """Get assignments from a database backend."""
 
+    @abstractmethod
+    def list_templates(self) -> list[dict[str, str]]:
+        """List available templates from a database backend."""
+
+    @abstractmethod
+    def get_template(self, template_uuid: str) -> dict[str, Any] | None:
+        """Get a template record from a database backend."""
+
 
 class PostgresDB(Database):
     def __init__(
@@ -189,6 +197,44 @@ class PostgresDB(Database):
         )
 
         return row.assignments
+
+    def list_templates(self) -> list[dict[str, str]]:
+        self.metadata.create_all(self.engine)
+        statement = self.template_table.select().order_by(self.template_table.c.title.asc())
+
+        with self.engine.begin() as connection:
+            result = connection.execute(statement)
+            rows = result.fetchall()
+
+        return [
+            {
+                'uuid': str(row.uuid),
+                'title': row.title,
+            }
+            for row in rows
+        ]
+
+    def get_template(self, template_uuid: str) -> dict[str, Any] | None:
+        self.metadata.create_all(self.engine)
+        statement = self.template_table.select().where(self.template_table.c.uuid == template_uuid)
+
+        with self.engine.begin() as connection:
+            result = connection.execute(statement)
+            row = result.fetchone()
+
+        if row is None:
+            logger.debug(
+                'No template found for uuid=%s in %s.template',
+                template_uuid,
+                self.schema_name,
+            )
+            return None
+
+        return {
+            'uuid': str(row.uuid),
+            'title': row.title,
+            'content': row.content,
+        }
 
 
 def _validate_identifier(value: str) -> str:

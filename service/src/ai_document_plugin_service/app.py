@@ -17,6 +17,11 @@ class TemplateListItem(BaseModel):
     title: str
 
 
+class TemplateCreateRequest(BaseModel):
+    title: str
+    content: dict
+
+
 class PipelineRunRequest(BaseModel):
     questionnaireUuid: str
     templateUuid: str
@@ -161,6 +166,37 @@ def create_app() -> fastapi.FastAPI:
         config = load_config()
         database = PostgresDB(config.database)
         return [TemplateListItem.model_validate(item) for item in database.list_templates()]
+
+    @app.post('/templates', response_model=TemplateListItem, status_code=201)
+    async def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
+        trimmed_title = payload.title.strip()
+        if not trimmed_title:
+            raise fastapi.HTTPException(status_code=400, detail='Template title is required')
+
+        sections = payload.content.get('sections')
+        if not isinstance(sections, list):
+            raise fastapi.HTTPException(
+                status_code=400,
+                detail='Template JSON must contain a top-level "sections" array.',
+            )
+
+        config = load_config()
+        database = PostgresDB(config.database)
+        template_uuid = str(uuid4())
+
+        try:
+            database.create_template(
+                uuid=template_uuid,
+                title=trimmed_title,
+                content=payload.content,
+            )
+        except ValueError as error:
+            raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
+
+        return TemplateListItem(
+            uuid=template_uuid,
+            title=trimmed_title,
+        )
 
     @app.post('/pipelines/run')
     async def start_pipeline(

@@ -1,6 +1,6 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
-import { Fragment, ReactNode, useEffect, useState } from 'react'
+import { ChangeEvent, Fragment, ReactNode, useEffect, useState } from 'react'
 
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
@@ -9,6 +9,7 @@ import { pluginMetadata } from '@/metadata'
 type TemplateOption = {
     uuid: string
     title: string
+    source?: 'database' | 'local'
 }
 
 type PipelineRunResponse = {
@@ -32,6 +33,8 @@ type PipelineStatusResponse = {
 }
 
 type ResultRenderMode = 'formatted' | 'raw'
+
+const CUSTOM_TEMPLATE_OPTION = '__custom_template__'
 
 const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
@@ -442,6 +445,9 @@ export default function ProjectTab({
 }: ProjectTabComponentProps<SettingsData, UserSettingsData>) {
     const [templates, setTemplates] = useState<TemplateOption[]>([])
     const [selectedTemplateUuid, setSelectedTemplateUuid] = useState('')
+    const [localTemplateTitle, setLocalTemplateTitle] = useState('')
+    const [localTemplateJson, setLocalTemplateJson] = useState('')
+    const [localTemplateError, setLocalTemplateError] = useState<string | null>(null)
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true)
     const [isRunningPipeline, setIsRunningPipeline] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -454,9 +460,12 @@ export default function ProjectTab({
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [apiBaseUrl, setApiBaseUrl] = useState<string | null>(null)
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
+    const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
 
     const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
     const hasResultChanges = resultMarkdown !== null && editableResultMarkdown !== resultMarkdown
+    const selectedTemplate = templates.find((template) => template.uuid === selectedTemplateUuid) || null
+    const isCreatingCustomTemplate = selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
 
     useEffect(() => {
         let isMounted = true
@@ -479,8 +488,8 @@ export default function ProjectTab({
                 }
 
                 setApiBaseUrl(baseUrl)
-                setTemplates(data)
-                setSelectedTemplateUuid((currentValue) => currentValue || data[0]?.uuid || '')
+                setTemplates(data.map((template) => ({ ...template, source: 'database' as const })))
+                setSelectedTemplateUuid((currentValue) => currentValue || '')
             } catch (error) {
                 if (!isMounted) {
                     return
@@ -591,6 +600,11 @@ export default function ProjectTab({
             return
         }
 
+        if (isCreatingCustomTemplate) {
+            setErrorMessage('Create a custom template or select an existing one first.')
+            return
+        }
+
         if (!apiBaseUrl) {
             setErrorMessage('Plugin backend is not available.')
             return
@@ -648,6 +662,103 @@ export default function ProjectTab({
             const message = error instanceof Error ? error.message : 'Pipeline execution failed.'
             setErrorMessage(message)
             setIsRunningPipeline(false)
+        }
+    }
+
+    const handleLocalTemplateFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) {
+            return
+        }
+
+        try {
+            const content = await file.text()
+            setLocalTemplateJson(content)
+            if (!localTemplateTitle.trim()) {
+                setLocalTemplateTitle(file.name.replace(/\.json$/i, ''))
+            }
+            setLocalTemplateError(null)
+        } catch {
+            setLocalTemplateError('Failed to read the selected JSON file.')
+        } finally {
+            event.target.value = ''
+        }
+    }
+
+    const handleAddLocalTemplate = async () => {
+        const trimmedTitle = localTemplateTitle.trim()
+        const trimmedJson = localTemplateJson.trim()
+
+        if (!trimmedTitle) {
+            setLocalTemplateError('Enter a template title.')
+            return
+        }
+
+        if (!trimmedJson) {
+            setLocalTemplateError('Insert or upload template JSON.')
+            return
+        }
+
+        try {
+            const parsed = JSON.parse(trimmedJson) as { sections?: unknown }
+            if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sections)) {
+                throw new Error('Template JSON must contain a top-level "sections" array.')
+            }
+
+            if (!apiBaseUrl) {
+                throw new Error('Plugin backend is not available.')
+            }
+
+            setIsCreatingTemplate(true)
+            const url = `${apiBaseUrl}/templates`
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: trimmedTitle,
+                    content: parsed,
+                }),
+            })
+
+            const data = await readApiResponse<TemplateOption | { detail?: string }>(response, url)
+            if (!response.ok) {
+                throw new Error(
+                    'detail' in data && data.detail ? data.detail : 'Failed to save template.',
+                )
+            }
+
+            if (!('uuid' in data) || !('title' in data)) {
+                throw new Error('The backend did not return a saved template.')
+            }
+
+            const savedTemplate: TemplateOption = {
+                uuid: data.uuid,
+                title: data.title,
+                source: 'database',
+            }
+
+            setTemplates((currentTemplates) => {
+                const filteredTemplates = currentTemplates.filter(
+                    (template) => template.uuid !== savedTemplate.uuid,
+                )
+                return [savedTemplate, ...filteredTemplates].sort((left, right) =>
+                    left.title.localeCompare(right.title),
+                )
+            })
+            setSelectedTemplateUuid(savedTemplate.uuid)
+            setLocalTemplateTitle('')
+            setLocalTemplateJson('')
+            setLocalTemplateError(null)
+            setErrorMessage(null)
+            setSuccessMessage(`Template "${trimmedTitle}" was saved and added to the dropdown.`)
+        } catch (error) {
+            setLocalTemplateError(
+                error instanceof Error ? error.message : 'Template JSON is not valid.',
+            )
+        } finally {
+            setIsCreatingTemplate(false)
         }
     }
 
@@ -770,11 +881,13 @@ export default function ProjectTab({
                 <span style={{ fontWeight: 600 }}>DMP template</span>
                 <select
                     value={selectedTemplateUuid}
-                    onChange={(event) => setSelectedTemplateUuid(event.target.value)}
+                    onChange={(event) => {
+                        setSelectedTemplateUuid(event.target.value)
+                        setLocalTemplateError(null)
+                    }}
                     disabled={
                         isLoadingTemplates ||
                         isRunningPipeline ||
-                        templates.length === 0 ||
                         !project
                     }
                     style={{
@@ -784,23 +897,124 @@ export default function ProjectTab({
                         background: '#fff',
                     }}
                 >
-                    {templates.length === 0 ? (
-                        <option value="">
-                            {isLoadingTemplates
-                                ? 'Loading templates...'
-                                : errorMessage
-                                  ? 'Unable to load templates.'
-                                  : 'No templates available.'}
+                    <option value="">
+                        {isLoadingTemplates
+                            ? 'Loading templates...'
+                            : templates.length === 0
+                              ? 'Select a template option'
+                              : 'Select a template'}
+                    </option>
+                    {templates.map((template) => (
+                        <option key={template.uuid} value={template.uuid}>
+                            {template.title}
+                            {template.source === 'local' ? ' (local)' : ''}
                         </option>
-                    ) : (
-                        templates.map((template) => (
-                            <option key={template.uuid} value={template.uuid}>
-                                {template.title}
-                            </option>
-                        ))
-                    )}
+                    ))}
+                    <option value={CUSTOM_TEMPLATE_OPTION}>Custom template...</option>
                 </select>
             </label>
+
+            {isCreatingCustomTemplate ? (
+                <section
+                    style={{
+                        display: 'grid',
+                        gap: '0.75rem',
+                        padding: '1rem',
+                        borderRadius: '1rem',
+                        border: '1px solid #e2e8f0',
+                        background: '#f8fafc',
+                    }}
+                >
+                    <div>
+                        <div style={{ fontWeight: 700 }}>Create custom template</div>
+                        <div style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.6 }}>
+                            Upload or paste template JSON. After saving, the template will be
+                            stored in the backend database and appear in the dropdown immediately.
+                        </div>
+                    </div>
+
+                    <label style={{ display: 'grid', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 600 }}>Template title</span>
+                        <input
+                            type="text"
+                            value={localTemplateTitle}
+                            onChange={(event) => setLocalTemplateTitle(event.target.value)}
+                            placeholder="My custom DMP template"
+                            style={{
+                                padding: '0.75rem',
+                                borderRadius: '0.5rem',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                            }}
+                        />
+                    </label>
+
+                    <label style={{ display: 'grid', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 600 }}>Template JSON file</span>
+                        <input
+                            type="file"
+                            accept=".json,application/json"
+                            onChange={(event) => void handleLocalTemplateFileUpload(event)}
+                            style={{
+                                padding: '0.65rem',
+                                borderRadius: '0.5rem',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                            }}
+                        />
+                    </label>
+
+                    <label style={{ display: 'grid', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 600 }}>Template JSON</span>
+                        <textarea
+                            value={localTemplateJson}
+                            onChange={(event) => setLocalTemplateJson(event.target.value)}
+                            placeholder='{"sections":[...]}'
+                            style={{
+                                minHeight: '14rem',
+                                padding: '0.75rem',
+                                borderRadius: '0.75rem',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                                resize: 'vertical',
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                lineHeight: 1.5,
+                            }}
+                        />
+                    </label>
+
+                    <button
+                        type="button"
+                        onClick={() => void handleAddLocalTemplate()}
+                        disabled={isCreatingTemplate}
+                        style={{
+                            width: 'fit-content',
+                            padding: '0.75rem 1rem',
+                            border: 0,
+                            borderRadius: '999px',
+                            background: isCreatingTemplate ? '#94a3b8' : '#1d4ed8',
+                            color: '#fff',
+                            cursor: isCreatingTemplate ? 'wait' : 'pointer',
+                            fontWeight: 600,
+                        }}
+                    >
+                        {isCreatingTemplate ? 'Saving template...' : 'Save template'}
+                    </button>
+
+                    {localTemplateError ? (
+                        <div
+                            style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: '#fef2f2',
+                                color: '#b91c1c',
+                            }}
+                        >
+                            {localTemplateError}
+                        </div>
+                    ) : null}
+                </section>
+            ) : null}
 
             <button
                 type="button"

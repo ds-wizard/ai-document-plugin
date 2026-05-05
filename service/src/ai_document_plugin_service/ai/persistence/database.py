@@ -8,7 +8,7 @@ from sqlalchemy import JSON, Column, DateTime, MetaData, Table, Text, UniqueCons
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
 
@@ -18,6 +18,15 @@ JsonValue = Mapping[str, Any] | Sequence[Any]
 
 
 class Database(ABC):
+    @abstractmethod
+    def create_template(
+        self,
+        uuid: str,
+        title: str,
+        content: JsonValue,
+    ) -> None:
+        """Create a new template in a database backend."""
+
     @abstractmethod
     def save_assignments(
         self,
@@ -153,6 +162,32 @@ class PostgresDB(Database):
         logger.debug(
             'Saved assignments for KM package id=%s to %s.assignments',
             knowledge_model_uuid,
+            self.schema_name,
+        )
+
+    def create_template(
+        self,
+        uuid: str,
+        title: str,
+        content: JsonValue,
+    ) -> None:
+        self._ensure_schema()
+        statement = postgresql_insert(self.template_table).values(
+            uuid=uuid,
+            title=title,
+            content=content,
+        )
+
+        try:
+            with self.engine.begin() as connection:
+                connection.execute(statement)
+        except IntegrityError as exc:
+            msg = f'Template with title "{title}" already exists.'
+            raise ValueError(msg) from exc
+
+        logger.debug(
+            'Created template uuid=%s in %s.template',
+            uuid,
             self.schema_name,
         )
 

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from haystack import Pipeline
 from haystack.components.routers import ConditionalRouter
 
-from ai_document_plugin_service.ai.assignment import AssignmentComponent
+from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
     PipelineMetricsCollector,
     configure_logging,

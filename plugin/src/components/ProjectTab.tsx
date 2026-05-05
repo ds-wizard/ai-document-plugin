@@ -158,7 +158,9 @@ export default function ProjectTab({
                         <option value="">
                             {isLoadingTemplates
                                 ? 'Loading templates...'
-                                : 'No templates available.'}
+                                : errorMessage
+                                  ? 'Unable to load templates.'
+                                  : 'No templates available.'}
                         </option>
                     ) : (
                         templates.map((template) => (

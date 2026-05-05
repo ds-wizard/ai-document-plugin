@@ -4,10 +4,11 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, MetaData, Table, Text, create_engine, func
+from sqlalchemy import JSON, Column, DateTime, MetaData, Table, Text, UniqueConstraint, create_engine, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
+from sqlalchemy.exc import SQLAlchemyError
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
 
@@ -94,7 +95,25 @@ class PostgresDB(Database):
             Column('uuid', UUID(as_uuid=True), primary_key=True),
             Column('title', Text, nullable=False),
             Column('content', JSON, nullable=False),
+            UniqueConstraint('title', name='uq_template_title'),
         )
+
+    def _ensure_schema(self) -> None:
+        self.metadata.create_all(self.engine)
+
+        create_unique_index_statement = text(
+            f'CREATE UNIQUE INDEX IF NOT EXISTS uq_template_title ON {self.schema_name}.template (title)'
+        )
+
+        try:
+            with self.engine.begin() as connection:
+                connection.execute(create_unique_index_statement)
+        except SQLAlchemyError as exc:
+            msg = (
+                f'Unable to enforce uniqueness for {self.schema_name}.template.title. '
+                'Check for duplicate template titles in the database.'
+            )
+            raise ValueError(msg) from exc
 
     def save_assignments(
         self,
@@ -106,7 +125,7 @@ class PostgresDB(Database):
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        self.metadata.create_all(self.engine)
+        self._ensure_schema()
         created_at_value = created_at or datetime.now(tz=UTC)
         statement = postgresql_insert(self.assignments_table).values(
             knowledge_model_uuid=knowledge_model_uuid,
@@ -143,7 +162,7 @@ class PostgresDB(Database):
         title: str,
         content: JsonValue,
     ) -> None:
-        self.metadata.create_all(self.engine)
+        self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=uuid,
             title=title,
@@ -171,7 +190,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: str,
         template_uuid: str,
     ) -> JsonValue | None:
-        self.metadata.create_all(self.engine)
+        self._ensure_schema()
 
         statement = self.assignments_table.select().where(
             (self.assignments_table.c.knowledge_model_uuid == knowledge_model_uuid)
@@ -199,7 +218,7 @@ class PostgresDB(Database):
         return row.assignments
 
     def list_templates(self) -> list[dict[str, str]]:
-        self.metadata.create_all(self.engine)
+        self._ensure_schema()
         statement = self.template_table.select().order_by(self.template_table.c.title.asc())
 
         with self.engine.begin() as connection:
@@ -215,7 +234,7 @@ class PostgresDB(Database):
         ]
 
     def get_template(self, template_uuid: str) -> dict[str, Any] | None:
-        self.metadata.create_all(self.engine)
+        self._ensure_schema()
         statement = self.template_table.select().where(self.template_table.c.uuid == template_uuid)
 
         with self.engine.begin() as connection:

@@ -25,7 +25,6 @@ class SystemPrompt:
 
 @dataclass(frozen=True)
 class FilePaths:
-    dmp_template: str
     config_path: str
     prompts_path: str
     output_markdown: str
@@ -48,10 +47,6 @@ class Config:
     api_key: str
     api_url: str
     dsw_api_url: str
-    questionnaire_uuid: str
-    token: str
-    template_uuid: str
-    template_title: str
     model: str
     log_level: str
     database: DatabaseConfig
@@ -152,10 +147,6 @@ def load_config(
         api_url=_get(config, 'llm_response_generation', 'api_url'),
         model=_get(config, 'llm_response_generation', 'model'),
         dsw_api_url=_get(config, 'dsw', 'api_url'),
-        questionnaire_uuid=_get(config, 'dsw', 'questionnaire_uuid'),
-        token=_get(config, 'dsw', 'token'),
-        template_uuid=_get(config, 'metadata', 'template_uuid'),
-        template_title=_get(config, 'metadata', 'template_title'),
         log_level=_get_log_level(config),
         database=DatabaseConfig(
             host=_expand_env_vars(_get(config, 'database', 'host')),
@@ -166,9 +157,6 @@ def load_config(
             schema=_expand_env_vars(_get(config, 'database', 'schema')),
         ),
         files=FilePaths(
-            dmp_template=_resolve_existing_path(
-                _get_file_path(config, 'dmp_template'),
-            ),
             config_path=_get_file_path(config, 'config_path'),
             prompts_path=configured_prompts_path,
             output_markdown=_get_file_path(config, 'output_markdown'),

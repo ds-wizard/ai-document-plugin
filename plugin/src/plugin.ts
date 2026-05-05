@@ -2,6 +2,7 @@ import { PluginBuilder } from '@ds-wizard/plugin-sdk/core'
 import { Plugin } from '@ds-wizard/plugin-sdk/types'
 
 import ProjectTab from '@/components/ProjectTab'
+import Settings from '@/components/Settings'
 
 import { SettingsDataCodec } from './data/settings-data'
 import { UserSettingsDataCodec } from './data/user-settings-data'
@@ -24,6 +25,10 @@ export default function (_settingsInput: unknown, _userSettingsInput: unknown): 
             'ai-document-url', // tab URL
             'x-ai-document-project-tab', // web component name
             ProjectTab, // React component with plugin functionality
+        )
+        .addSettings(
+            'x-ai-document-settings',
+            Settings,
         )
         .createPlugin()
 

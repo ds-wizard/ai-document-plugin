@@ -1,6 +1,7 @@
 import fastapi
 import fastapi.middleware.cors
 import fastapi.responses
+import pathlib
 import threading
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -38,6 +39,8 @@ class PipelineStatusResponse(BaseModel):
     templateUuid: str
     templateTitle: str
     error: str | None = None
+    resultFormat: str | None = None
+    resultMarkdown: str | None = None
     updatedAt: str
 
 
@@ -76,6 +79,8 @@ def _run_pipeline_job(
                 templateUuid=template_uuid,
                 templateTitle=template_title,
                 error='Template not found.',
+                resultFormat=None,
+                resultMarkdown=None,
                 updatedAt=datetime.now(tz=UTC).isoformat(),
             ),
         )
@@ -92,6 +97,7 @@ def _run_pipeline_job(
             template_data=template['content'],
             pipeline=pipeline,
         )
+        result_markdown = pathlib.Path(config.files.output_markdown).read_text(encoding='utf-8')
         _set_pipeline_status(
             run_id,
             PipelineStatusResponse(
@@ -101,6 +107,8 @@ def _run_pipeline_job(
                 templateUuid=template_uuid,
                 templateTitle=template_title,
                 error=None,
+                resultFormat='markdown',
+                resultMarkdown=result_markdown,
                 updatedAt=datetime.now(tz=UTC).isoformat(),
             ),
         )
@@ -114,6 +122,8 @@ def _run_pipeline_job(
                 templateUuid=template_uuid,
                 templateTitle=template_title,
                 error=str(error),
+                resultFormat=None,
+                resultMarkdown=None,
                 updatedAt=datetime.now(tz=UTC).isoformat(),
             ),
         )
@@ -165,6 +175,8 @@ def create_app() -> fastapi.FastAPI:
                 templateUuid=payload.templateUuid,
                 templateTitle=template['title'],
                 error=None,
+                resultFormat=None,
+                resultMarkdown=None,
                 updatedAt=datetime.now(tz=UTC).isoformat(),
             ),
         )

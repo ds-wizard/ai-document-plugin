@@ -32,6 +32,10 @@ class PipelineRunResponse(BaseModel):
     templateTitle: str
 
 
+class PipelineSaveRequest(BaseModel):
+    resultMarkdown: str
+
+
 class PipelineStatusResponse(BaseModel):
     runId: str
     status: str
@@ -203,5 +207,32 @@ def create_app() -> fastapi.FastAPI:
         if status is None:
             raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
         return status
+
+    @app.post('/pipelines/status/{run_id}/save', response_model=PipelineStatusResponse)
+    async def save_pipeline_result(
+        run_id: str,
+        payload: PipelineSaveRequest,
+    ) -> PipelineStatusResponse:
+        status = _get_pipeline_status(run_id)
+        if status is None:
+            raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
+
+        updated_status = PipelineStatusResponse(
+            runId=status.runId,
+            status=status.status,
+            questionnaireUuid=status.questionnaireUuid,
+            templateUuid=status.templateUuid,
+            templateTitle=status.templateTitle,
+            error=status.error,
+            resultFormat='markdown',
+            resultMarkdown=payload.resultMarkdown,
+            updatedAt=datetime.now(tz=UTC).isoformat(),
+        )
+        _set_pipeline_status(run_id, updated_status)
+
+        config = load_config()
+        pathlib.Path(config.files.output_markdown).write_text(payload.resultMarkdown, encoding='utf-8')
+
+        return updated_status
 
     return app

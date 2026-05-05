@@ -448,12 +448,15 @@ export default function ProjectTab({
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
     const [infoMessage, setInfoMessage] = useState<string | null>(null)
     const [activeRunId, setActiveRunId] = useState<string | null>(null)
+    const [resultRunId, setResultRunId] = useState<string | null>(null)
     const [resultMarkdown, setResultMarkdown] = useState<string | null>(null)
     const [editableResultMarkdown, setEditableResultMarkdown] = useState('')
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [apiBaseUrl, setApiBaseUrl] = useState<string | null>(null)
+    const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
 
     const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
+    const hasResultChanges = resultMarkdown !== null && editableResultMarkdown !== resultMarkdown
 
     useEffect(() => {
         let isMounted = true
@@ -540,6 +543,7 @@ export default function ProjectTab({
                 setInfoMessage(null)
 
                 if (data.status === 'succeeded') {
+                    setResultRunId(data.runId)
                     setResultMarkdown(data.resultMarkdown)
                     setEditableResultMarkdown(data.resultMarkdown || '')
                     setSuccessMessage(
@@ -596,6 +600,7 @@ export default function ProjectTab({
         setErrorMessage(null)
         setSuccessMessage(null)
         setInfoMessage(null)
+        setResultRunId(null)
         setResultMarkdown(null)
         setEditableResultMarkdown('')
 
@@ -640,6 +645,90 @@ export default function ProjectTab({
             const message = error instanceof Error ? error.message : 'Pipeline execution failed.'
             setErrorMessage(message)
             setIsRunningPipeline(false)
+        }
+    }
+
+    const handleCopyMarkdown = async () => {
+        if (!displayedResultMarkdown) {
+            return
+        }
+
+        try {
+            await navigator.clipboard.writeText(displayedResultMarkdown)
+            setErrorMessage(null)
+            setSuccessMessage('Markdown has been copied to the clipboard.')
+        } catch {
+            setErrorMessage('Failed to copy markdown to the clipboard.')
+        }
+    }
+
+    const handleDownloadMarkdown = () => {
+        if (!displayedResultMarkdown) {
+            return
+        }
+
+        const blob = new Blob([displayedResultMarkdown], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${selectedTemplateUuid || 'pipeline-output'}.md`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+        setErrorMessage(null)
+        setSuccessMessage('Markdown download has started.')
+    }
+
+    const handleSaveEditedVersion = async () => {
+        if (!resultRunId || !resultMarkdown) {
+            setErrorMessage('There is no pipeline result to save yet.')
+            return
+        }
+
+        if (!apiBaseUrl) {
+            setErrorMessage('Plugin backend is not available.')
+            return
+        }
+
+        setIsSavingEditedVersion(true)
+        try {
+            const url = `${apiBaseUrl}/pipelines/status/${resultRunId}/save`
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    resultMarkdown: editableResultMarkdown,
+                }),
+            })
+
+            const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(
+                response,
+                url,
+            )
+
+            if (!response.ok) {
+                throw new Error(
+                    'detail' in data && data.detail ? data.detail : 'Failed to save the edited version.',
+                )
+            }
+
+            if (!isPipelineStatusResponse(data)) {
+                throw new Error('Invalid pipeline status returned after save.')
+            }
+
+            setResultMarkdown(data.resultMarkdown)
+            setEditableResultMarkdown(data.resultMarkdown || '')
+            setErrorMessage(null)
+            setSuccessMessage('Edited markdown has been saved.')
+        } catch (error) {
+            setErrorMessage(
+                error instanceof Error ? error.message : 'Failed to save the edited version.',
+            )
+        } finally {
+            setIsSavingEditedVersion(false)
         }
     }
 
@@ -836,6 +925,71 @@ export default function ProjectTab({
                         ))}
                     </div>
                 </div>
+
+                {displayedResultMarkdown ? (
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: '0.75rem',
+                            flexWrap: 'wrap',
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => void handleCopyMarkdown()}
+                            style={{
+                                padding: '0.65rem 0.9rem',
+                                borderRadius: '999px',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                                color: '#0f172a',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                            }}
+                        >
+                            Copy markdown
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleDownloadMarkdown()}
+                            style={{
+                                padding: '0.65rem 0.9rem',
+                                borderRadius: '999px',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                                color: '#0f172a',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                            }}
+                        >
+                            Download .md
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => void handleSaveEditedVersion()}
+                            disabled={!hasResultChanges || isSavingEditedVersion}
+                            style={{
+                                padding: '0.65rem 0.9rem',
+                                borderRadius: '999px',
+                                border: 0,
+                                background:
+                                    !hasResultChanges || isSavingEditedVersion
+                                        ? '#94a3b8'
+                                        : '#0f766e',
+                                color: '#fff',
+                                cursor:
+                                    !hasResultChanges || isSavingEditedVersion
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                                fontWeight: 600,
+                            }}
+                        >
+                            {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
+                        </button>
+                    </div>
+                ) : null}
 
                 <div
                     style={{

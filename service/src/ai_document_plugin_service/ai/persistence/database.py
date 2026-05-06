@@ -446,6 +446,7 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
+
 def _validate_identifier(value: str) -> str:
     if not value.replace('_', '').isalnum() or not (value[0].isalpha() or value[0] == '_'):
         msg = f'Invalid SQL identifier: {value}'

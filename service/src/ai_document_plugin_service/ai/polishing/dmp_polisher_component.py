@@ -13,8 +13,8 @@ from typing import TypedDict
 from haystack import component
 
 from ai_document_plugin_service.ai.common.config import (
-    Config,
     DEFAULT_CONFIG_PATH,
+    Config,
     load_config,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats

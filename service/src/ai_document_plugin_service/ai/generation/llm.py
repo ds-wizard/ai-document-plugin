@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from openai import OpenAI
 
 from ai_document_plugin_service.ai.common.config import (
-    Config,
     DEFAULT_CONFIG_PATH,
+    Config,
     load_config,
 )
 from ai_document_plugin_service.ai.common.llm_client import (

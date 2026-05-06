@@ -5,7 +5,6 @@ import json
 import logging
 import pathlib
 import time
-from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from haystack import Pipeline
@@ -33,11 +32,13 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
     DBSaver,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.persistence.database import PostgresDB, Database
+from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from haystack.components.routers.conditional_router import Route
 
 # Cost per million tokens (USD) - adjust for your model
@@ -101,11 +102,9 @@ def build_pipeline() -> Pipeline:
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> prepolished_saver_component
     pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
-    # pipeline.connect('dmp_generator_component.markdown', 'saver_component.markdown')
     # prepolisher_saver_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
     # dmp_polisher_component -> polished_saver_component
-    # pipeline.connect('dmp_polisher_component.markdown', 'saver_component.debug_markdown')
     pipeline.connect('dmp_polisher_component.markdown', 'saver_component.markdown')
 
     return pipeline
@@ -223,7 +222,7 @@ def write_metrics(
 
     t2 = time.time()
 
-    stats = metrics.get_stats(elapsed_seconds=t2-t1)
+    stats = metrics.get_stats(elapsed_seconds=t2 - t1)
     database.save_stats(template_uuid=template_uuid,
                         knowledge_model_uuid=knowledge_model_uuid,
                         stats=stats,

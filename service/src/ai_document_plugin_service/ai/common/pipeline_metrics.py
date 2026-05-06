@@ -1,5 +1,4 @@
 import logging
-import pathlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -101,6 +100,7 @@ class PipelineMetricsCollector:
                 'elapsed_seconds': elapsed_seconds,
             },
         }
+
 
 def _get_component_dict(
     pipeline_result: Mapping[str, object],

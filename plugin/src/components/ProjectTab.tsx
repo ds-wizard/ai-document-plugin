@@ -447,6 +447,7 @@ export default function ProjectTab({
     const [selectedTemplateUuid, setSelectedTemplateUuid] = useState('')
     const [localTemplateTitle, setLocalTemplateTitle] = useState('')
     const [localTemplateJson, setLocalTemplateJson] = useState('')
+    const [localTemplateFileName, setLocalTemplateFileName] = useState('')
     const [localTemplateError, setLocalTemplateError] = useState<string | null>(null)
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true)
     const [isRunningPipeline, setIsRunningPipeline] = useState(false)
@@ -668,11 +669,13 @@ export default function ProjectTab({
     const handleLocalTemplateFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         if (!file) {
+            setLocalTemplateFileName('')
             return
         }
 
         try {
             const content = await file.text()
+            setLocalTemplateFileName(file.name)
             setLocalTemplateJson(content)
             if (!localTemplateTitle.trim()) {
                 setLocalTemplateTitle(file.name.replace(/\.json$/i, ''))
@@ -750,6 +753,7 @@ export default function ProjectTab({
             setSelectedTemplateUuid(savedTemplate.uuid)
             setLocalTemplateTitle('')
             setLocalTemplateJson('')
+            setLocalTemplateFileName('')
             setLocalTemplateError(null)
             setErrorMessage(null)
             setSuccessMessage(`Template "${trimmedTitle}" was saved and added to the dropdown.`)
@@ -951,17 +955,47 @@ export default function ProjectTab({
 
                     <label style={{ display: 'grid', gap: '0.5rem' }}>
                         <span style={{ fontWeight: 600 }}>Template JSON file</span>
-                        <input
-                            type="file"
-                            accept=".json,application/json"
-                            onChange={(event) => void handleLocalTemplateFileUpload(event)}
+                        <label
                             style={{
-                                padding: '0.65rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                padding: '0.75rem',
                                 borderRadius: '0.5rem',
                                 border: '1px solid #cbd5e1',
                                 background: '#fff',
+                                cursor: 'pointer',
                             }}
-                        />
+                        >
+                            <span
+                                style={{
+                                    padding: '0.45rem 0.75rem',
+                                    borderRadius: '999px',
+                                    background: '#e2e8f0',
+                                    color: '#0f172a',
+                                    fontWeight: 600,
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Choose file
+                            </span>
+                            <span
+                                style={{
+                                    color: localTemplateFileName ? '#0f172a' : '#64748b',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {localTemplateFileName || 'No file selected'}
+                            </span>
+                            <input
+                                type="file"
+                                accept=".json,application/json"
+                                onChange={(event) => void handleLocalTemplateFileUpload(event)}
+                                style={{ display: 'none' }}
+                            />
+                        </label>
                     </label>
 
                     <label style={{ display: 'grid', gap: '0.5rem' }}>

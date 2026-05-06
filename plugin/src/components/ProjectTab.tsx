@@ -969,7 +969,19 @@ export default function ProjectTab({
                         <textarea
                             value={localTemplateJson}
                             onChange={(event) => setLocalTemplateJson(event.target.value)}
-                            placeholder='{"sections":[...]}'
+                            placeholder={`{
+  "sections": [
+    {
+      "title": "...",
+      "sections": [
+        {
+          "title": "...",
+          "content": "..."
+        }
+      ]
+    }
+  ]
+}`}
                             style={{
                                 minHeight: '14rem',
                                 padding: '0.75rem',

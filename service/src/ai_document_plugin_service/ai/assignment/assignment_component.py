@@ -1,6 +1,4 @@
-import json
 import logging
-import pathlib
 from typing import Any, TypedDict
 
 from haystack import component
@@ -23,15 +21,9 @@ from ai_document_plugin_service.ai.assignment.sections.sections_formatter import
     SectionFormatter,
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
-from ai_document_plugin_service.ai.common.config import Config, load_config
+from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
-from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
-    AssignmentSaverComponent,
-    FileSaver,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -125,57 +117,3 @@ class AssignmentComponent:
             'assignments': assignments,
             'stats': stats,
         }
-
-
-def main() -> None:
-    config = load_config()
-    file_paths = config.files
-    questionnaire_uuid = config.questionnaire_uuid
-    token = config.token
-
-    with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
-        template_data = json.load(f)
-    km_data = get_questionnaire_detail(questionnaire_uuid, token)
-    knowledge_model_package = km_data['knowledgeModelPackage']
-
-    parser_component = ParserComponent()
-    top_questions = parser_component.run(km_data)['data']
-    assignment_component = AssignmentComponent()
-    result: AssignmentComponentResult = assignment_component.run(
-        data=top_questions,
-        template_data=template_data,
-        config=config,
-        km=km_data['knowledgeModel'],
-    )
-    assignments = result['assignments']
-    stats = result['stats']
-    assignment_saver_component = AssignmentSaverComponent()
-    assignment_saver_component.run(
-        saver=FileSaver(),
-        knowledge_model_uuid=knowledge_model_package['uuid'],
-        knowledge_model_name=knowledge_model_package['name'],
-        knowledge_model_version=knowledge_model_package['version'],
-        template_uuid=config.template_uuid,
-        template_title=config.template_title,
-        template_data=template_data,
-        assignments=assignments,
-        stats=stats,
-    )
-
-    logger.debug('Total LLM calls: %s', stats.total_calls)
-    logger.debug('Total input tokens: %s', f'{stats.total_input_tokens:,}')
-    logger.debug('Total output tokens: %s', f'{stats.total_output_tokens:,}')
-
-    cost_per_mil_input = 0.25
-    cost_per_mil_output = 2.0
-    model_name = config.model
-    input_cost = stats.total_input_tokens * cost_per_mil_input / 1_000_000
-    output_cost = stats.total_output_tokens * cost_per_mil_output / 1_000_000
-    logger.debug('Estimated price (model %s):', model_name)
-    logger.debug('Input: %.2f USD', input_cost)
-    logger.debug('Output: %.2f USD', output_cost)
-    logger.debug('Total: %.2f USD', input_cost + output_cost)
-
-
-if __name__ == '__main__':
-    main()

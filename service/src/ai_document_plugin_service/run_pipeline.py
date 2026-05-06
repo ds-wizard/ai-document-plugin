@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import pathlib
 import time
 from typing import TYPE_CHECKING
 
@@ -240,49 +238,3 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument('--token', required=True, help='DSW bearer token used to fetch the questionnaire.')
     parser.add_argument('--template-uuid', required=True, help='Template UUID stored in the database.')
     return parser.parse_args()
-
-
-def _load_template_for_run(
-    template_uuid: str,
-) -> tuple[str, Mapping[str, object]]:
-    config = load_config()
-    database = PostgresDB(config.database)
-    template = database.get_template(template_uuid)
-    if template is not None:
-        return template['title'], template['content']
-
-    if template_uuid == config.template_uuid:
-        with pathlib.Path(config.files.dmp_template).open(encoding='utf-8') as f:
-            template_data = json.load(f)
-        return config.template_title, template_data
-
-    msg = (
-        f'Template uuid={template_uuid} was not found in the database and does not match '
-        'the configured fallback template.'
-    )
-    raise ValueError(msg)
-
-
-def main() -> None:
-    args = _parse_args()
-    config = load_config()
-    questionnaire_uuid = args.questionnaire_uuid
-    token = args.token
-    template_uuid = args.template_uuid
-    dsw_api_url = config.dsw_api_url
-    template_title, template_data = _load_template_for_run(template_uuid)
-
-    pipeline = build_pipeline()
-    run_pipeline(
-        questionnaire_uuid,
-        token,
-        dsw_api_url,
-        template_uuid,
-        template_title,
-        template_data,
-        pipeline,
-    )
-
-
-if __name__ == '__main__':
-    main()

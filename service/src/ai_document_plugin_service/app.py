@@ -16,6 +16,13 @@ class ApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
+def _model_from_fields[T: ApiModel](
+    model_type: type[T],
+    **data: object,
+) -> T:
+    return model_type.model_validate(data)
+
+
 class TemplateListItem(ApiModel):
     uuid: str
     title: str
@@ -87,7 +94,8 @@ def _build_pipeline_status(
     result_format: str | None = None,
     result_markdown: str | None = None,
 ) -> PipelineStatusResponse:
-    return PipelineStatusResponse(
+    return _model_from_fields(
+        PipelineStatusResponse,
         run_id=run_id,
         status=status,
         questionnaire_uuid=questionnaire_uuid,
@@ -174,7 +182,10 @@ def health_check() -> fastapi.responses.JSONResponse:
 def list_templates() -> list[TemplateListItem]:
     config = load_config()
     database = PostgresDB(config.database)
-    return [TemplateListItem.model_validate(item) for item in database.list_templates()]
+    return [
+        _model_from_fields(TemplateListItem, **item)
+        for item in database.list_templates()
+    ]
 
 
 def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
@@ -202,7 +213,11 @@ def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
     except ValueError as error:
         raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
 
-    return TemplateListItem(uuid=template_uuid, title=trimmed_title)
+    return _model_from_fields(
+        TemplateListItem,
+        uuid=template_uuid,
+        title=trimmed_title,
+    )
 
 
 def start_pipeline(
@@ -241,7 +256,8 @@ def start_pipeline(
             api_url=payload.llm_api_url,
         ),
     )
-    return PipelineRunResponse(
+    return _model_from_fields(
+        PipelineRunResponse,
         status='accepted',
         run_id=run_id,
         questionnaire_uuid=payload.questionnaire_uuid,
@@ -265,8 +281,12 @@ def save_pipeline_result(
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
 
+    if status.knowledge_model_uuid is None:
+        raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
+
     config = load_config()
     database = PostgresDB(config.database)
+
     database.update_result(
         template_uuid=status.template_uuid,
         knowledge_model_uuid=status.knowledge_model_uuid,

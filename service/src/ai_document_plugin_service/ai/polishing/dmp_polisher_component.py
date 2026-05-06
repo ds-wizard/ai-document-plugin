@@ -4,9 +4,7 @@ Moves content that appears in one section but belongs thematically in another (e
 a topic is mentioned early but has a dedicated chapter later). Does not add new content.
 """
 
-import json
 import logging
-import pathlib
 import typing
 from typing import TypedDict
 
@@ -15,7 +13,6 @@ from haystack import component
 from ai_document_plugin_service.ai.common.config import (
     DEFAULT_CONFIG_PATH,
     Config,
-    load_config,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
@@ -88,37 +85,3 @@ class DmpPolisherComponent:
             return ''
         lines = DmpPolisherComponent._format_template_structure(nodes)
         return '\n'.join(lines)
-
-
-if __name__ == '__main__':
-    config = load_config()
-    file_paths = config.files
-
-    markdown = pathlib.Path(file_paths.output_pre_polish_markdown).read_text(
-        encoding='utf-8',
-    )
-
-    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
-        template_data = json.load(f)
-
-    dmp_polisher_component = DmpPolisherComponent()
-    result: DmpPolisherComponentResult = dmp_polisher_component.run(
-        markdown=markdown,
-        config_path=file_paths.config_path,
-        template_data=template_data,
-    )
-    polished = result['markdown']
-    stats = result['stats']
-
-    pathlib.Path(file_paths.output_markdown).write_text(
-        polished,
-        encoding='utf-8',
-    )
-
-    logger.debug('Polished DMP saved to %s', file_paths.output_markdown)
-    logger.debug(
-        'LLM calls: %s, input tokens: %s, output tokens: %s',
-        stats.total_calls,
-        f'{stats.total_input_tokens:,}',
-        f'{stats.total_output_tokens:,}',
-    )

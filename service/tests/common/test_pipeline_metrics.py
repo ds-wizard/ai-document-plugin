@@ -1,3 +1,6 @@
+from collections.abc import Mapping
+from typing import cast
+
 from ai_document_plugin_service.ai.common.pipeline_metrics import (
     PipelineMetricsCollector,
     get_component_markdown,
@@ -35,7 +38,7 @@ def test_get_component_markdown_returns_value_for_component_output() -> None:
     assert output == '# DMP'
 
 
-def test_append_summary_adds_table_and_totals() -> None:
+def test_get_stats_returns_json_summary_with_expected_shape() -> None:
     collector = PipelineMetricsCollector(
         model_name='test-model',
         cost_per_mil_input=0.25,
@@ -50,13 +53,43 @@ def test_append_summary_adds_table_and_totals() -> None:
         AssignmentStats(total_calls=1, total_input_tokens=500, total_output_tokens=50),
     )
 
-    markdown = collector.append_summary('# DMP', elapsed_seconds=12.5)
+    stats = collector.get_stats(elapsed_seconds=12.5)
 
-    assert '# DMP' in markdown
-    assert '## Pipeline token usage and cost' in markdown
-    assert '1. Step' in markdown
-    assert '2. Step' in markdown
-    assert '**Total**' in markdown
-    assert '1500' in markdown
-    assert '250' in markdown
-    assert 'Total time: 12.5s' in markdown
+    assert isinstance(stats, Mapping)
+    typed_stats = cast(dict[str, object], stats)
+
+    assert typed_stats['title'] == 'Pipeline token usage and cost'
+    assert typed_stats['headers'] == [
+        'Step',
+        'LLM calls',
+        'Input tokens',
+        'Output tokens',
+        'Cost (USD)',
+    ]
+    assert typed_stats['rows'] == [
+        {
+            'step': '1. Step',
+            'llm_calls': 2,
+            'input_tokens': 1000,
+            'output_tokens': 200,
+            'cost_usd': 0.0,
+        },
+        {
+            'step': '2. Step',
+            'llm_calls': 1,
+            'input_tokens': 500,
+            'output_tokens': 50,
+            'cost_usd': 0.0,
+        },
+    ]
+    assert typed_stats['totals'] == {
+        'input_tokens': 1500,
+        'output_tokens': 250,
+        'cost_usd': 0.0,
+    }
+    assert typed_stats['meta'] == {
+        'model_name': 'test-model',
+        'cost_per_mil_input': 0.25,
+        'cost_per_mil_output': 2.0,
+        'elapsed_seconds': 12.5,
+    }

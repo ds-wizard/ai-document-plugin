@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import JsonValue
 
 
 @dataclass(frozen=True)
@@ -24,14 +25,8 @@ class PipelineMetricsCollector:
             return
         self.steps.append(PipelineMetricStep(name=step_name, stats=stats))
 
-    def append_summary(self, markdown: str, elapsed_seconds: float) -> str:
-        if not self.steps:
-            return markdown
-        return markdown + self._build_summary_section(elapsed_seconds)
-
-    def write_output(self, markdown: str, output_path: str, elapsed_seconds: float) -> None:
-        full_markdown = self.append_summary(markdown, elapsed_seconds)
-        pathlib.Path(output_path).write_text(full_markdown, encoding='utf-8')
+    def get_stats(self, elapsed_seconds: float) -> JsonValue:
+        return self._build_summary_section(elapsed_seconds)
 
     def log_summary(self, logger: logging.Logger) -> None:
         if not self.steps:
@@ -74,50 +69,38 @@ class PipelineMetricsCollector:
         output_cost = stats.total_output_tokens * self.cost_per_mil_output / 1_000_000
         return input_cost, output_cost, input_cost + output_cost
 
-    def _build_summary_section(self, elapsed_seconds: float) -> str:
-        table_rows = [
-            [
-                step.name,
-                str(step.stats.total_calls),
-                str(step.stats.total_input_tokens),
-                str(step.stats.total_output_tokens),
-                f'{self._price(step.stats)[2]:.2f}',
-            ]
-            for step in self.steps
-        ]
-        table_rows.append(
-            [
-                '**Total**',
-                '',
-                str(self.total_input_tokens),
-                str(self.total_output_tokens),
-                f'**{self.total_cost:.2f}**',
+    def _build_summary_section(self, elapsed_seconds: float) -> JsonValue:
+        return {
+            'title': 'Pipeline token usage and cost',
+            'headers': [
+                'Step',
+                'LLM calls',
+                'Input tokens',
+                'Output tokens',
+                'Cost (USD)',
             ],
-        )
-        table_md = _markdown_table(
-            ['Step', 'LLM calls', 'Input tokens', 'Output tokens', 'Cost (USD)'],
-            table_rows,
-        )
-
-        return '\n'.join(
-            [
-                '',
-                '',
-                '---',
-                '',
-                '## Pipeline token usage and cost',
-                '',
-                table_md,
-                '',
-                (
-                    f'*Model: {self.model_name}.'
-                    f'Cost per million tokens: input {self.cost_per_mil_input} USD,'
-                    f'output {self.cost_per_mil_output} USD.*'
-                ),
-                f'Total time: {elapsed_seconds}s',
+            'rows': [
+                {
+                    'step': step.name,
+                    'llm_calls': step.stats.total_calls,
+                    'input_tokens': step.stats.total_input_tokens,
+                    'output_tokens': step.stats.total_output_tokens,
+                    'cost_usd': round(self._price(step.stats)[2], 2),
+                }
+                for step in self.steps
             ],
-        )
-
+            'totals': {
+                'input_tokens': self.total_input_tokens,
+                'output_tokens': self.total_output_tokens,
+                'cost_usd': round(self.total_cost, 2),
+            },
+            'meta': {
+                'model_name': self.model_name,
+                'cost_per_mil_input': self.cost_per_mil_input,
+                'cost_per_mil_output': self.cost_per_mil_output,
+                'elapsed_seconds': elapsed_seconds,
+            },
+        }
 
 def _get_component_dict(
     pipeline_result: Mapping[str, object],
@@ -153,18 +136,3 @@ def get_component_markdown(
     if isinstance(markdown, str):
         return markdown
     return None
-
-
-def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
-    widths = [len(header) for header in headers]
-    for row in rows:
-        for index, cell in enumerate(row):
-            widths[index] = max(widths[index], len(cell))
-
-    def format_row(row: list[str]) -> str:
-        return '| ' + ' | '.join(cell.ljust(widths[index]) for index, cell in enumerate(row)) + ' |'
-
-    separator = '| ' + ' | '.join('-' * width for width in widths) + ' |'
-    lines = [format_row(headers), separator]
-    lines.extend(format_row(row) for row in rows)
-    return '\n'.join(lines)

@@ -65,6 +65,23 @@ class Database(ABC):
     def get_template(self, template_uuid: str) -> dict[str, Any] | None:
         """Get a template record from a database backend."""
 
+    @abstractmethod
+    def save_result(
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        prepolished_markdown: str,
+        markdown: str
+    ) -> None:
+        """ Persist a markdown result in a database backend."""
+
+    @abstractmethod
+    def save_stats(self,
+                   template_uuid: str,
+                   knowledge_model_uuid: str,
+                   stats: JsonValue) -> None:
+        """ Persist a stats result in a database backend."""
+
 
 class PostgresDB(Database):
     def __init__(
@@ -105,6 +122,27 @@ class PostgresDB(Database):
             Column('title', Text, nullable=False),
             Column('content', JSON, nullable=False),
             UniqueConstraint('title', name='uq_template_title'),
+        )
+        self.result_table = Table(
+            'result',
+            self.metadata,
+            Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
+            Column('template_uuid', UUID(as_uuid=True), primary_key=True),
+            Column(
+                'created_at',
+                DateTime(timezone=True),
+                nullable=False,
+                server_default=func.now(),
+            ),
+            Column(
+                'updated_at',
+                DateTime(timezone=True),
+                nullable=False,
+                server_default=func.now(),
+            ),
+            Column('dmp', Text, nullable=False),
+            Column('dmp_pre_polished', Text, nullable=False),
+            Column('stats', JSON, nullable=True),
         )
 
     def _ensure_schema(self) -> None:
@@ -289,6 +327,79 @@ class PostgresDB(Database):
             'title': row.title,
             'content': row.content,
         }
+
+    def save_result(
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        prepolished_markdown: str,
+        markdown: str,
+    ) -> None:
+        self._ensure_schema()
+        now = datetime.now(tz=UTC)
+
+        statement = postgresql_insert(self.result_table).values(
+            template_uuid=template_uuid,
+            knowledge_model_uuid=knowledge_model_uuid,
+            dmp_pre_polished=prepolished_markdown,
+            dmp=markdown,
+            created_at=now,
+            updated_at=now,
+        )
+
+        upsert_statement = statement.on_conflict_do_update(
+            index_elements=[
+                self.result_table.c.knowledge_model_uuid,
+                self.result_table.c.template_uuid,
+            ],
+            set_={
+                'dmp_pre_polished': statement.excluded.dmp_pre_polished,
+                'dmp': statement.excluded.dmp,
+                'updated_at': statement.excluded.updated_at,
+            },
+        )
+
+        with self.engine.begin() as connection:
+            connection.execute(upsert_statement)
+
+        logger.debug(
+            'Saved result for KM package id=%s to %s.result',
+            knowledge_model_uuid,
+            self.schema_name,
+        )
+
+    def save_stats(self,
+                   template_uuid: str,
+                   knowledge_model_uuid: str,
+                   stats: JsonValue) -> None:
+        self._ensure_schema()
+        now = datetime.now(tz=UTC)
+
+        statement = (
+            self.result_table.update()
+            .where(
+                (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
+                & (self.result_table.c.template_uuid == template_uuid)
+            )
+            .values(stats=stats, updated_at=now)
+        )
+
+        with self.engine.begin() as connection:
+            result = connection.execute(statement)
+
+        if result.rowcount == 0:
+            msg = (
+                'Cannot save stats because result row does not exist yet. '
+                'Save dmp and dmp_pre_polished first.'
+            )
+            raise ValueError(msg)
+
+        logger.debug(
+            'Saved stats for KM package id=%s to %s.result',
+            knowledge_model_uuid,
+            self.schema_name,
+        )
+
 
 
 def _validate_identifier(value: str) -> str:

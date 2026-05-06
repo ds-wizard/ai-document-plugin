@@ -33,7 +33,7 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
     DBSaver,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.ai.persistence.database import PostgresDB, Database
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
@@ -54,9 +54,8 @@ def build_pipeline() -> Pipeline:
     assignment_component = AssignmentComponent()
     assignment_saver_component = AssignmentSaverComponent()
     dmp_generator_component = DmpGeneratorComponent()
-    prepolished_saver_component = SaverComponent()
     dmp_polisher_component = DmpPolisherComponent()
-    polished_saver_component = SaverComponent()
+    saver_component = SaverComponent()
 
     # ROUTES
     routes: list[Route] = [
@@ -82,9 +81,8 @@ def build_pipeline() -> Pipeline:
     pipeline.add_component('assignment_component', assignment_component)
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
-    pipeline.add_component('prepolished_saver_component', prepolished_saver_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
-    pipeline.add_component('polished_saver_component', polished_saver_component)
+    pipeline.add_component('saver_component', saver_component)
 
     # CONNECTIONS
     # loader_component -> router
@@ -102,13 +100,13 @@ def build_pipeline() -> Pipeline:
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> prepolished_saver_component
-    pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
-    pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
+    pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
+    # pipeline.connect('dmp_generator_component.markdown', 'saver_component.markdown')
     # prepolisher_saver_component -> dmp_polisher_component
-    pipeline.connect('prepolished_saver_component.markdown', 'dmp_polisher_component.markdown')
+    pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
     # dmp_polisher_component -> polished_saver_component
-    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.debug_markdown')
-    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.markdown')
+    # pipeline.connect('dmp_polisher_component.markdown', 'saver_component.debug_markdown')
+    pipeline.connect('dmp_polisher_component.markdown', 'saver_component.markdown')
 
     return pipeline
 
@@ -122,7 +120,7 @@ def run_pipeline(
     template_data: Mapping[str, object],
     pipeline: Pipeline,
     llm_override: LLMConfigOverride | None = None,
-) -> None:
+) -> str:
     t1 = time.time()
     config = apply_llm_override(load_config(), llm_override)
     configure_logging(config.log_level)
@@ -169,30 +167,35 @@ def run_pipeline(
                 'llm': generation_llm,
                 'workers': config.parallel_workers,
             },
-            'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
             'dmp_polisher_component': {
                 'config_path': file_paths.config_path,
                 'config': config,
                 'template_data': template_data,
             },
-            'polished_saver_component': {'file_path': file_paths.output_markdown},
+            'saver_component': {
+                'template_uuid': template_uuid,
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'database': database,
+            },
         },
         include_outputs_from={
             'assignment_saver_component',
             'dmp_generator_component',
             'dmp_polisher_component',
-            'polished_saver_component',
+            'saver_component',
         },
     )
 
-    write_metrics(result, model_name, file_paths.output_markdown, file_paths.output_with_stats, t1)
+    write_metrics(database, template_uuid, knowledge_model_uuid, result, model_name, t1)
+    return knowledge_model_uuid
 
 
 def write_metrics(
+    database: Database,
+    template_uuid: str,
+    knowledge_model_uuid: str,
     result: Mapping[str, object],
     model_name: str,
-    output_path: str,
-    output_with_stats_path: str,
     t1: float,
 ) -> None:
     metrics = PipelineMetricsCollector(
@@ -213,20 +216,15 @@ def write_metrics(
         get_component_stats(result, 'dmp_polisher_component'),
     )
 
-    polished_markdown = get_component_markdown(result, 'polished_saver_component')
-    if polished_markdown is None:
-        polished_markdown = pathlib.Path(output_path).read_text(
-            encoding='utf-8',
-        )
-
     t2 = time.time()
-    metrics.write_output(
-        markdown=polished_markdown,
-        output_path=output_with_stats_path,
-        elapsed_seconds=t2 - t1,
-    )
 
-    logger.debug('Saved DMP to %s', output_with_stats_path)
+    stats = metrics.get_stats(elapsed_seconds=t2-t1)
+    database.save_stats(template_uuid=template_uuid,
+                        knowledge_model_uuid=knowledge_model_uuid,
+                        stats=stats,
+                        )
+
+    logger.debug('Saved DMP stats')
     metrics.log_summary(logger)
 
 

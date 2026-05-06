@@ -48,6 +48,7 @@ class PipelineStatusResponse(BaseModel):
     runId: str
     status: str
     questionnaireUuid: str
+    knowledgeModelUuid: str | None = None
     templateUuid: str
     templateTitle: str
     error: str | None = None
@@ -89,6 +90,7 @@ def _run_pipeline_job(
                 runId=run_id,
                 status='failed',
                 questionnaireUuid=questionnaire_uuid,
+                knowledgeModelUuid=None,
                 templateUuid=template_uuid,
                 templateTitle=template_title,
                 error='Template not found.',
@@ -101,7 +103,7 @@ def _run_pipeline_job(
 
     try:
         pipeline = build_pipeline()
-        run_pipeline(
+        knowledge_model_uuid = run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             token=token,
             dsw_api_url=api_url,
@@ -118,6 +120,7 @@ def _run_pipeline_job(
                 runId=run_id,
                 status='succeeded',
                 questionnaireUuid=questionnaire_uuid,
+                knowledgeModelUuid=knowledge_model_uuid,
                 templateUuid=template_uuid,
                 templateTitle=template_title,
                 error=None,
@@ -133,6 +136,7 @@ def _run_pipeline_job(
                 runId=run_id,
                 status='failed',
                 questionnaireUuid=questionnaire_uuid,
+                knowledgeModelUuid=None,
                 templateUuid=template_uuid,
                 templateTitle=template_title,
                 error=str(error),
@@ -217,6 +221,7 @@ def create_app() -> fastapi.FastAPI:
                 runId=run_id,
                 status='running',
                 questionnaireUuid=payload.questionnaireUuid,
+                knowledgeModelUuid=None,
                 templateUuid=payload.templateUuid,
                 templateTitle=template['title'],
                 error=None,
@@ -267,6 +272,7 @@ def create_app() -> fastapi.FastAPI:
             runId=status.runId,
             status=status.status,
             questionnaireUuid=status.questionnaireUuid,
+            knowledgeModelUuid=status.knowledgeModelUuid,
             templateUuid=status.templateUuid,
             templateTitle=status.templateTitle,
             error=status.error,
@@ -277,7 +283,12 @@ def create_app() -> fastapi.FastAPI:
         _set_pipeline_status(run_id, updated_status)
 
         config = load_config()
-        pathlib.Path(config.files.output_markdown).write_text(payload.resultMarkdown, encoding='utf-8')
+        database = PostgresDB(config.database)
+        database.save_result(
+            template_uuid=status.templateUuid,
+            knowledge_model_uuid=status.knowledgeModelUuid,
+            markdown=payload.resultMarkdown
+        )
 
         return updated_status
 

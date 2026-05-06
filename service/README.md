@@ -64,6 +64,24 @@ paths. The API key supports environment variable expansion (e.g. `$OPENAI_API_KE
 Prompt templates and LLM parameters for each step. Its location can be overridden via `files.prompts_path` in
 `config.yaml`.
 
+## Make commands
+
+The project `Makefile` provides a few shortcuts for common development tasks:
+
+- `make install` installs project dependencies from `pyproject.toml` using `uv sync`
+- `make lint` runs Ruff checks over the source tree
+- `make typecheck` runs static type checking with `ty`
+- `make format` formats the codebase with Ruff
+- `make requirements` regenerates `requirements.txt` from `pyproject.toml`
+- `make dev` starts the FastAPI development server with auto-reload on port `8010`
+- `make build` builds the Python package
+- `make db` starts the local PostgreSQL container defined in `docker-compose.yml`
+- `make db-migrate` applies all Alembic migrations to the configured database
+- `make db-current` shows the current Alembic revision stored in the database
+- `make db-history` shows available Alembic migration history
+
+Run these commands from the [service](/Users/hana/DSW/AI-playground/ai-document-plugin/service:1) directory.
+
 ## Tests
 
 ```bash

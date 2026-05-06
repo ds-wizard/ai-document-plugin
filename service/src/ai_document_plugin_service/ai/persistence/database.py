@@ -82,6 +82,15 @@ class Database(ABC):
                    stats: JsonValue) -> None:
         """ Persist a stats result in a database backend."""
 
+    @abstractmethod
+    def update_result(
+            self,
+            template_uuid: str,
+            knowledge_model_uuid: str,
+            markdown: str,
+    ) -> None:
+        """ Persist a markdown result in a database backend."""
+
 
 class PostgresDB(Database):
     def __init__(
@@ -400,7 +409,42 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
+    def update_result(
+            self,
+            template_uuid: str,
+            knowledge_model_uuid: str,
+            markdown: str,
+    ) -> None:
+        self._ensure_schema()
+        now = datetime.now(tz=UTC)
 
+        statement = (
+            self.result_table.update()
+            .where(
+                (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
+                & (self.result_table.c.template_uuid == template_uuid)
+            )
+            .values(
+                dmp=markdown,
+                updated_at=now,
+            )
+        )
+
+        with self.engine.begin() as connection:
+            result = connection.execute(statement)
+
+        if result.rowcount == 0:
+            msg = (
+                'Cannot save result because result row does not exist yet. '
+                'Create the row first before updating dmp.'
+            )
+            raise ValueError(msg)
+
+        logger.debug(
+            'Updated result for KM package id=%s in %s.result',
+            knowledge_model_uuid,
+            self.schema_name,
+        )
 
 def _validate_identifier(value: str) -> str:
     if not value.replace('_', '').isalnum() or not (value[0].isalpha() or value[0] == '_'):

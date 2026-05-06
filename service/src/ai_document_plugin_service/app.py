@@ -284,7 +284,7 @@ def create_app() -> fastapi.FastAPI:
 
         config = load_config()
         database = PostgresDB(config.database)
-        database.save_result(
+        database.update_result(
             template_uuid=status.templateUuid,
             knowledge_model_uuid=status.knowledgeModelUuid,
             markdown=payload.resultMarkdown

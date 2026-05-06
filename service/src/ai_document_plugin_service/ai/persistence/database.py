@@ -82,8 +82,8 @@ class PostgresDB(Database):
         self.schema_name = _validate_identifier(config.schema)
         self.engine = create_engine(self.dsn)
         self.metadata = MetaData(schema=self.schema_name)
-        self.assignments_table = Table(
-            'assignments',
+        self.assignment_table = Table(
+            'assignment',
             self.metadata,
             Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
             Column('knowledge_model_name', Text, primary_key=False),
@@ -136,7 +136,7 @@ class PostgresDB(Database):
     ) -> None:
         self._ensure_schema()
         created_at_value = created_at or datetime.now(tz=UTC)
-        statement = postgresql_insert(self.assignments_table).values(
+        statement = postgresql_insert(self.assignment_table).values(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
@@ -147,8 +147,8 @@ class PostgresDB(Database):
         )
         upsert_statement = statement.on_conflict_do_update(
             index_elements=[
-                self.assignments_table.c.knowledge_model_uuid,
-                self.assignments_table.c.template_uuid,
+                self.assignment_table.c.knowledge_model_uuid,
+                self.assignment_table.c.template_uuid,
             ],
             set_={
                 'created_at': statement.excluded.created_at,
@@ -227,9 +227,9 @@ class PostgresDB(Database):
     ) -> JsonValue | None:
         self._ensure_schema()
 
-        statement = self.assignments_table.select().where(
-            (self.assignments_table.c.knowledge_model_uuid == knowledge_model_uuid)
-            & (self.assignments_table.c.template_uuid == template_uuid),
+        statement = self.assignment_table.select().where(
+            (self.assignment_table.c.knowledge_model_uuid == knowledge_model_uuid)
+            & (self.assignment_table.c.template_uuid == template_uuid),
         )
 
         with self.engine.begin() as connection:

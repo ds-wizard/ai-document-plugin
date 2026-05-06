@@ -96,7 +96,7 @@ class PostgresDB(Database):
             ),
             Column('assignments', JSON, nullable=False),
             Column('stats', JSON, nullable=False),
-            Column('template_uuid', Text, primary_key=True, foreign_key='templates.uuid'),
+            Column('template_uuid', UUID(as_uuid=True), primary_key=True, foreign_key='template.uuid'),
         )
         self.template_table = Table(
             'template',

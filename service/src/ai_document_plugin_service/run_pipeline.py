@@ -120,7 +120,7 @@ def run_pipeline(
     template_data: Mapping[str, object],
     pipeline: Pipeline,
     llm_override: LLMConfigOverride | None = None,
-) -> str:
+) -> tuple[str, str]:
     t1 = time.time()
     config = apply_llm_override(load_config(), llm_override)
     configure_logging(config.log_level)
@@ -186,8 +186,13 @@ def run_pipeline(
         },
     )
 
+    result_markdown = get_component_markdown(result, 'saver_component')
+    if result_markdown is None:
+        msg = 'Missing markdown output from saver_component'
+        raise RuntimeError(msg)
+
     write_metrics(database, template_uuid, knowledge_model_uuid, result, model_name, t1)
-    return knowledge_model_uuid
+    return knowledge_model_uuid, result_markdown
 
 
 def write_metrics(

@@ -103,7 +103,7 @@ def _run_pipeline_job(
 
     try:
         pipeline = build_pipeline()
-        knowledge_model_uuid = run_pipeline(
+        knowledge_model_uuid, result = run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             token=token,
             dsw_api_url=api_url,
@@ -113,7 +113,7 @@ def _run_pipeline_job(
             pipeline=pipeline,
             llm_override=llm_override,
         )
-        result_markdown = pathlib.Path(config.files.output_markdown).read_text(encoding='utf-8')
+
         _set_pipeline_status(
             run_id,
             PipelineStatusResponse(
@@ -125,7 +125,7 @@ def _run_pipeline_job(
                 templateTitle=template_title,
                 error=None,
                 resultFormat='markdown',
-                resultMarkdown=result_markdown,
+                resultMarkdown=result,
                 updatedAt=datetime.now(tz=UTC).isoformat(),
             ),
         )

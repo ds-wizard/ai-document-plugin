@@ -27,9 +27,6 @@ class SystemPrompt:
 class FilePaths:
     config_path: str
     prompts_path: str
-    output_markdown: str
-    output_with_stats: str
-    output_pre_polish_markdown: str
 
 
 @dataclass(frozen=True)
@@ -166,12 +163,6 @@ def load_config(
         files=FilePaths(
             config_path=_get_file_path(config, 'config_path'),
             prompts_path=configured_prompts_path,
-            output_markdown=_get_file_path(config, 'output_markdown'),
-            output_with_stats=_get_file_path(config, 'output_with_stats'),
-            output_pre_polish_markdown=_get_file_path(
-                config,
-                'output_pre_polish_markdown',
-            ),
         ),
         assignment=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'assignment', 'temperature')),

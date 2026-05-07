@@ -67,29 +67,22 @@ class Database(ABC):
 
     @abstractmethod
     def save_result(
-        self,
-        template_uuid: str,
-        knowledge_model_uuid: str,
-        prepolished_markdown: str,
-        markdown: str
+        self, template_uuid: str, knowledge_model_uuid: str, prepolished_markdown: str, markdown: str
     ) -> None:
-        """ Persist a markdown result in a database backend."""
+        """Persist a markdown result in a database backend."""
 
     @abstractmethod
-    def save_stats(self,
-                   template_uuid: str,
-                   knowledge_model_uuid: str,
-                   stats: JsonValue) -> None:
-        """ Persist a stats result in a database backend."""
+    def save_stats(self, template_uuid: str, knowledge_model_uuid: str, stats: JsonValue) -> None:
+        """Persist a stats result in a database backend."""
 
     @abstractmethod
     def update_result(
-            self,
-            template_uuid: str,
-            knowledge_model_uuid: str,
-            markdown: str,
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        markdown: str,
     ) -> None:
-        """ Persist a markdown result in a database backend."""
+        """Persist a markdown result in a database backend."""
 
 
 class PostgresDB(Database):
@@ -377,10 +370,7 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def save_stats(self,
-                   template_uuid: str,
-                   knowledge_model_uuid: str,
-                   stats: JsonValue) -> None:
+    def save_stats(self, template_uuid: str, knowledge_model_uuid: str, stats: JsonValue) -> None:
         self._ensure_schema()
         now = datetime.now(tz=UTC)
 
@@ -397,10 +387,7 @@ class PostgresDB(Database):
             result = connection.execute(statement)
 
         if result.rowcount == 0:
-            msg = (
-                'Cannot save stats because result row does not exist yet. '
-                'Save dmp and dmp_pre_polished first.'
-            )
+            msg = 'Cannot save stats because result row does not exist yet. Save dmp and dmp_pre_polished first.'
             raise ValueError(msg)
 
         logger.debug(
@@ -410,10 +397,10 @@ class PostgresDB(Database):
         )
 
     def update_result(
-            self,
-            template_uuid: str,
-            knowledge_model_uuid: str,
-            markdown: str,
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        markdown: str,
     ) -> None:
         self._ensure_schema()
         now = datetime.now(tz=UTC)
@@ -434,10 +421,7 @@ class PostgresDB(Database):
             result = connection.execute(statement)
 
         if result.rowcount == 0:
-            msg = (
-                'Cannot save result because result row does not exist yet. '
-                'Create the row first before updating dmp.'
-            )
+            msg = 'Cannot save result because result row does not exist yet. Create the row first before updating dmp.'
             raise ValueError(msg)
 
         logger.debug(

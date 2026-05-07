@@ -221,10 +221,11 @@ def write_metrics(
     t2 = time.time()
 
     stats = metrics.get_stats(elapsed_seconds=t2 - t1)
-    database.save_stats(template_uuid=template_uuid,
-                        knowledge_model_uuid=knowledge_model_uuid,
-                        stats=stats,
-                        )
+    database.save_stats(
+        template_uuid=template_uuid,
+        knowledge_model_uuid=knowledge_model_uuid,
+        stats=stats,
+    )
 
     logger.debug('Saved DMP stats')
     metrics.log_summary(logger)

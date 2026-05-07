@@ -182,10 +182,7 @@ def health_check() -> fastapi.responses.JSONResponse:
 def list_templates() -> list[TemplateListItem]:
     config = load_config()
     database = PostgresDB(config.database)
-    return [
-        _model_from_fields(TemplateListItem, **item)
-        for item in database.list_templates()
-    ]
+    return [_model_from_fields(TemplateListItem, **item) for item in database.list_templates()]
 
 
 def create_template(payload: TemplateCreateRequest) -> TemplateListItem:

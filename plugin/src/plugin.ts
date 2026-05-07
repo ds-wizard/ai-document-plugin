@@ -26,10 +26,7 @@ export default function (_settingsInput: unknown, _userSettingsInput: unknown): 
             'x-ai-document-project-tab', // web component name
             ProjectTab, // React component with plugin functionality
         )
-        .addSettings(
-            'x-ai-document-settings',
-            Settings,
-        )
+        .addSettings('x-ai-document-settings', Settings)
         .createPlugin()
 
     return plugin

@@ -322,9 +322,7 @@ const renderMarkdownBlocks = (markdown: string): ReactNode[] => {
                                             style={{
                                                 padding: '0.75rem 0.9rem',
                                                 borderTop:
-                                                    rowIndex === 0
-                                                        ? 'none'
-                                                        : '1px solid #e2e8f0',
+                                                    rowIndex === 0 ? 'none' : '1px solid #e2e8f0',
                                                 color: '#1e293b',
                                                 verticalAlign: 'top',
                                             }}
@@ -416,7 +414,13 @@ const buildApiBaseCandidates = (serviceUrl: string | undefined): string[] => {
         `${window.location.origin}/gateway/${pluginMetadata.uuid}`,
     ]
 
-    return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)).map(normalizeBaseUrl))]
+    return [
+        ...new Set(
+            candidates
+                .filter((candidate): candidate is string => Boolean(candidate))
+                .map(normalizeBaseUrl),
+        ),
+    ]
 }
 
 const discoverApiBase = async (serviceUrl: string | undefined): Promise<string> => {
@@ -465,7 +469,8 @@ export default function ProjectTab({
 
     const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
     const hasResultChanges = resultMarkdown !== null && editableResultMarkdown !== resultMarkdown
-    const selectedTemplate = templates.find((template) => template.uuid === selectedTemplateUuid) || null
+    const selectedTemplate =
+        templates.find((template) => template.uuid === selectedTemplateUuid) || null
     const isCreatingCustomTemplate = selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
 
     useEffect(() => {
@@ -622,7 +627,7 @@ export default function ProjectTab({
         try {
             const { apiUrl, token } = getApiUrlAndToken()
             if (!token) {
-                throw new Error('Failed to retrieve the current user\'s authentication token.')
+                throw new Error("Failed to retrieve the current user's authentication token.")
             }
 
             const url = `${apiBaseUrl}/pipelines/run`
@@ -829,7 +834,9 @@ export default function ProjectTab({
 
             if (!response.ok) {
                 throw new Error(
-                    'detail' in data && data.detail ? data.detail : 'Failed to save the edited version.',
+                    'detail' in data && data.detail
+                        ? data.detail
+                        : 'Failed to save the edited version.',
                 )
             }
 
@@ -889,11 +896,7 @@ export default function ProjectTab({
                         setSelectedTemplateUuid(event.target.value)
                         setLocalTemplateError(null)
                     }}
-                    disabled={
-                        isLoadingTemplates ||
-                        isRunningPipeline ||
-                        !project
-                    }
+                    disabled={isLoadingTemplates || isRunningPipeline || !project}
                     style={{
                         padding: '0.75rem',
                         borderRadius: '0.5rem',
@@ -932,8 +935,8 @@ export default function ProjectTab({
                     <div>
                         <div style={{ fontWeight: 700 }}>Create custom template</div>
                         <div style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.6 }}>
-                            Upload or paste template JSON. After saving, the template will be
-                            stored in the backend database and appear in the dropdown immediately.
+                            Upload or paste template JSON. After saving, the template will be stored
+                            in the backend database and appear in the dropdown immediately.
                         </div>
                     </div>
 
@@ -1154,8 +1157,8 @@ export default function ProjectTab({
                     <div>
                         <div style={{ fontWeight: 700 }}>Pipeline output</div>
                         <div style={{ color: '#64748b', fontSize: '0.95rem' }}>
-                            Preview of the generated document. The render mode is prepared for
-                            more output formats later.
+                            Preview of the generated document. The render mode is prepared for more
+                            output formats later.
                         </div>
                     </div>
 
@@ -1267,8 +1270,7 @@ export default function ProjectTab({
                 >
                     {!resultMarkdown ? (
                         <div style={{ color: '#64748b', lineHeight: 1.6 }}>
-                            The generated markdown will appear here after a successful pipeline
-                            run.
+                            The generated markdown will appear here after a successful pipeline run.
                         </div>
                     ) : resultRenderMode === 'raw' ? (
                         <textarea

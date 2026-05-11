@@ -1,21 +1,26 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+
 def _model_from_fields[T: ApiModel](
     model_type: type[T],
     **data: object,
 ) -> T:
     return model_type.model_validate(data)
 
+
 class ApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
 
 class TemplateListItem(ApiModel):
     uuid: str
     title: str
 
+
 class TemplateCreateRequest(ApiModel):
     title: str
     content: dict
+
 
 class PipelineRunRequest(ApiModel):
     questionnaire_uuid: str = Field(alias='questionnaireUuid')
@@ -26,12 +31,14 @@ class PipelineRunRequest(ApiModel):
     llm_api_key: str | None = Field(default=None, alias='llmApiKey')
     llm_api_url: str | None = Field(default=None, alias='llmApiUrl')
 
+
 class PipelineRunResponse(ApiModel):
     status: str
     run_id: str = Field(alias='runId')
     questionnaire_uuid: str = Field(alias='questionnaireUuid')
     template_uuid: str = Field(alias='templateUuid')
     template_title: str = Field(alias='templateTitle')
+
 
 class PipelineSaveRequest(ApiModel):
     result_markdown: str = Field(alias='resultMarkdown')

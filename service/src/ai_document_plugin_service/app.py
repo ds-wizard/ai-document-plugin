@@ -3,6 +3,7 @@ import fastapi.middleware.cors
 
 from ai_document_plugin_service.api import router
 
+
 def create_app() -> fastapi.FastAPI:
     app = fastapi.FastAPI(title='Plugin Service', version='1.0.0')
     app.add_middleware(

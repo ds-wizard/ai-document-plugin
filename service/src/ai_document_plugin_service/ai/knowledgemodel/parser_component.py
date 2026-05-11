@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 
 from haystack import component
@@ -20,6 +21,8 @@ QUESTION_TYPES = [
     OptionsQuestion,
     MultiChoiceQuestion,
 ]
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -55,15 +58,16 @@ class ParserComponent:
         )
 
         # Parse questions with this chapter as parent_question
-        questions = [
-            self.parse_question(
+        questions = []
+        for question_uuid in chapter_data.get('questionUuids', []):
+            parsed_question = self.parse_question(
                 question_uuid,
                 replies,
                 chapter.uuid + '.' + question_uuid,
                 parent_question=chapter,
             )
-            for question_uuid in chapter_data.get('questionUuids', [])
-        ]
+            if parsed_question is not None:
+                questions.append(parsed_question)
 
         chapter.questions = questions
         return chapter
@@ -92,16 +96,17 @@ class ParserComponent:
             parent_question=parent_question,
         )
 
-        followup_questions = [
-            self.parse_question(
+        followup_questions = []
+        for question_uuid in answer_data.get('followUpUuids', []):
+            parsed_question = self.parse_question(
                 question_uuid,
                 replies,
                 parent_question=None,
                 parent_answer=answer,
                 path=path + '.' + question_uuid,
             )
-            for question_uuid in answer_data.get('followUpUuids', [])
-        ]
+            if parsed_question is not None:
+                followup_questions.append(parsed_question)
 
         answer.followup_questions = followup_questions
         return answer
@@ -193,15 +198,16 @@ class ParserComponent:
             parent_answer=parent_answer,
             questions=[],
         )
-        questions = [
-            self.parse_question(
+        questions = []
+        for nested_question_uuid in question.get('itemTemplateQuestionUuids', []):
+            parsed_question = self.parse_question(
                 nested_question_uuid,
                 replies,
                 path + '.*.' + nested_question_uuid,
                 parent_question=list_question,
             )
-            for nested_question_uuid in question.get('itemTemplateQuestionUuids', [])
-        ]
+            if parsed_question is not None:
+                questions.append(parsed_question)
 
         list_question.questions = questions
         return list_question
@@ -303,7 +309,7 @@ class ParserComponent:
         path: str,
         parent_question: QuestionData | None = None,
         parent_answer: OptionsAnswer | None = None,
-    ) -> QuestionData:
+    ) -> QuestionData | None:
         """Parse a question from the knowledge model based on its type.
 
         Args:
@@ -313,10 +319,7 @@ class ParserComponent:
             parent_answer: Optional parent answer (for followup questions)
 
         Returns:
-            QuestionData instance of the appropriate type
-
-        Raises:
-            ValueError: If the question type is unknown.
+            QuestionData instance of the appropriate type, or None for skipped question types.
 
         """
         question = self.km['entities']['questions'][question_uuid]
@@ -367,5 +370,9 @@ class ParserComponent:
                 parent_question,
                 parent_answer,
             )
+        if question_type == 'FileQuestion':
+            logger.info('Skipping unsupported question type %s for question %s', question_type, question_uuid)
+            return None
+
         error_message = f'Unknown question type: {question_type}'
         raise ValueError(error_message)

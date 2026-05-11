@@ -2,12 +2,7 @@ import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 import { ChangeEvent, useEffect, useState } from 'react'
 
-import {
-    createTemplate,
-    getTemplates,
-    runPipeline,
-    saveEditedPipelineResult,
-} from '@/client'
+import { createTemplate, getTemplates, runPipeline, saveEditedPipelineResult } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import { PipelineStatusPoller } from '@/components/PipelineStatusPoller'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'

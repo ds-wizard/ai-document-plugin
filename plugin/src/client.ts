@@ -1,9 +1,5 @@
 import { pluginMetadata } from '@/metadata'
-import type {
-    PipelineRunResponse,
-    PipelineStatusResponse,
-    TemplateOption,
-} from '@/types'
+import type { PipelineRunResponse, PipelineStatusResponse, TemplateOption } from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
@@ -154,7 +150,9 @@ export const runPipeline = async ({
     const data = await readApiResponse<PipelineRunResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
-        throw new Error('detail' in data && data.detail ? data.detail : 'Pipeline execution failed.')
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
+        )
     }
 
     if (!('runId' in data)) {

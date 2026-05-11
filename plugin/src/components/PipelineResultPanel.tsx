@@ -133,9 +133,7 @@ export function PipelineResultPanel({
                             borderRadius: '999px',
                             border: 0,
                             background:
-                                !hasResultChanges || isSavingEditedVersion
-                                    ? '#94a3b8'
-                                    : '#0f766e',
+                                !hasResultChanges || isSavingEditedVersion ? '#94a3b8' : '#0f766e',
                             color: '#fff',
                             cursor:
                                 !hasResultChanges || isSavingEditedVersion

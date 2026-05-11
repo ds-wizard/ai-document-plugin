@@ -6,13 +6,12 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-
-target_metadata = None
 
 
 def _get_database_settings() -> tuple[str, str]:
@@ -25,11 +24,17 @@ def _get_database_settings() -> tuple[str, str]:
     return url, database.schema
 
 
+def _get_target_metadata():
+    _, schema = _get_database_settings()
+    persistence_schema = create_persistence_schema(schema)
+    return persistence_schema.metadata
+
+
 def run_migrations_offline() -> None:
     url, schema = _get_database_settings()
     context.configure(
         url=url,
-        target_metadata=target_metadata,
+        target_metadata=_get_target_metadata(),
         literal_binds=True,
         dialect_opts={'paramstyle': 'named'},
         version_table_schema=schema,
@@ -54,7 +59,7 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata,
+            target_metadata=_get_target_metadata(),
             version_table_schema=schema,
             include_schemas=True,
         )

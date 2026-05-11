@@ -4,13 +4,13 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, MetaData, Table, Text, UniqueConstraint, create_engine, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
+from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 
 logger = logging.getLogger(__name__)
 
@@ -100,52 +100,11 @@ class PostgresDB(Database):
         )
         self.schema_name = _validate_identifier(config.schema)
         self.engine = create_engine(self.dsn)
-        self.metadata = MetaData(schema=self.schema_name)
-        self.assignment_table = Table(
-            'assignment',
-            self.metadata,
-            Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
-            Column('knowledge_model_name', Text, primary_key=False),
-            Column('knowledge_model_version', Text, primary_key=False),
-            Column(
-                'created_at',
-                DateTime(timezone=True),
-                nullable=False,
-                server_default=func.now(),
-            ),
-            Column('assignments', JSON, nullable=False),
-            Column('stats', JSON, nullable=False),
-            Column('template_uuid', UUID(as_uuid=True), primary_key=True, foreign_key='template.uuid'),
-        )
-        self.template_table = Table(
-            'template',
-            self.metadata,
-            Column('uuid', UUID(as_uuid=True), primary_key=True),
-            Column('title', Text, nullable=False),
-            Column('content', JSON, nullable=False),
-            UniqueConstraint('title', name='uq_template_title'),
-        )
-        self.result_table = Table(
-            'result',
-            self.metadata,
-            Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
-            Column('template_uuid', UUID(as_uuid=True), primary_key=True),
-            Column(
-                'created_at',
-                DateTime(timezone=True),
-                nullable=False,
-                server_default=func.now(),
-            ),
-            Column(
-                'updated_at',
-                DateTime(timezone=True),
-                nullable=False,
-                server_default=func.now(),
-            ),
-            Column('dmp', Text, nullable=False),
-            Column('dmp_pre_polished', Text, nullable=False),
-            Column('stats', JSON, nullable=True),
-        )
+        schema = create_persistence_schema(self.schema_name)
+        self.metadata = schema.metadata
+        self.assignment_table = schema.assignment_table
+        self.template_table = schema.template_table
+        self.result_table = schema.result_table
 
     def _ensure_schema(self) -> None:
         self.metadata.create_all(self.engine)

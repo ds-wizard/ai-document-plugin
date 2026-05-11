@@ -68,6 +68,7 @@ export default function ProjectTab({
                 setSelectedTemplateUuid((currentValue) => currentValue || '')
             } catch (error) {
                 if (!isMounted) {
+                    console.error(error)
                     return
                 }
 

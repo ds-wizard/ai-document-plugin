@@ -1,4 +1,4 @@
-import { renderMarkdownBlocks } from '@/markdown-utils'
+import { MarkdownRenderer } from '@/markdown-utils'
 import type { ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
@@ -185,7 +185,7 @@ export function PipelineResultPanel({
                         {editableResultMarkdown}
                     </textarea>
                 ) : (
-                    renderMarkdownBlocks(displayedResultMarkdown || '')
+                    <MarkdownRenderer markdown={displayedResultMarkdown || ''} />
                 )}
             </div>
         </section>

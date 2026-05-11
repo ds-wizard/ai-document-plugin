@@ -4,8 +4,8 @@ import { ChangeEvent, useEffect, useState } from 'react'
 
 import { createTemplate, getTemplates, runPipeline, saveEditedPipelineResult } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
-import { PipelineStatusPoller } from '@/components/PipelineStatusPoller'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
+import { PipelineStatusPoller } from '@/components/PipelineStatusPoller'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import type { ResultRenderMode, TemplateOption } from '@/types'
@@ -39,8 +39,6 @@ export default function ProjectTab({
 
     const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
     const hasResultChanges = resultMarkdown !== null && editableResultMarkdown !== resultMarkdown
-    const selectedTemplate =
-        templates.find((template) => template.uuid === selectedTemplateUuid) || null
     const isCreatingCustomTemplate = selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
 
     useEffect(() => {

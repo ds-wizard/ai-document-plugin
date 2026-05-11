@@ -333,7 +333,12 @@ class DmpGeneratorComponent:
                 question_path,
             )
         if question_path in replies:
-            res['reply'] = parse_answer(replies[question_path]['value'], km)
+            res['reply'] = parse_answer(
+                replies[question_path]['value'],
+                km,
+                replies=replies,
+                question_path=question_path,
+            )
         children, child_has_answer = self.match_replies_selection(
             item['children'],
             replies,
@@ -390,7 +395,12 @@ class DmpGeneratorComponent:
         is missing from the knowledge model.
         """
         try:
-            parsed = parse_answer(replies[key]['value'], km)
+            parsed = parse_answer(
+                replies[key]['value'],
+                km,
+                replies=replies,
+                question_path=key,
+            )
         except (KeyError, TypeError):
             return None
         if parsed is None or (isinstance(parsed, str) and not parsed.strip()):

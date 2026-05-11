@@ -13,6 +13,7 @@ from ai_document_plugin_service.ai.knowledgemodel.types import (
     OptionsQuestion,
     QuestionData,
     ValueQuestion,
+    ItemSelectQuestion
 )
 
 QUESTION_TYPES = [
@@ -20,6 +21,7 @@ QUESTION_TYPES = [
     ListQuestion,
     OptionsQuestion,
     MultiChoiceQuestion,
+    ItemSelectQuestion,
 ]
 
 logger = logging.getLogger(__name__)
@@ -302,6 +304,67 @@ class ParserComponent:
             for reply_value in reply_values
         ]
 
+    def parse_item_select_question(
+        self,
+        question_uuid: str,
+        question: dict,
+        replies: dict,
+        path: str,
+        parent_question: QuestionData | None = None,
+        parent_answer: OptionsAnswer | None = None,
+    ) -> ItemSelectQuestion:
+        """Parse an ItemSelectQuestion from the knowledge model."""
+        item_select_question = ItemSelectQuestion(
+            path=path,
+            uuid=question_uuid,
+            title=question['title'],
+            text=question.get('text'),
+            parent_question=parent_question,
+            parent_answer=parent_answer,
+        )
+
+        item_select_question.reply = self.get_item_select_question_reply(replies, item_select_question, path)
+
+        return item_select_question
+
+    def get_item_select_question_reply(
+        self,
+        replies: dict,
+        _question: QuestionData,
+        path: str,
+    ) -> str:
+        """Get the reply for the question."""
+        selected_item_uuid = replies.get(path, {}).get('value', {}).get('value', '')
+        if not selected_item_uuid:
+            return ''
+
+        list_path_prefix = path.split('.*.')[0] if '.*.' in path else path.rsplit('.', 1)[0]
+
+        for reply_path, reply_payload in replies.items():
+            path_parts = reply_path.split('.')
+            if len(path_parts) < 2 or path_parts[-2] != 'reply':
+                continue
+            if not reply_path.startswith(f'{list_path_prefix}.'):
+                continue
+            if selected_item_uuid not in path_parts:
+                continue
+
+            question_uuid = path_parts[-1]
+            question_type = self.km.get('entities', {}).get('questions', {}).get(question_uuid, {}).get('questionType')
+
+            if question_type == 'ValueQuestion':
+                value = reply_payload.get('value', {}).get('value', '')
+                if value:
+                    return value
+                continue
+
+            if question_type == 'IntegrationQuestion':
+                value = reply_payload.get('value', {}).get('value', {}).get('value', '')
+                if value:
+                    return value
+
+        return ''
+
     def parse_question(
         self,
         question_uuid: str,
@@ -363,6 +426,15 @@ class ParserComponent:
             )
         if question_type == 'IntegrationQuestion':
             return self.parse_integration_question(
+                question_uuid,
+                question,
+                replies,
+                path,
+                parent_question,
+                parent_answer,
+            )
+        if question_type == 'ItemSelectQuestion':
+            return self.parse_item_select_question(
                 question_uuid,
                 question,
                 replies,

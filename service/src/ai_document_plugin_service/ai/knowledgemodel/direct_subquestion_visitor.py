@@ -57,3 +57,10 @@ class DirectSubquestionVisitor(QuestionVisitor):
     ) -> list[QuestionData]:
         _ = question
         return []
+
+    @override
+    def visit_item_select_question(
+        self,
+        question: 'ItemSelectQuestion',
+    ) -> list['QuestionData']:
+        _ = question

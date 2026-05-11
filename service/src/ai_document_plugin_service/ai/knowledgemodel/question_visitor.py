@@ -44,6 +44,13 @@ class QuestionVisitor(ABC):
         """Visit an IntegrationQuestion."""
 
     @abstractmethod
+    def visit_item_select_question(
+        self,
+        question: 'ItemSelectQuestion',
+    ) -> list['QuestionData']:
+        """Visit an ItemSelectQuestion."""
+
+    @abstractmethod
     def visit_blank_question(self, question: 'BlankQuestion') -> list['QuestionData']:
         """Visit an IntegrationQuestion."""
 

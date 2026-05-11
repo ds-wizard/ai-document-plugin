@@ -235,3 +235,25 @@ class IntegrationQuestion(QuestionData):
 
     def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_integration_question(self)
+
+class ItemSelectQuestion(QuestionData):
+    def __init__(
+        self,
+        path: str,
+        uuid: str,
+        title: str | None,
+        text: str | None,
+        parent_question: Optional['QuestionData'] = None,
+        parent_answer: Optional['OptionsAnswer'] = None,
+    ) -> None:
+        super().__init__(
+            path,
+            uuid,
+            title,
+            text,
+            parent_question,
+            parent_answer,
+        )
+
+    def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
+        return visitor.visit_item_select_question(self)

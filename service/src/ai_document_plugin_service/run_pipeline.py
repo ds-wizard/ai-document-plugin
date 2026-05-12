@@ -1,23 +1,27 @@
 from __future__ import annotations
 
-import json
+import argparse
 import logging
-import pathlib
 import time
 from typing import TYPE_CHECKING
 
 from haystack import Pipeline
 from haystack.components.routers import ConditionalRouter
 
-from ai_document_plugin_service.ai.assignment import AssignmentComponent
+from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
     PipelineMetricsCollector,
     configure_logging,
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.common.config import (
+    LLMConfigOverride,
+    apply_llm_override,
+    load_config,
+)
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
+from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
@@ -26,7 +30,7 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
     DBSaver,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
@@ -49,9 +53,8 @@ def build_pipeline() -> Pipeline:
     assignment_component = AssignmentComponent()
     assignment_saver_component = AssignmentSaverComponent()
     dmp_generator_component = DmpGeneratorComponent()
-    prepolished_saver_component = SaverComponent()
     dmp_polisher_component = DmpPolisherComponent()
-    polished_saver_component = SaverComponent()
+    saver_component = SaverComponent()
 
     # ROUTES
     routes: list[Route] = [
@@ -77,9 +80,8 @@ def build_pipeline() -> Pipeline:
     pipeline.add_component('assignment_component', assignment_component)
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
-    pipeline.add_component('prepolished_saver_component', prepolished_saver_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
-    pipeline.add_component('polished_saver_component', polished_saver_component)
+    pipeline.add_component('saver_component', saver_component)
 
     # CONNECTIONS
     # loader_component -> router
@@ -97,30 +99,32 @@ def build_pipeline() -> Pipeline:
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> prepolished_saver_component
-    pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
-    pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
+    pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
     # prepolisher_saver_component -> dmp_polisher_component
-    pipeline.connect('prepolished_saver_component.markdown', 'dmp_polisher_component.markdown')
+    pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
     # dmp_polisher_component -> polished_saver_component
-    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.debug_markdown')
-    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.markdown')
+    pipeline.connect('dmp_polisher_component.markdown', 'saver_component.markdown')
 
     return pipeline
 
 
 def run_pipeline(
-    questionnaire_uuid: str, token: str, template_uuid: str, template_title: str, pipeline: Pipeline
-) -> None:
+    questionnaire_uuid: str,
+    token: str,
+    dsw_api_url: str | None,
+    template_uuid: str,
+    template_title: str,
+    template_data: Mapping[str, object],
+    pipeline: Pipeline,
+    llm_override: LLMConfigOverride | None = None,
+) -> tuple[str, str]:
     t1 = time.time()
-    config = load_config()
+    config = apply_llm_override(load_config(), llm_override)
     configure_logging(config.log_level)
     model_name = config.model
     file_paths = config.files
 
-    km_data = get_questionnaire_detail(questionnaire_uuid, token)
-
-    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
-        template_data = json.load(f)
+    km_data = get_questionnaire_detail(questionnaire_uuid, token, dsw_api_url)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -129,6 +133,7 @@ def run_pipeline(
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
     database = PostgresDB(config.database)
     saver = DBSaver(database)
+    generation_llm = OpenAIGenerationLLM(config=config)
 
     # OTHER INPUTS
     result = pipeline.run(
@@ -156,31 +161,43 @@ def run_pipeline(
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
+                'llm': generation_llm,
                 'workers': config.parallel_workers,
             },
-            'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
             'dmp_polisher_component': {
                 'config_path': file_paths.config_path,
+                'config': config,
                 'template_data': template_data,
             },
-            'polished_saver_component': {'file_path': file_paths.output_markdown},
+            'saver_component': {
+                'template_uuid': template_uuid,
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'database': database,
+            },
         },
         include_outputs_from={
             'assignment_saver_component',
             'dmp_generator_component',
             'dmp_polisher_component',
-            'polished_saver_component',
+            'saver_component',
         },
     )
 
-    write_metrics(result, model_name, file_paths.output_markdown, file_paths.output_with_stats, t1)
+    result_markdown = get_component_markdown(result, 'saver_component')
+    if result_markdown is None:
+        msg = 'Missing markdown output from saver_component'
+        raise RuntimeError(msg)
+
+    write_metrics(database, template_uuid, knowledge_model_uuid, result, model_name, t1)
+    return knowledge_model_uuid, result_markdown
 
 
 def write_metrics(
+    database: Database,
+    template_uuid: str,
+    knowledge_model_uuid: str,
     result: Mapping[str, object],
     model_name: str,
-    output_path: str,
-    output_with_stats_path: str,
     t1: float,
 ) -> None:
     metrics = PipelineMetricsCollector(
@@ -201,35 +218,24 @@ def write_metrics(
         get_component_stats(result, 'dmp_polisher_component'),
     )
 
-    polished_markdown = get_component_markdown(result, 'polished_saver_component')
-    if polished_markdown is None:
-        polished_markdown = pathlib.Path(output_path).read_text(
-            encoding='utf-8',
-        )
-
     t2 = time.time()
-    metrics.write_output(
-        markdown=polished_markdown,
-        output_path=output_with_stats_path,
-        elapsed_seconds=t2 - t1,
+
+    stats = metrics.get_stats(elapsed_seconds=t2 - t1)
+    database.save_stats(
+        template_uuid=template_uuid,
+        knowledge_model_uuid=knowledge_model_uuid,
+        stats=stats,
     )
 
-    logger.debug('Saved DMP to %s', output_with_stats_path)
+    logger.debug('Saved DMP stats')
     metrics.log_summary(logger)
 
 
-if __name__ == '__main__':
-    config = load_config()
-    questionnaire_uuid = config.questionnaire_uuid
-    token = config.token
-    template_uuid = config.template_uuid
-    template_title = config.template_title
-
-    pipeline = build_pipeline()
-    run_pipeline(
-        questionnaire_uuid,
-        token,
-        template_uuid,
-        template_title,
-        pipeline,
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description='Run the AI document pipeline from the command line.',
     )
+    parser.add_argument('--questionnaire-uuid', required=True, help='DSW questionnaire UUID to process.')
+    parser.add_argument('--token', required=True, help='DSW bearer token used to fetch the questionnaire.')
+    parser.add_argument('--template-uuid', required=True, help='Template UUID stored in the database.')
+    return parser.parse_args()

@@ -7,12 +7,6 @@ llm_response_generation:
 
 dsw:
   api_url: ""
-  questionnaire_uuid: ""
-  token: ""
-
-metadata:
-  template_uuid: ""
-  template_title: ""
 
 logging:
   level: "INFO"
@@ -26,10 +20,5 @@ database:
   schema: "public"
 
 files:
-  dmp_template: "jsons/he-template.json"
   config_path: "config.yaml"
   prompts_path: "prompts.yaml"
-  output_markdown: "dmp_output.md"
-  output_with_stats: "dmp_output_with_stats.md"
-  output_pre_polish_markdown: "dmp_output_pre_polish.md"
-  assignments_output: ""

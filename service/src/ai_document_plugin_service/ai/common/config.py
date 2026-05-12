@@ -1,6 +1,6 @@
 import os
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import yaml
@@ -25,12 +25,8 @@ class SystemPrompt:
 
 @dataclass(frozen=True)
 class FilePaths:
-    dmp_template: str
     config_path: str
     prompts_path: str
-    output_markdown: str
-    output_with_stats: str
-    output_pre_polish_markdown: str
 
 
 @dataclass(frozen=True)
@@ -48,10 +44,6 @@ class Config:
     api_key: str
     api_url: str
     dsw_api_url: str
-    questionnaire_uuid: str
-    token: str
-    template_uuid: str
-    template_title: str
     model: str
     log_level: str
     database: DatabaseConfig
@@ -61,6 +53,13 @@ class Config:
     dmp_generation: SystemPrompt
     dmp_polishing: SystemAndUserPrompt
     parallel_workers: int
+
+
+@dataclass(frozen=True)
+class LLMConfigOverride:
+    model: str | None = None
+    api_key: str | None = None
+    api_url: str | None = None
 
 
 def _expand_env_vars(value: str) -> str:
@@ -152,10 +151,6 @@ def load_config(
         api_url=_get(config, 'llm_response_generation', 'api_url'),
         model=_get(config, 'llm_response_generation', 'model'),
         dsw_api_url=_get(config, 'dsw', 'api_url'),
-        questionnaire_uuid=_get(config, 'dsw', 'questionnaire_uuid'),
-        token=_get(config, 'dsw', 'token'),
-        template_uuid=_get(config, 'metadata', 'template_uuid'),
-        template_title=_get(config, 'metadata', 'template_title'),
         log_level=_get_log_level(config),
         database=DatabaseConfig(
             host=_expand_env_vars(_get(config, 'database', 'host')),
@@ -166,17 +161,8 @@ def load_config(
             schema=_expand_env_vars(_get(config, 'database', 'schema')),
         ),
         files=FilePaths(
-            dmp_template=_resolve_existing_path(
-                _get_file_path(config, 'dmp_template'),
-            ),
             config_path=_get_file_path(config, 'config_path'),
             prompts_path=configured_prompts_path,
-            output_markdown=_get_file_path(config, 'output_markdown'),
-            output_with_stats=_get_file_path(config, 'output_with_stats'),
-            output_pre_polish_markdown=_get_file_path(
-                config,
-                'output_pre_polish_markdown',
-            ),
         ),
         assignment=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'assignment', 'temperature')),
@@ -202,4 +188,16 @@ def load_config(
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
         parallel_workers=_get_parallel_workers(config),
+    )
+
+
+def apply_llm_override(config: Config, override: LLMConfigOverride | None = None) -> Config:
+    if override is None:
+        return config
+
+    return replace(
+        config,
+        model=override.model or config.model,
+        api_key=override.api_key or config.api_key,
+        api_url=override.api_url or config.api_url,
     )

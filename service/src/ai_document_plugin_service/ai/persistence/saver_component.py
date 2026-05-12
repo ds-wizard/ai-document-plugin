@@ -1,9 +1,10 @@
 import logging
-import pathlib
 import typing
 from typing import TypedDict
 
 from haystack import component
+
+from ai_document_plugin_service.ai.persistence.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,11 @@ class FileSaverComponentResult(TypedDict):
 class SaverComponent:
     @typing.override
     @component.output_types(markdown=str)
-    def run(self, debug_markdown: str, markdown: str, file_path: str) -> FileSaverComponentResult:
-        output_path = pathlib.Path(file_path)
-        output_path.write_text(debug_markdown, encoding='utf-8')
-        logger.debug('Saved markdown to %s', output_path)
+    def run(
+        self, template_uuid: str, knowledge_model_uuid: str, debug_markdown: str, markdown: str, database: Database
+    ) -> FileSaverComponentResult:
+
+        database.save_result(template_uuid, knowledge_model_uuid, debug_markdown, markdown)
 
         return {
             'markdown': markdown,

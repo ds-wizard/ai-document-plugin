@@ -5,6 +5,7 @@ from openai import OpenAI
 
 from ai_document_plugin_service.ai.common.config import (
     DEFAULT_CONFIG_PATH,
+    Config,
     load_config,
 )
 from ai_document_plugin_service.ai.common.llm_client import (
@@ -42,8 +43,8 @@ class GenerationLLM(ABC):
 
 
 class OpenAIGenerationLLM(GenerationLLM):
-    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
-        self.config = load_config(config_path)
+    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH, config: Config | None = None) -> None:
+        self.config = config or load_config(config_path)
         self.client = OpenAI(
             api_key=self.config.api_key,
             base_url=self.config.api_url,

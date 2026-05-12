@@ -29,3 +29,15 @@ build:
 .PHONY: db
 db:
 	docker compose up -d postgres
+
+.PHONY: db-migrate
+db-migrate:
+	uv run alembic upgrade head
+
+.PHONY: db-current
+db-current:
+	uv run alembic current
+
+.PHONY: db-history
+db-history:
+	uv run alembic history

@@ -2,16 +2,17 @@ import { PluginBuilder } from '@ds-wizard/plugin-sdk/core'
 import { Plugin } from '@ds-wizard/plugin-sdk/types'
 
 import ProjectTab from '@/components/ProjectTab'
+import Settings from '@/components/Settings'
 
 import { SettingsDataCodec } from './data/settings-data'
 import { UserSettingsDataCodec } from './data/user-settings-data'
 import { pluginMetadata } from './metadata'
 
-export default function (settingsInput: unknown, userSettingsInput: unknown): Plugin {
+export default function (_settingsInput: unknown, _userSettingsInput: unknown): Plugin {
     // Use settings for plugin initialization or delete
     // If you don't use settings change function arguments to _settingsInput and _userSettingsInput
-    const settings = SettingsDataCodec.parseOrInit(settingsInput)
-    const userSettings = UserSettingsDataCodec.parseOrInit(userSettingsInput)
+    SettingsDataCodec.parseOrInit(_settingsInput)
+    UserSettingsDataCodec.parseOrInit(_userSettingsInput)
 
     const plugin: Plugin = PluginBuilder.create(
         pluginMetadata,
@@ -25,6 +26,7 @@ export default function (settingsInput: unknown, userSettingsInput: unknown): Pl
             'x-ai-document-project-tab', // web component name
             ProjectTab, // React component with plugin functionality
         )
+        .addSettings('x-ai-document-settings', Settings)
         .createPlugin()
 
     return plugin

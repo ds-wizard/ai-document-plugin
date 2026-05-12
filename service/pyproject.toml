@@ -17,6 +17,7 @@ classifiers = [
 ]
 requires-python = ">=3.13, <4"
 dependencies = [
+    "alembic",
     "fastapi>=0.136.1,<1.0",
     "genson",
     "haystack-ai>=2.28.0",
@@ -30,6 +31,9 @@ dependencies = [
     "tiktoken",
     "tqdm",
 ]
+
+[project.scripts]
+ai-document-pipeline = "ai_document_plugin_service.run_pipeline:main"
 
 [dependency-groups]
 dev = [

@@ -1,14 +1,11 @@
 import fastapi
 import fastapi.middleware.cors
-import fastapi.responses
+
+from ai_document_plugin_service.api import router
 
 
 def create_app() -> fastapi.FastAPI:
-    app = fastapi.FastAPI(
-        title='Plugin Service',
-        version='1.0.0',
-    )
-
+    app = fastapi.FastAPI(title='Plugin Service', version='1.0.0')
     app.add_middleware(
         middleware_class=fastapi.middleware.cors.CORSMiddleware,
         allow_origins=['*'],
@@ -16,9 +13,5 @@ def create_app() -> fastapi.FastAPI:
         allow_methods=['*'],
         allow_headers=['*'],
     )
-
-    @app.get('/health')
-    async def health_check() -> fastapi.responses.JSONResponse:
-        return fastapi.responses.JSONResponse(content={'status': 'healthy'})
-
+    app.include_router(router)
     return app

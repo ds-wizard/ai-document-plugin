@@ -57,6 +57,7 @@ class DmpGeneratorComponent:
         """
         logger.debug('Step 2: Generating DMP markdown...')
         assignments = db_assignments or new_assignments or []
+        replies = self._filter_reachable_replies(replies, km)
 
         stats = AssignmentStats()
 
@@ -94,6 +95,73 @@ class DmpGeneratorComponent:
             'debug_markdown': debug_markdown,
             'stats': stats,
         }
+
+    def _filter_reachable_replies(
+        self,
+        replies: dict[str, Any],
+        km: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Keep only replies that are reachable in the current questionnaire state.
+
+        DSW can keep stale descendants in the raw questionnaire JSON when a user
+        changes an earlier answer (for example `YES -> NO`) or removes a list
+        item. Generation should ignore those historical branches and only use
+        replies that can be reached from the current KM roots via the currently
+        selected option answers and existing list-item UUIDs.
+        """
+        chapter_uuids = km.get('chapterUuids')
+        entities = km.get('entities', {})
+        chapters = entities.get('chapters', {})
+        questions = entities.get('questions', {})
+        answers = entities.get('answers', {})
+        if not chapter_uuids or not chapters or not questions:
+            return replies
+
+        reachable_paths: set[str] = set()
+
+        def walk_question(question_uuid: str, path: str) -> None:
+            question = questions.get(question_uuid)
+            if question is None:
+                return
+
+            if path in replies:
+                reachable_paths.add(path)
+
+            question_type = question.get('questionType')
+            if question_type == 'OptionsQuestion':
+                selected_answer_uuid = replies.get(path, {}).get('value', {}).get('value')
+                if not selected_answer_uuid:
+                    return
+                answer = answers.get(selected_answer_uuid)
+                if answer is None:
+                    return
+                for follow_up_uuid in answer.get('followUpUuids', []):
+                    walk_question(
+                        follow_up_uuid,
+                        f'{path}.{selected_answer_uuid}.{follow_up_uuid}',
+                    )
+                return
+
+            if question_type == 'ListQuestion':
+                list_items = replies.get(path, {}).get('value', {}).get('value', [])
+                if not isinstance(list_items, list):
+                    logger.warning('Expected list items at %s, got %s', path, type(list_items).__name__)
+                    return
+                for item_uuid in list_items:
+                    for nested_question_uuid in question.get('itemTemplateQuestionUuids', []):
+                        walk_question(
+                            nested_question_uuid,
+                            f'{path}.{item_uuid}.{nested_question_uuid}',
+                        )
+
+        for chapter_uuid in chapter_uuids:
+            chapter = chapters.get(chapter_uuid)
+            if chapter is None:
+                continue
+            for question_uuid in chapter.get('questionUuids', []):
+                walk_question(question_uuid, f'{chapter_uuid}.{question_uuid}')
+
+        return {key: value for key, value in replies.items() if key in reachable_paths}
 
     @staticmethod
     def _get_reply_keys_at_level(replies: dict[str, Any], prefix: str) -> list[str]:

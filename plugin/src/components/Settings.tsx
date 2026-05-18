@@ -7,15 +7,9 @@ export default function Settings({
     onSettingsChange,
 }: SettingsComponentProps<SettingsData>) {
     return (
-        <div
-            style={{
-                maxWidth: '48rem',
-                display: 'grid',
-                gap: '1rem',
-            }}
-        >
+        <div className="ai-doc-settings-root">
             <div>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                <p className="ai-doc-settings-lead">
                     Configure the LLM connection the plugin should use for pipeline execution.
                     Please select a model that supports the OpenAI API to use this plugin. Default
                     values from config: model <code>gpt-oss-120b</code> and API URL{' '}
@@ -23,8 +17,8 @@ export default function Settings({
                 </p>
             </div>
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>Model</span>
+            <label className="ai-doc-label">
+                <span className="ai-doc-label-text">Model</span>
                 <input
                     type="text"
                     value={settings.model || ''}
@@ -35,17 +29,12 @@ export default function Settings({
                         })
                     }
                     placeholder="gpt-4.1-mini"
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className="ai-doc-input"
                 />
             </label>
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>API key</span>
+            <label className="ai-doc-label">
+                <span className="ai-doc-label-text">API key</span>
                 <input
                     type="password"
                     value={settings.apiKey || ''}
@@ -56,17 +45,12 @@ export default function Settings({
                         })
                     }
                     placeholder="sk-..."
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className="ai-doc-input"
                 />
             </label>
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>API URL</span>
+            <label className="ai-doc-label">
+                <span className="ai-doc-label-text">API URL</span>
                 <input
                     type="url"
                     value={settings.apiUrl || ''}
@@ -77,12 +61,7 @@ export default function Settings({
                         })
                     }
                     placeholder="https://api.openai.com/v1"
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className="ai-doc-input"
                 />
             </label>
         </div>

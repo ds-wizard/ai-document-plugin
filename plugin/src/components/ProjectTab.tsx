@@ -285,32 +285,17 @@ export default function ProjectTab({
     }
 
     return (
-        <div
-            style={{
-                padding: '1.5rem',
-                maxWidth: '42rem',
-                margin: '0 auto',
-                display: 'grid',
-                gap: '1rem',
-            }}
-        >
+        <div className="ai-doc-root">
             <div>
-                <h1 style={{ margin: 0 }}>AI Document Generation</h1>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                <h1 className="ai-doc-page-title">AI Document Generation</h1>
+                <p className="ai-doc-page-lead">
                     Select a DMP template from the database and run the pipeline on the current
                     project.
                 </p>
             </div>
 
             {!project ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#fff7ed',
-                        color: '#c2410c',
-                    }}
-                >
+                <div className="ai-doc-alert ai-doc-alert-warning">
                     The project is not loaded; the pipeline cannot be started yet.
                 </div>
             ) : null}
@@ -330,8 +315,8 @@ export default function ProjectTab({
                 />
             ) : null}
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>DMP template</span>
+            <label className="ai-doc-label">
+                <span className="ai-doc-label-text">DMP template</span>
                 <select
                     value={selectedTemplateUuid}
                     onChange={(event) => {
@@ -339,12 +324,7 @@ export default function ProjectTab({
                         setLocalTemplateError(null)
                     }}
                     disabled={isLoadingTemplates || isRunningPipeline || !project}
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className="ai-doc-input"
                 >
                     <option value="">
                         {isLoadingTemplates
@@ -383,69 +363,25 @@ export default function ProjectTab({
                 disabled={
                     isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
                 }
-                style={{
-                    width: 'fit-content',
-                    padding: '0.8rem 1.2rem',
-                    border: 0,
-                    borderRadius: '999px',
-                    background:
-                        isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
-                            ? '#94a3b8'
-                            : '#0f172a',
-                    color: '#fff',
-                    cursor:
-                        isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
-                            ? 'not-allowed'
-                            : 'pointer',
-                    fontWeight: 600,
-                }}
+                className="ai-doc-button ai-doc-button-primary"
             >
                 {isRunningPipeline ? 'Running pipeline...' : 'Run pipeline'}
             </button>
 
             {project ? (
-                <div style={{ color: '#475569', fontSize: '0.95rem' }}>
+                <div className="ai-doc-project-name">
                     Project: <strong>{project.name}</strong>
                 </div>
             ) : null}
 
             {errorMessage ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#fef2f2',
-                        color: '#b91c1c',
-                    }}
-                >
-                    {errorMessage}
-                </div>
+                <div className="ai-doc-alert ai-doc-alert-error">{errorMessage}</div>
             ) : null}
 
-            {infoMessage ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#eff6ff',
-                        color: '#1d4ed8',
-                    }}
-                >
-                    {infoMessage}
-                </div>
-            ) : null}
+            {infoMessage ? <div className="ai-doc-alert ai-doc-alert-info">{infoMessage}</div> : null}
 
             {successMessage ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#ecfdf5',
-                        color: '#047857',
-                    }}
-                >
-                    {successMessage}
-                </div>
+                <div className="ai-doc-alert ai-doc-alert-success">{successMessage}</div>
             ) : null}
 
             <PipelineResultPanel

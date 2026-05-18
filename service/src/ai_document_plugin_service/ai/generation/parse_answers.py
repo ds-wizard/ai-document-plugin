@@ -58,8 +58,6 @@ def parse_answer(  # noqa: PLR0911
     if answer_type == 'AnswerReply':
         entity = answer_entities.get(answer['value'], None)
         if entity is None:
-            # TODO: this is strange, how can there be reply but no associated value in the km?
-            # https://github.com/ds-wizard/ai-document-plugin/issues/1
             logger.debug(
                 'Entity %s has no answer in the KM, strange...',
                 answer['value'],

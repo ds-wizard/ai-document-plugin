@@ -45,7 +45,7 @@ def _parse_item_select_reply(
     return ''
 
 
-def parse_answer(
+def parse_answer(  # noqa: PLR0911
     answer: dict[str, Any],
     km: dict[str, Any],
     replies: dict[str, Any] | None = None,

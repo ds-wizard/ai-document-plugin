@@ -7,6 +7,7 @@ from .types import (
     BlankQuestion,
     Chapter,
     IntegrationQuestion,
+    ItemSelectQuestion,
     ListQuestion,
     MultiChoiceQuestion,
     OptionsQuestion,
@@ -61,6 +62,7 @@ class DirectSubquestionVisitor(QuestionVisitor):
     @override
     def visit_item_select_question(
         self,
-        question: 'ItemSelectQuestion',
-    ) -> list['QuestionData']:
+        question: ItemSelectQuestion,
+    ) -> list[QuestionData]:
         _ = question
+        return []

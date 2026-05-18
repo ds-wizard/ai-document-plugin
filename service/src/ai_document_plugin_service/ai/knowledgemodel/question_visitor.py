@@ -6,6 +6,7 @@ if TYPE_CHECKING:
         BlankQuestion,
         Chapter,
         IntegrationQuestion,
+        ItemSelectQuestion,
         ListQuestion,
         MultiChoiceQuestion,
         OptionsQuestion,

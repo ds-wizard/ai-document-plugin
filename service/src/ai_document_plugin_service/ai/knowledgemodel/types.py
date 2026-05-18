@@ -236,6 +236,7 @@ class IntegrationQuestion(QuestionData):
     def accept(self, visitor: 'QuestionVisitor') -> list['QuestionData']:
         return visitor.visit_integration_question(self)
 
+
 class ItemSelectQuestion(QuestionData):
     def __init__(
         self,

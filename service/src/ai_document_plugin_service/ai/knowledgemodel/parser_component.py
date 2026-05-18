@@ -7,13 +7,13 @@ from ai_document_plugin_service.ai.knowledgemodel.types import (
     Chapter,
     Choice,
     IntegrationQuestion,
+    ItemSelectQuestion,
     ListQuestion,
     MultiChoiceQuestion,
     OptionsAnswer,
     OptionsQuestion,
     QuestionData,
     ValueQuestion,
-    ItemSelectQuestion
 )
 
 QUESTION_TYPES = [
@@ -25,6 +25,8 @@ QUESTION_TYPES = [
 ]
 
 logger = logging.getLogger(__name__)
+REPLY_PATH_PARTS_MIN_LENGTH = 2
+REPLY_PARENT_SEGMENT_INDEX = -2
 
 
 @component
@@ -338,11 +340,11 @@ class ParserComponent:
         if not selected_item_uuid:
             return ''
 
-        list_path_prefix = path.split('.*.')[0] if '.*.' in path else path.rsplit('.', 1)[0]
+        list_path_prefix = path.split('.*.', maxsplit=1)[0] if '.*.' in path else path.rsplit('.', 1)[0]
 
         for reply_path, reply_payload in replies.items():
             path_parts = reply_path.split('.')
-            if len(path_parts) < 2 or path_parts[-2] != 'reply':
+            if len(path_parts) < REPLY_PATH_PARTS_MIN_LENGTH or path_parts[REPLY_PARENT_SEGMENT_INDEX] != 'reply':
                 continue
             if not reply_path.startswith(f'{list_path_prefix}.'):
                 continue
@@ -384,57 +386,23 @@ class ParserComponent:
         Returns:
             QuestionData instance of the appropriate type, or None for skipped question types.
 
+        Raises:
+            ValueError: If the question type is unknown.
         """
         question = self.km['entities']['questions'][question_uuid]
         question_type = question.get('questionType')
+        parser_by_type = {
+            'ValueQuestion': self.parse_value_question,
+            'ListQuestion': self.parse_list_question,
+            'OptionsQuestion': self.parse_options_question,
+            'MultiChoiceQuestion': self.parse_multi_choice_question,
+            'IntegrationQuestion': self.parse_integration_question,
+            'ItemSelectQuestion': self.parse_item_select_question,
+        }
+        parser = parser_by_type.get(question_type)
 
-        if question_type == 'ValueQuestion':
-            return self.parse_value_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'ListQuestion':
-            return self.parse_list_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'OptionsQuestion':
-            return self.parse_options_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'MultiChoiceQuestion':
-            return self.parse_multi_choice_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'IntegrationQuestion':
-            return self.parse_integration_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'ItemSelectQuestion':
-            return self.parse_item_select_question(
+        if parser is not None:
+            return parser(
                 question_uuid,
                 question,
                 replies,

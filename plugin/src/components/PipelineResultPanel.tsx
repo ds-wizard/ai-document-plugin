@@ -1,3 +1,4 @@
+import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
 import type { ResultRenderMode } from '@/types'
 
@@ -29,71 +30,88 @@ export function PipelineResultPanel({
     onSaveEditedVersion,
 }: PipelineResultPanelProps) {
     return (
-        <section className="ai-doc-result-panel">
-            <div className="ai-doc-result-header">
-                <div>
-                    <div className="ai-doc-section-title">Pipeline output</div>
-                    <div className="ai-doc-result-subtitle">
+        <section className={styles.root}>
+            <div className={styles.header}>
+                <div className={styles.headerContent}>
+                    <h4>Pipeline output</h4>
+                    <div className={styles.subtitle}>
                         Preview of the generated document. The render mode is prepared for more
                         output formats later.
                     </div>
                 </div>
+                <div className={styles.toolbar}>
+                    <div className={`${styles.segmentedControl} btn-group`} role="group">
+                        {(
+                            [
+                                {
+                                    mode: 'formatted' as const,
+                                    label: 'Formatted',
+                                    dataCy: 'dt-editor_preview-mode_project',
+                                },
+                                {
+                                    mode: 'raw' as const,
+                                    label: 'Raw',
+                                    dataCy: 'dt-editor_preview-mode_km-editor',
+                                },
+                            ] as const
+                        ).map(({ mode, label, dataCy }) => (
+                            <button
+                                key={mode}
+                                type="button"
+                                onClick={() => onResultRenderModeChange(mode)}
+                                className={
+                                    resultRenderMode === mode
+                                        ? 'btn btn-primary'
+                                        : 'btn btn-outline-primary'
+                                }
+                                data-cy={dataCy}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
 
-                <div className="ai-doc-segmented-control">
-                    {(['formatted', 'raw'] as const).map((mode) => (
-                        <button
-                            key={mode}
-                            type="button"
-                            onClick={() => onResultRenderModeChange(mode)}
-                            className={`ai-doc-segmented-button ${
-                                resultRenderMode === mode ? 'ai-doc-segmented-button-active' : ''
-                            }`}
-                        >
-                            {mode === 'formatted' ? 'Formatted' : 'Raw'}
-                        </button>
-                    ))}
+                    {displayedResultMarkdown ? (
+                        <div className={styles.actions}>
+                            <button
+                                type="button"
+                                onClick={() => onCopyMarkdown()}
+                                className="btn btn-outline-secondary"
+                            >
+                                Copy markdown
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => onDownloadMarkdown()}
+                                className="btn btn-outline-secondary"
+                            >
+                                Download .md
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => onSaveEditedVersion()}
+                                disabled={!hasResultChanges || isSavingEditedVersion}
+                                className={`btn btn-outline-secondary ${styles.saveButton}`}
+                            >
+                                {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
+                            </button>
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
-            {displayedResultMarkdown ? (
-                <div className="ai-doc-result-actions">
-                    <button
-                        type="button"
-                        onClick={() => onCopyMarkdown()}
-                        className="ai-doc-button ai-doc-button-pill ai-doc-button-secondary"
-                    >
-                        Copy markdown
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => onDownloadMarkdown()}
-                        className="ai-doc-button ai-doc-button-pill ai-doc-button-secondary"
-                    >
-                        Download .md
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => onSaveEditedVersion()}
-                        disabled={!hasResultChanges || isSavingEditedVersion}
-                        className="ai-doc-button ai-doc-button-pill ai-doc-button-success"
-                    >
-                        {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
-                    </button>
-                </div>
-            ) : null}
-
-            <div className="ai-doc-result-body">
+            <div className={styles.body}>
                 {!resultMarkdown ? (
-                    <div className="ai-doc-result-empty">
+                    <div className={styles.empty}>
                         The generated markdown will appear here after a successful pipeline run.
                     </div>
                 ) : resultRenderMode === 'raw' ? (
                     <textarea
                         value={editableResultMarkdown}
                         onChange={(event) => onEditableResultMarkdownChange(event.target.value)}
-                        className="ai-doc-result-textarea"
+                        className={styles.textarea}
                     >
                         {editableResultMarkdown}
                     </textarea>

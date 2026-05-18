@@ -1,0 +1,26 @@
+.root {
+    max-width: 48rem;
+    display: grid;
+    gap: 1rem;
+}
+
+.lead {
+    margin: 0.5rem 0 0;
+    color: var(--ai-doc-color-slate-600);
+}
+
+.label {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.labelText {
+    font-weight: 600;
+}
+
+.input {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--ai-doc-color-slate-300);
+    background: var(--ai-doc-color-white);
+}

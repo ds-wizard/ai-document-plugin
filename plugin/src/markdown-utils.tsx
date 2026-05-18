@@ -1,17 +1,21 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import styles from '@/MarkdownRenderer.module.css'
+
 type MarkdownRendererProps = {
     markdown: string
 }
 
 export function MarkdownRenderer({ markdown }: MarkdownRendererProps) {
     return (
-        <div className="ai-doc-markdown">
+        <div className={styles.root}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                    a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+                    a: ({ node: _node, ...props }) => (
+                        <a {...props} target="_blank" rel="noreferrer" />
+                    ),
                     blockquote: ({ node: _node, ...props }) => <blockquote {...props} />,
                     code: ({ node: _node, className, children, ...props }) => {
                         const isBlock = Boolean(className)
@@ -19,11 +23,7 @@ export function MarkdownRenderer({ markdown }: MarkdownRendererProps) {
                         return (
                             <code
                                 {...props}
-                                className={
-                                    isBlock
-                                        ? 'ai-doc-markdown-code-block'
-                                        : 'ai-doc-markdown-code-inline'
-                                }
+                                className={isBlock ? styles.codeBlock : styles.codeInline}
                             >
                                 {children}
                             </code>
@@ -40,7 +40,7 @@ export function MarkdownRenderer({ markdown }: MarkdownRendererProps) {
                     p: ({ node: _node, ...props }) => <p {...props} />,
                     pre: ({ node: _node, ...props }) => <pre {...props} />,
                     table: ({ node: _node, ...props }) => (
-                        <div className="ai-doc-markdown-table-wrapper">
+                        <div className={styles.tableWrapper}>
                             <table {...props} />
                         </div>
                     ),

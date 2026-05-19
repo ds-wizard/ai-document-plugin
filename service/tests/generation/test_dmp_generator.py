@@ -6,6 +6,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
+from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 
 
 def _component() -> DmpGeneratorComponent:
@@ -20,15 +21,59 @@ def _km_fixture() -> dict:
     return {
         'entities': {
             'questions': {
-                'listQ': {'title': 'List', 'text': 'List text'},
-                'itemQ': {'title': 'Item', 'text': 'Item text'},
-                'neighborQ': {'title': 'Neighbor', 'text': 'Neighbor text'},
+                'listQ': {'title': 'List', 'text': 'List text', 'questionType': 'ListQuestion'},
+                'itemQ': {'title': 'Item', 'text': 'Item text', 'questionType': 'ValueQuestion'},
+                'neighborQ': {'title': 'Neighbor', 'text': 'Neighbor text', 'questionType': 'ValueQuestion'},
             },
             'answers': {
                 'yes': {'label': 'Yes', 'advice': None},
                 'no': {'label': 'No', 'advice': None},
             },
             'chapters': {},
+            'choices': {},
+        },
+    }
+
+
+def _reachable_km_fixture() -> dict:
+    return {
+        'chapterUuids': ['chapter'],
+        'entities': {
+            'chapters': {
+                'chapter': {
+                    'uuid': 'chapter',
+                    'title': 'Chapter',
+                    'questionUuids': ['rootQ', 'datasetsQ'],
+                },
+            },
+            'questions': {
+                'rootQ': {
+                    'questionType': 'OptionsQuestion',
+                    'title': 'Root',
+                    'text': 'Root text',
+                    'answerUuids': ['yes', 'no'],
+                },
+                'childQ': {
+                    'questionType': 'ValueQuestion',
+                    'title': 'Child',
+                    'text': 'Child text',
+                },
+                'datasetsQ': {
+                    'questionType': 'ListQuestion',
+                    'title': 'Datasets',
+                    'text': 'Datasets text',
+                    'itemTemplateQuestionUuids': ['datasetNameQ'],
+                },
+                'datasetNameQ': {
+                    'questionType': 'ValueQuestion',
+                    'title': 'Dataset name',
+                    'text': 'Dataset name text',
+                },
+            },
+            'answers': {
+                'yes': {'label': 'Yes', 'advice': None, 'followUpUuids': ['childQ']},
+                'no': {'label': 'No', 'advice': None, 'followUpUuids': []},
+            },
             'choices': {},
         },
     }
@@ -221,10 +266,133 @@ def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -
     assert synthetic['debug-info']
 
 
+def test_filter_reachable_replies_drops_stale_option_branch() -> None:
+    component = _component()
+    km = _reachable_km_fixture()
+    replies = {
+        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
+        'chapter.rootQ.yes.childQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'stale child',
+            },
+        },
+    }
+
+    filtered = component._filter_reachable_replies(replies, km)
+
+    assert filtered == {
+        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
+    }
+
+
+def test_filter_reachable_replies_drops_removed_list_item_branch() -> None:
+    component = _component()
+    km = _reachable_km_fixture()
+    replies = {
+        'chapter.datasetsQ': {
+            'value': {
+                'type': 'ItemListReply',
+                'value': ['active-item'],
+            },
+        },
+        'chapter.datasetsQ.active-item.datasetNameQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'active',
+            },
+        },
+        'chapter.datasetsQ.removed-item.datasetNameQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'stale',
+            },
+        },
+    }
+
+    filtered = component._filter_reachable_replies(replies, km)
+
+    assert filtered == {
+        'chapter.datasetsQ': {
+            'value': {
+                'type': 'ItemListReply',
+                'value': ['active-item'],
+            },
+        },
+        'chapter.datasetsQ.active-item.datasetNameQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'active',
+            },
+        },
+    }
+
+
 def test_match_replies_selection_returns_empty_for_no_questions() -> None:
     result, has_answer = _component().match_replies_selection({}, {}, _km_fixture())
     assert result == []
     assert has_answer is False
+
+
+def test_parse_answer_item_select_reply_returns_selected_item_value() -> None:
+    km = {
+        'entities': {
+            'questions': {
+                'listQ': {'questionType': 'ListQuestion', 'title': 'Languages', 'text': 'List languages'},
+                'selectQ': {
+                    'questionType': 'ItemSelectQuestion',
+                    'listQuestionUuid': 'listQ',
+                    'title': 'Preferred language',
+                    'text': 'Your preferred language for communication',
+                },
+                'levelQ': {'questionType': 'OptionsQuestion', 'title': 'Level', 'text': None},
+                'languageQ': {'questionType': 'IntegrationQuestion', 'title': 'Language', 'text': None},
+            },
+            'answers': {
+                'native': {'label': 'Native', 'advice': None},
+            },
+            'chapters': {},
+            'choices': {},
+        },
+    }
+    replies = {
+        'chapter.listQ': {
+            'value': {
+                'type': 'ItemListReply',
+                'value': ['item-a', 'selected-item'],
+            },
+        },
+        'chapter.listQ.selected-item.levelQ': {
+            'value': {
+                'type': 'AnswerReply',
+                'value': 'native',
+            },
+        },
+        'chapter.listQ.selected-item.languageQ': {
+            'value': {
+                'type': 'IntegrationReply',
+                'value': {
+                    'type': 'PlainType',
+                    'value': 'English',
+                },
+            },
+        },
+        'chapter.selectQ': {
+            'value': {
+                'type': 'ItemSelectReply',
+                'value': 'selected-item',
+            },
+        },
+    }
+
+    parsed = parse_answer(
+        replies['chapter.selectQ']['value'],
+        km,
+        replies=replies,
+        question_path='chapter.selectQ',
+    )
+
+    assert parsed == 'English'
 
 
 def test_run_renders_parent_and_leaf_sections() -> None:

@@ -7,10 +7,6 @@
     background: var(--ai-doc-color-slate-50);
 }
 
-.title {
-    font-weight: 700;
-}
-
 .text {
     color: var(--ai-doc-color-slate-500);
     font-size: 0.95rem;

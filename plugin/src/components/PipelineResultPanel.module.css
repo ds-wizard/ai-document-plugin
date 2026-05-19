@@ -16,10 +16,6 @@
     gap: 0.5rem;
 }
 
-.title {
-    font-weight: 700;
-}
-
 .subtitle {
     color: var(--ai-doc-color-slate-500);
     font-size: 0.95rem;

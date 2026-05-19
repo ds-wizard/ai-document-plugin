@@ -4,10 +4,6 @@
     gap: 1.25rem;
 }
 
-.title {
-    margin: 0;
-}
-
 .lead {
     margin: 0.75rem 0 0;
     color: var(--ai-doc-color-slate-600);

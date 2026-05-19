@@ -35,8 +35,7 @@ export function PipelineResultPanel({
                 <div className={styles.headerContent}>
                     <h4>Pipeline output</h4>
                     <div className={styles.subtitle}>
-                        Preview of the generated document. The render mode is prepared for more
-                        output formats later.
+                        Preview of the generated document.
                     </div>
                 </div>
                 <div className={styles.toolbar}>

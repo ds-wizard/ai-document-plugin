@@ -56,7 +56,9 @@ export default function ProjectTab({
             return 'Custom template...'
         }
 
-        const selectedTemplate = templates.find((template) => template.uuid === selectedTemplateUuid)
+        const selectedTemplate = templates.find(
+            (template) => template.uuid === selectedTemplateUuid,
+        )
         if (!selectedTemplate) {
             return 'Select a template'
         }
@@ -372,7 +374,9 @@ export default function ProjectTab({
                             type="button"
                             disabled={isLoadingTemplates || isRunningPipeline || !project}
                             className={styles.dropdownToggle}
-                            onClick={() => setIsTemplateDropdownOpen((currentValue) => !currentValue)}
+                            onClick={() =>
+                                setIsTemplateDropdownOpen((currentValue) => !currentValue)
+                            }
                             aria-expanded={isTemplateDropdownOpen}
                         >
                             <span>{selectedTemplateLabel}</span>
@@ -388,7 +392,9 @@ export default function ProjectTab({
                                         key={template.uuid}
                                         type="button"
                                         className={`${styles.dropdownItem} ${
-                                            selectedTemplateUuid === template.uuid ? styles.dropdownItemActive : ''
+                                            selectedTemplateUuid === template.uuid
+                                                ? styles.dropdownItemActive
+                                                : ''
                                         }`}
                                         onClick={() => {
                                             setSelectedTemplateUuid(template.uuid)

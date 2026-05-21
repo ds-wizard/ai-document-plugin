@@ -76,11 +76,28 @@ The project `Makefile` provides a few shortcuts for common development tasks:
 - `make dev` starts the FastAPI development server with auto-reload on port `8010`
 - `make build` builds the Python package
 - `make db` starts the local PostgreSQL container defined in `docker-compose.yml`
+- `make db-init` starts the local PostgreSQL container, waits for it to become healthy, and applies all Alembic migrations
 - `make db-migrate` applies all Alembic migrations to the configured database
 - `make db-current` shows the current Alembic revision stored in the database
 - `make db-history` shows available Alembic migration history
 
 Run these commands from the [service](/Users/hana/DSW/AI-playground/ai-document-plugin/service:1) directory.
+
+For a fresh local setup, the usual flow is:
+
+```bash
+make install
+make db-init
+```
+
+`docker compose` creates the PostgreSQL database itself from the `POSTGRES_DB`, `POSTGRES_USER`, and
+`POSTGRES_PASSWORD` values in [docker-compose.yml](/Users/hana/DSW/AI-playground/ai-document-plugin/service/docker-compose.yml:1). Alembic then creates or updates the schema inside that database; it does not create the PostgreSQL server or database on its own.
+
+The application runtime does not create or alter database tables on its own. Run `make db-init` or
+`make db-migrate` before starting the service against a fresh or changed database.
+
+If the PostgreSQL container already exists with an older Docker volume, the database may be missing even though the server is running. In that case `make db-init` also checks that `ai_document_plugin` exists and creates it before running Alembic migrations.
+
 
 ## Tests
 

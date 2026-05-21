@@ -4,17 +4,18 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
-from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
+from ai_document_plugin_service.ai.persistence.schema import DEFAULT_RESULT_SCOPE_UUID, create_persistence_schema
 
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, Any] | Sequence[Any]
+DEFAULT_RESULT_SCOPE = DEFAULT_RESULT_SCOPE_UUID
 
 
 class Database(ABC):
@@ -105,23 +106,26 @@ class PostgresDB(Database):
         self.assignment_table = schema.assignment_table
         self.template_table = schema.template_table
         self.result_table = schema.result_table
+        self._database_verified = False
 
     def _ensure_schema(self) -> None:
-        self.metadata.create_all(self.engine)
+        if self._database_verified:
+            return
 
-        create_unique_index_statement = text(
-            f'CREATE UNIQUE INDEX IF NOT EXISTS uq_template_title ON {self.schema_name}.template (title)'
-        )
+        inspector = inspect(self.engine)
+        required_tables = {'alembic_version', 'template', 'assignment', 'result'}
+        existing_tables = set(inspector.get_table_names(schema=self.schema_name))
+        missing_tables = sorted(required_tables - existing_tables)
 
-        try:
-            with self.engine.begin() as connection:
-                connection.execute(create_unique_index_statement)
-        except SQLAlchemyError as exc:
+        if missing_tables:
             msg = (
-                f'Unable to enforce uniqueness for {self.schema_name}.template.title. '
-                'Check for duplicate template titles in the database.'
+                f'Database schema "{self.schema_name}" is not ready. Missing tables: {", ".join(missing_tables)}. '
+                'Run Alembic migrations with `make db-init` for a fresh database or `make db-migrate` for an '
+                'existing one.'
             )
-            raise ValueError(msg) from exc
+            raise RuntimeError(msg)
+
+        self._database_verified = True
 
     def save_assignments(
         self,
@@ -302,6 +306,8 @@ class PostgresDB(Database):
         statement = postgresql_insert(self.result_table).values(
             template_uuid=template_uuid,
             knowledge_model_uuid=knowledge_model_uuid,
+            user_uuid=DEFAULT_RESULT_SCOPE,
+            tenant_uuid=DEFAULT_RESULT_SCOPE,
             dmp_pre_polished=prepolished_markdown,
             dmp=markdown,
             created_at=now,
@@ -309,10 +315,7 @@ class PostgresDB(Database):
         )
 
         upsert_statement = statement.on_conflict_do_update(
-            index_elements=[
-                self.result_table.c.knowledge_model_uuid,
-                self.result_table.c.template_uuid,
-            ],
+            constraint='pk_result',
             set_={
                 'dmp_pre_polished': statement.excluded.dmp_pre_polished,
                 'dmp': statement.excluded.dmp,
@@ -338,6 +341,8 @@ class PostgresDB(Database):
             .where(
                 (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
                 & (self.result_table.c.template_uuid == template_uuid)
+                & (self.result_table.c.user_uuid == DEFAULT_RESULT_SCOPE)
+                & (self.result_table.c.tenant_uuid == DEFAULT_RESULT_SCOPE)
             )
             .values(stats=stats, updated_at=now)
         )
@@ -369,6 +374,8 @@ class PostgresDB(Database):
             .where(
                 (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
                 & (self.result_table.c.template_uuid == template_uuid)
+                & (self.result_table.c.user_uuid == DEFAULT_RESULT_SCOPE)
+                & (self.result_table.c.tenant_uuid == DEFAULT_RESULT_SCOPE)
             )
             .values(
                 dmp=markdown,

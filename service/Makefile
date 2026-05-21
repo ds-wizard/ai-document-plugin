@@ -30,14 +30,24 @@ build:
 db:
 	docker compose up -d postgres
 
+.PHONY: db-init
+db-init:
+	docker compose up -d postgres
+	@echo "Waiting for postgres to become healthy..."
+	@until [ "$$(docker inspect --format='{{.State.Health.Status}}' ai-document-plugin-postgres 2>/dev/null)" = "healthy" ]; do sleep 2; done
+	@echo "Ensuring database ai_document_plugin exists..."
+	@docker exec ai-document-plugin-postgres psql -U ai_document_plugin -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = 'ai_document_plugin'" | grep -q 1 || \
+		docker exec ai-document-plugin-postgres psql -U ai_document_plugin -d template1 -c "CREATE DATABASE ai_document_plugin"
+	uv run --active alembic upgrade head
+
 .PHONY: db-migrate
 db-migrate:
-	uv run alembic upgrade head
+	uv run --active alembic upgrade head
 
 .PHONY: db-current
 db-current:
-	uv run alembic current
+	uv run --active alembic current
 
 .PHONY: db-history
 db-history:
-	uv run alembic history
+	uv run --active alembic history

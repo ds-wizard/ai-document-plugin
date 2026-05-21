@@ -1,7 +1,21 @@
 from dataclasses import dataclass
 
-from sqlalchemy import JSON, Column, DateTime, MetaData, Table, Text, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    MetaData,
+    Table,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
+
+DEFAULT_RESULT_SCOPE_UUID = '00000000-0000-0000-0000-000000000000'
 
 
 @dataclass(frozen=True)
@@ -37,8 +51,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             server_default=func.now(),
         ),
         Column('assignments', JSON, nullable=False),
-        Column('stats', JSON, nullable=False),
-        Column('template_uuid', UUID(as_uuid=True), primary_key=True, foreign_key='template.uuid'),
+        Column('stats', JSON, nullable=True),
+        Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),
     )
 
     result_table = Table(
@@ -46,6 +60,20 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         metadata,
         Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
         Column('template_uuid', UUID(as_uuid=True), primary_key=True),
+        Column(
+            'user_uuid',
+            UUID(as_uuid=True),
+            primary_key=True,
+            nullable=False,
+            server_default=text(f"'{DEFAULT_RESULT_SCOPE_UUID}'::uuid"),
+        ),
+        Column(
+            'tenant_uuid',
+            UUID(as_uuid=True),
+            primary_key=True,
+            nullable=False,
+            server_default=text(f"'{DEFAULT_RESULT_SCOPE_UUID}'::uuid"),
+        ),
         Column(
             'created_at',
             DateTime(timezone=True),
@@ -61,6 +89,12 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('dmp', Text, nullable=False),
         Column('dmp_pre_polished', Text, nullable=False),
         Column('stats', JSON, nullable=True),
+        ForeignKeyConstraint(['template_uuid'], ['template.uuid'], name='fk_result_template_uuid'),
+        ForeignKeyConstraint(
+            ['knowledge_model_uuid', 'template_uuid'],
+            ['assignment.knowledge_model_uuid', 'assignment.template_uuid'],
+            name='fk_result_assignment',
+        ),
     )
 
     return PersistenceSchema(

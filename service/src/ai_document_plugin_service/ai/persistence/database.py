@@ -10,12 +10,11 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
-from ai_document_plugin_service.ai.persistence.schema import DEFAULT_RESULT_SCOPE_UUID, create_persistence_schema
+from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, Any] | Sequence[Any]
-DEFAULT_RESULT_SCOPE = DEFAULT_RESULT_SCOPE_UUID
 
 
 class Database(ABC):
@@ -68,12 +67,25 @@ class Database(ABC):
 
     @abstractmethod
     def save_result(
-        self, template_uuid: str, knowledge_model_uuid: str, prepolished_markdown: str, markdown: str
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
+        prepolished_markdown: str,
+        markdown: str,
     ) -> None:
         """Persist a markdown result in a database backend."""
 
     @abstractmethod
-    def save_stats(self, template_uuid: str, knowledge_model_uuid: str, stats: JsonValue) -> None:
+    def save_stats(
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
+        stats: JsonValue,
+    ) -> None:
         """Persist a stats result in a database backend."""
 
     @abstractmethod
@@ -81,6 +93,8 @@ class Database(ABC):
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
         markdown: str,
     ) -> None:
         """Persist a markdown result in a database backend."""
@@ -297,6 +311,8 @@ class PostgresDB(Database):
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
         prepolished_markdown: str,
         markdown: str,
     ) -> None:
@@ -306,8 +322,8 @@ class PostgresDB(Database):
         statement = postgresql_insert(self.result_table).values(
             template_uuid=template_uuid,
             knowledge_model_uuid=knowledge_model_uuid,
-            user_uuid=DEFAULT_RESULT_SCOPE,
-            tenant_uuid=DEFAULT_RESULT_SCOPE,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
             dmp_pre_polished=prepolished_markdown,
             dmp=markdown,
             created_at=now,
@@ -332,7 +348,14 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def save_stats(self, template_uuid: str, knowledge_model_uuid: str, stats: JsonValue) -> None:
+    def save_stats(
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
+        stats: JsonValue,
+    ) -> None:
         self._ensure_schema()
         now = datetime.now(tz=UTC)
 
@@ -341,8 +364,8 @@ class PostgresDB(Database):
             .where(
                 (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
                 & (self.result_table.c.template_uuid == template_uuid)
-                & (self.result_table.c.user_uuid == DEFAULT_RESULT_SCOPE)
-                & (self.result_table.c.tenant_uuid == DEFAULT_RESULT_SCOPE)
+                & (self.result_table.c.user_uuid == user_uuid)
+                & (self.result_table.c.tenant_uuid == tenant_uuid)
             )
             .values(stats=stats, updated_at=now)
         )
@@ -364,6 +387,8 @@ class PostgresDB(Database):
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
         markdown: str,
     ) -> None:
         self._ensure_schema()
@@ -374,8 +399,8 @@ class PostgresDB(Database):
             .where(
                 (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
                 & (self.result_table.c.template_uuid == template_uuid)
-                & (self.result_table.c.user_uuid == DEFAULT_RESULT_SCOPE)
-                & (self.result_table.c.tenant_uuid == DEFAULT_RESULT_SCOPE)
+                & (self.result_table.c.user_uuid == user_uuid)
+                & (self.result_table.c.tenant_uuid == tenant_uuid)
             )
             .values(
                 dmp=markdown,

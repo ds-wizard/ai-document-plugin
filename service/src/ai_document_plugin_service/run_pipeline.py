@@ -115,6 +115,8 @@ def run_pipeline(
     template_uuid: str,
     template_title: str,
     template_data: Mapping[str, object],
+    user_uuid: str,
+    tenant_uuid: str,
     pipeline: Pipeline,
     llm_override: LLMConfigOverride | None = None,
 ) -> tuple[str, str]:
@@ -172,6 +174,8 @@ def run_pipeline(
             'saver_component': {
                 'template_uuid': template_uuid,
                 'knowledge_model_uuid': knowledge_model_uuid,
+                'user_uuid': user_uuid,
+                'tenant_uuid': tenant_uuid,
                 'database': database,
             },
         },
@@ -188,7 +192,16 @@ def run_pipeline(
         msg = 'Missing markdown output from saver_component'
         raise RuntimeError(msg)
 
-    write_metrics(database, template_uuid, knowledge_model_uuid, result, model_name, t1)
+    write_metrics(
+        database,
+        template_uuid,
+        knowledge_model_uuid,
+        user_uuid,
+        tenant_uuid,
+        result,
+        model_name,
+        t1,
+    )
     return knowledge_model_uuid, result_markdown
 
 
@@ -196,6 +209,8 @@ def write_metrics(
     database: Database,
     template_uuid: str,
     knowledge_model_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
     result: Mapping[str, object],
     model_name: str,
     t1: float,
@@ -224,6 +239,8 @@ def write_metrics(
     database.save_stats(
         template_uuid=template_uuid,
         knowledge_model_uuid=knowledge_model_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
         stats=stats,
     )
 

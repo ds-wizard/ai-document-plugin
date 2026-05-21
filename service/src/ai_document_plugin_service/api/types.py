@@ -49,6 +49,8 @@ class PipelineStatusResponse(ApiModel):
     status: str
     questionnaire_uuid: str = Field(alias='questionnaireUuid')
     knowledge_model_uuid: str | None = Field(default=None, alias='knowledgeModelUuid')
+    user_uuid: str = Field(alias='userUuid')
+    tenant_uuid: str = Field(alias='tenantUuid')
     template_uuid: str = Field(alias='templateUuid')
     template_title: str = Field(alias='templateTitle')
     error: str | None = None

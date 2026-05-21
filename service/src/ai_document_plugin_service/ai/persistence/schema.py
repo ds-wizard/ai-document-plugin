@@ -11,11 +11,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
-    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-
-DEFAULT_RESULT_SCOPE_UUID = '00000000-0000-0000-0000-000000000000'
 
 
 @dataclass(frozen=True)
@@ -65,14 +62,12 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             UUID(as_uuid=True),
             primary_key=True,
             nullable=False,
-            server_default=text(f"'{DEFAULT_RESULT_SCOPE_UUID}'::uuid"),
         ),
         Column(
             'tenant_uuid',
             UUID(as_uuid=True),
             primary_key=True,
             nullable=False,
-            server_default=text(f"'{DEFAULT_RESULT_SCOPE_UUID}'::uuid"),
         ),
         Column(
             'created_at',

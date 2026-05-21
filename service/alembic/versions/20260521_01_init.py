@@ -17,8 +17,6 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-DEFAULT_RESULT_SCOPE_UUID = '00000000-0000-0000-0000-000000000000'
-
 
 def _qualified_column_reference(schema: str | None, table: str, column: str) -> str:
     if schema:
@@ -28,7 +26,6 @@ def _qualified_column_reference(schema: str | None, table: str, column: str) -> 
 
 def upgrade() -> None:
     schema = context.get_context().version_table_schema
-    default_uuid_sql = sa.text(f"'{DEFAULT_RESULT_SCOPE_UUID}'::uuid")
     op.create_table(
         'template',
         sa.Column('uuid', postgresql.UUID(as_uuid=True), nullable=False),
@@ -74,13 +71,11 @@ def upgrade() -> None:
             'user_uuid',
             postgresql.UUID(as_uuid=True),
             nullable=False,
-            server_default=default_uuid_sql,
         ),
         sa.Column(
             'tenant_uuid',
             postgresql.UUID(as_uuid=True),
             nullable=False,
-            server_default=default_uuid_sql,
         ),
         sa.Column(
             'created_at',

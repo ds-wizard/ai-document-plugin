@@ -1,6 +1,8 @@
+import base64
+import json
 import threading
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import fastapi
 
@@ -21,6 +23,50 @@ router = fastapi.APIRouter()
 
 _pipeline_runs: dict[str, PipelineStatusResponse] = {}
 _pipeline_runs_lock = threading.Lock()
+JWT_PART_COUNT = 2
+
+
+def _decode_jwt_payload(token: str) -> dict[str, object]:
+    parts = token.split('.')
+    if len(parts) < JWT_PART_COUNT:
+        msg = 'Invalid JWT token format.'
+        raise ValueError(msg)
+
+    payload = parts[1]
+    padding = '=' * ((4 - len(payload) % 4) % 4)
+
+    try:
+        decoded = base64.urlsafe_b64decode(f'{payload}{padding}')
+        parsed = json.loads(decoded)
+    except (ValueError, json.JSONDecodeError) as exc:
+        msg = 'Invalid JWT token payload.'
+        raise ValueError(msg) from exc
+
+    if not isinstance(parsed, dict):
+        msg = 'Invalid JWT token payload.'
+        raise TypeError(msg)
+
+    return parsed
+
+
+def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> str:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            try:
+                return str(UUID(value))
+            except ValueError:
+                continue
+
+    msg = f'Missing required JWT claim: {", ".join(keys)}'
+    raise ValueError(msg)
+
+
+def _extract_identity_from_token(token: str) -> tuple[str, str]:
+    payload = _decode_jwt_payload(token)
+    user_uuid = _get_required_uuid_claim(payload, 'user_uuid', 'userUuid')
+    tenant_uuid = _get_required_uuid_claim(payload, 'tenant_uuid', 'tenantUuid')
+    return user_uuid, tenant_uuid
 
 
 def _set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
@@ -38,6 +84,8 @@ def _build_pipeline_status(
     run_id: str,
     status: str,
     questionnaire_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
     template_uuid: str,
     template_title: str,
     knowledge_model_uuid: str | None = None,
@@ -51,6 +99,8 @@ def _build_pipeline_status(
         status=status,
         questionnaire_uuid=questionnaire_uuid,
         knowledge_model_uuid=knowledge_model_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
         template_uuid=template_uuid,
         template_title=template_title,
         error=error,
@@ -65,6 +115,8 @@ def _run_pipeline_job(
     questionnaire_uuid: str,
     template_uuid: str,
     template_title: str,
+    user_uuid: str,
+    tenant_uuid: str,
     token: str,
     api_url: str | None,
     llm_override: LLMConfigOverride | None,
@@ -81,6 +133,8 @@ def _run_pipeline_job(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
                 error='Template not found.',
             ),
         )
@@ -95,6 +149,8 @@ def _run_pipeline_job(
             template_uuid=template_uuid,
             template_title=template['title'],
             template_data=template['content'],
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
             pipeline=pipeline,
             llm_override=llm_override,
         )
@@ -106,6 +162,8 @@ def _run_pipeline_job(
                 status='succeeded',
                 questionnaire_uuid=questionnaire_uuid,
                 knowledge_model_uuid=knowledge_model_uuid,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
                 result_format='markdown',
@@ -121,6 +179,8 @@ def _run_pipeline_job(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
                 error=str(error),
             ),
         )
@@ -183,6 +243,11 @@ def start_pipeline(
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
 
+    try:
+        user_uuid, tenant_uuid = _extract_identity_from_token(payload.token)
+    except ValueError as error:
+        raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
+
     run_id = str(uuid4())
     _set_pipeline_status(
         run_id,
@@ -190,6 +255,8 @@ def start_pipeline(
             run_id=run_id,
             status='running',
             questionnaire_uuid=payload.questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
             template_uuid=payload.template_uuid,
             template_title=template['title'],
         ),
@@ -200,6 +267,8 @@ def start_pipeline(
         payload.questionnaire_uuid,
         payload.template_uuid,
         template['title'],
+        user_uuid,
+        tenant_uuid,
         payload.token,
         payload.api_url,
         LLMConfigOverride(
@@ -213,6 +282,8 @@ def start_pipeline(
         status='accepted',
         run_id=run_id,
         questionnaire_uuid=payload.questionnaire_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
         template_uuid=payload.template_uuid,
         template_title=template['title'],
     )
@@ -244,6 +315,8 @@ def save_pipeline_result(
     database.update_result(
         template_uuid=status.template_uuid,
         knowledge_model_uuid=status.knowledge_model_uuid,
+        user_uuid=status.user_uuid,
+        tenant_uuid=status.tenant_uuid,
         markdown=payload.result_markdown,
     )
 
@@ -252,6 +325,8 @@ def save_pipeline_result(
         status=status.status,
         questionnaire_uuid=status.questionnaire_uuid,
         knowledge_model_uuid=status.knowledge_model_uuid,
+        user_uuid=status.user_uuid,
+        tenant_uuid=status.tenant_uuid,
         template_uuid=status.template_uuid,
         template_title=status.template_title,
         error=status.error,

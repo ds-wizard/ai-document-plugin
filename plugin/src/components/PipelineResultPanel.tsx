@@ -1,3 +1,4 @@
+import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
 import type { ResultRenderMode } from '@/types'
 
@@ -29,156 +30,85 @@ export function PipelineResultPanel({
     onSaveEditedVersion,
 }: PipelineResultPanelProps) {
     return (
-        <section
-            style={{
-                display: 'grid',
-                gap: '0.75rem',
-                marginTop: '0.5rem',
-                paddingTop: '1rem',
-                borderTop: '1px solid #e2e8f0',
-            }}
-        >
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    flexWrap: 'wrap',
-                }}
-            >
-                <div>
-                    <div style={{ fontWeight: 700 }}>Pipeline output</div>
-                    <div style={{ color: '#64748b', fontSize: '0.95rem' }}>
-                        Preview of the generated document. The render mode is prepared for more
-                        output formats later.
-                    </div>
+        <section className={styles.root}>
+            <div className={styles.header}>
+                <div className={styles.headerContent}>
+                    <h4>Pipeline output</h4>
+                    <div className={styles.subtitle}>Preview of the generated document.</div>
                 </div>
+                <div className={styles.toolbar}>
+                    <div className={`${styles.segmentedControl} btn-group`} role="group">
+                        {(
+                            [
+                                {
+                                    mode: 'formatted' as const,
+                                    label: 'Formatted',
+                                    dataCy: 'dt-editor_preview-mode_project',
+                                },
+                                {
+                                    mode: 'raw' as const,
+                                    label: 'Raw',
+                                    dataCy: 'dt-editor_preview-mode_km-editor',
+                                },
+                            ] as const
+                        ).map(({ mode, label, dataCy }) => (
+                            <button
+                                key={mode}
+                                type="button"
+                                onClick={() => onResultRenderModeChange(mode)}
+                                className={
+                                    resultRenderMode === mode
+                                        ? 'btn btn-primary'
+                                        : 'btn btn-outline-primary'
+                                }
+                                data-cy={dataCy}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
 
-                <div
-                    style={{
-                        display: 'inline-flex',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: '999px',
-                        overflow: 'hidden',
-                        background: '#fff',
-                    }}
-                >
-                    {(['formatted', 'raw'] as const).map((mode) => (
-                        <button
-                            key={mode}
-                            type="button"
-                            onClick={() => onResultRenderModeChange(mode)}
-                            style={{
-                                border: 0,
-                                padding: '0.55rem 0.9rem',
-                                background: resultRenderMode === mode ? '#0f172a' : 'transparent',
-                                color: resultRenderMode === mode ? '#fff' : '#334155',
-                                cursor: 'pointer',
-                                fontWeight: 600,
-                            }}
-                        >
-                            {mode === 'formatted' ? 'Formatted' : 'Raw'}
-                        </button>
-                    ))}
+                    {displayedResultMarkdown ? (
+                        <div className={styles.actions}>
+                            <button
+                                type="button"
+                                onClick={() => onCopyMarkdown()}
+                                className="btn btn-outline-secondary"
+                            >
+                                Copy markdown
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => onDownloadMarkdown()}
+                                className="btn btn-outline-secondary"
+                            >
+                                Download .md
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => onSaveEditedVersion()}
+                                disabled={!hasResultChanges || isSavingEditedVersion}
+                                className={`btn btn-outline-secondary ${styles.saveButton}`}
+                            >
+                                {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
+                            </button>
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
-            {displayedResultMarkdown ? (
-                <div
-                    style={{
-                        display: 'flex',
-                        gap: '0.75rem',
-                        flexWrap: 'wrap',
-                    }}
-                >
-                    <button
-                        type="button"
-                        onClick={() => onCopyMarkdown()}
-                        style={{
-                            padding: '0.65rem 0.9rem',
-                            borderRadius: '999px',
-                            border: '1px solid #cbd5e1',
-                            background: '#fff',
-                            color: '#0f172a',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                        }}
-                    >
-                        Copy markdown
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => onDownloadMarkdown()}
-                        style={{
-                            padding: '0.65rem 0.9rem',
-                            borderRadius: '999px',
-                            border: '1px solid #cbd5e1',
-                            background: '#fff',
-                            color: '#0f172a',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                        }}
-                    >
-                        Download .md
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => onSaveEditedVersion()}
-                        disabled={!hasResultChanges || isSavingEditedVersion}
-                        style={{
-                            padding: '0.65rem 0.9rem',
-                            borderRadius: '999px',
-                            border: 0,
-                            background:
-                                !hasResultChanges || isSavingEditedVersion ? '#94a3b8' : '#0f766e',
-                            color: '#fff',
-                            cursor:
-                                !hasResultChanges || isSavingEditedVersion
-                                    ? 'not-allowed'
-                                    : 'pointer',
-                            fontWeight: 600,
-                        }}
-                    >
-                        {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
-                    </button>
-                </div>
-            ) : null}
-
-            <div
-                style={{
-                    minHeight: '14rem',
-                    padding: '1rem',
-                    borderRadius: '1rem',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    display: 'grid',
-                    gap: '1rem',
-                }}
-            >
+            <div className={styles.body}>
                 {!resultMarkdown ? (
-                    <div style={{ color: '#64748b', lineHeight: 1.6 }}>
+                    <div className={styles.empty}>
                         The generated markdown will appear here after a successful pipeline run.
                     </div>
                 ) : resultRenderMode === 'raw' ? (
                     <textarea
                         value={editableResultMarkdown}
                         onChange={(event) => onEditableResultMarkdownChange(event.target.value)}
-                        style={{
-                            margin: 0,
-                            color: '#0f172a',
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                            width: '100%',
-                            minHeight: '20rem',
-                            resize: 'vertical',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '0.75rem',
-                            padding: '1rem',
-                            background: '#fff',
-                            lineHeight: 1.6,
-                        }}
+                        className={styles.textarea}
                     >
                         {editableResultMarkdown}
                     </textarea>

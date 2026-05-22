@@ -1,11 +1,12 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
-import { ChangeEvent, useEffect, useState } from 'react'
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createTemplate, getTemplates, runPipeline, saveEditedPipelineResult } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
 import { PipelineStatusPoller } from '@/components/PipelineStatusPoller'
+import styles from '@/components/ProjectTab.module.css'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import type { ResultRenderMode, TemplateOption } from '@/types'
@@ -36,10 +37,34 @@ export default function ProjectTab({
     const [apiBaseUrl, setApiBaseUrl] = useState<string | null>(null)
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
+    const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false)
+    const templateDropdownRef = useRef<HTMLDivElement | null>(null)
 
     const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
     const hasResultChanges = resultMarkdown !== null && editableResultMarkdown !== resultMarkdown
     const isCreatingCustomTemplate = selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
+    const selectedTemplateLabel = useMemo(() => {
+        if (!selectedTemplateUuid) {
+            if (isLoadingTemplates) {
+                return 'Loading templates...'
+            }
+
+            return templates.length === 0 ? 'Select a template option' : 'Select a template'
+        }
+
+        if (selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION) {
+            return 'Custom template...'
+        }
+
+        const selectedTemplate = templates.find(
+            (template) => template.uuid === selectedTemplateUuid,
+        )
+        if (!selectedTemplate) {
+            return 'Select a template'
+        }
+
+        return `${selectedTemplate.title}${selectedTemplate.source === 'local' ? ' (local)' : ''}`
+    }, [isLoadingTemplates, selectedTemplateUuid, templates])
 
     useEffect(() => {
         let isMounted = true
@@ -81,6 +106,32 @@ export default function ProjectTab({
             isMounted = false
         }
     }, [settings.serviceUrl])
+
+    useEffect(() => {
+        if (!isTemplateDropdownOpen) {
+            return
+        }
+
+        const handlePointerDown = (event: MouseEvent) => {
+            if (!templateDropdownRef.current?.contains(event.target as Node)) {
+                setIsTemplateDropdownOpen(false)
+            }
+        }
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsTemplateDropdownOpen(false)
+            }
+        }
+
+        document.addEventListener('mousedown', handlePointerDown)
+        document.addEventListener('keydown', handleEscape)
+
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown)
+            document.removeEventListener('keydown', handleEscape)
+        }
+    }, [isTemplateDropdownOpen])
 
     const handleRunPipeline = async () => {
         if (!project) {
@@ -285,182 +336,158 @@ export default function ProjectTab({
     }
 
     return (
-        <div
-            style={{
-                padding: '1.5rem',
-                maxWidth: '42rem',
-                margin: '0 auto',
-                display: 'grid',
-                gap: '1rem',
-            }}
-        >
-            <div>
-                <h1 style={{ margin: 0 }}>AI Document Generation</h1>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                    Select a DMP template from the database and run the pipeline on the current
-                    project.
-                </p>
+        <div className="Projects__Detail__Content Projects__Detail__Content--Metrics">
+            <div className={`questionnaire__summary-report container ${styles.root}`}>
+                <div>
+                    <h2 className={styles.title}>AI Document Generation</h2>
+                    <p className={styles.lead}>
+                        Select a DMP template from the database and run the pipeline on the current
+                        project.
+                    </p>
+                </div>
+
+                {!project ? (
+                    <div className={`${styles.alert} ${styles.warningAlert}`}>
+                        The project is not loaded; the pipeline cannot be started yet.
+                    </div>
+                ) : null}
+
+                {activeRunId && apiBaseUrl ? (
+                    <PipelineStatusPoller
+                        activeRunId={activeRunId}
+                        apiBaseUrl={apiBaseUrl}
+                        setActiveRunId={setActiveRunId}
+                        setEditableResultMarkdown={setEditableResultMarkdown}
+                        setErrorMessage={setErrorMessage}
+                        setInfoMessage={setInfoMessage}
+                        setIsRunningPipeline={setIsRunningPipeline}
+                        setResultMarkdown={setResultMarkdown}
+                        setResultRunId={setResultRunId}
+                        setSuccessMessage={setSuccessMessage}
+                    />
+                ) : null}
+
+                <label className={styles.label}>
+                    <h4>DMP template</h4>
+                    <div className={styles.dropdown} ref={templateDropdownRef}>
+                        <button
+                            type="button"
+                            disabled={isLoadingTemplates || isRunningPipeline || !project}
+                            className={styles.dropdownToggle}
+                            onClick={() =>
+                                setIsTemplateDropdownOpen((currentValue) => !currentValue)
+                            }
+                            aria-expanded={isTemplateDropdownOpen}
+                        >
+                            <span>{selectedTemplateLabel}</span>
+                            <span className={styles.dropdownCaret} aria-hidden="true">
+                                ▼
+                            </span>
+                        </button>
+
+                        {isTemplateDropdownOpen ? (
+                            <div className={styles.dropdownMenu}>
+                                {templates.map((template) => (
+                                    <button
+                                        key={template.uuid}
+                                        type="button"
+                                        className={`${styles.dropdownItem} ${
+                                            selectedTemplateUuid === template.uuid
+                                                ? styles.dropdownItemActive
+                                                : ''
+                                        }`}
+                                        onClick={() => {
+                                            setSelectedTemplateUuid(template.uuid)
+                                            setLocalTemplateError(null)
+                                            setIsTemplateDropdownOpen(false)
+                                        }}
+                                    >
+                                        {template.title}
+                                        {template.source === 'local' ? ' (local)' : ''}
+                                    </button>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    className={`${styles.dropdownItem} ${
+                                        selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
+                                            ? styles.dropdownItemActive
+                                            : ''
+                                    }`}
+                                    onClick={() => {
+                                        setSelectedTemplateUuid(CUSTOM_TEMPLATE_OPTION)
+                                        setLocalTemplateError(null)
+                                        setIsTemplateDropdownOpen(false)
+                                    }}
+                                >
+                                    Custom template...
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                </label>
+
+                {isCreatingCustomTemplate ? (
+                    <CustomTemplateSection
+                        localTemplateTitle={localTemplateTitle}
+                        localTemplateJson={localTemplateJson}
+                        localTemplateFileName={localTemplateFileName}
+                        localTemplateError={localTemplateError}
+                        isCreatingTemplate={isCreatingTemplate}
+                        onLocalTemplateTitleChange={setLocalTemplateTitle}
+                        onLocalTemplateJsonChange={setLocalTemplateJson}
+                        onLocalTemplateFileUpload={handleLocalTemplateFileUpload}
+                        onAddLocalTemplate={() => void handleAddLocalTemplate()}
+                    />
+                ) : null}
+
+                <button
+                    type="button"
+                    onClick={() => void handleRunPipeline()}
+                    disabled={
+                        isLoadingTemplates ||
+                        isRunningPipeline ||
+                        !selectedTemplateUuid ||
+                        !project ||
+                        isCreatingCustomTemplate
+                    }
+                    className={`btn btn-primary btn-wide ${styles.runButton}`}
+                >
+                    {isRunningPipeline ? 'Running pipeline...' : 'Run pipeline'}
+                </button>
+
+                {project ? (
+                    <div className={styles.projectName}>
+                        Project: <strong>{project.name}</strong>
+                    </div>
+                ) : null}
+
+                {errorMessage ? (
+                    <div className={`${styles.alert} ${styles.errorAlert}`}>{errorMessage}</div>
+                ) : null}
+
+                {infoMessage ? (
+                    <div className={`${styles.alert} ${styles.infoAlert}`}>{infoMessage}</div>
+                ) : null}
+
+                {successMessage ? (
+                    <div className={`${styles.alert} ${styles.successAlert}`}>{successMessage}</div>
+                ) : null}
+
+                <PipelineResultPanel
+                    resultMarkdown={resultMarkdown}
+                    editableResultMarkdown={editableResultMarkdown}
+                    resultRenderMode={resultRenderMode}
+                    isSavingEditedVersion={isSavingEditedVersion}
+                    hasResultChanges={hasResultChanges}
+                    displayedResultMarkdown={displayedResultMarkdown}
+                    onResultRenderModeChange={setResultRenderMode}
+                    onEditableResultMarkdownChange={setEditableResultMarkdown}
+                    onCopyMarkdown={() => void handleCopyMarkdown()}
+                    onDownloadMarkdown={handleDownloadMarkdown}
+                    onSaveEditedVersion={() => void handleSaveEditedVersion()}
+                />
             </div>
-
-            {!project ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#fff7ed',
-                        color: '#c2410c',
-                    }}
-                >
-                    The project is not loaded; the pipeline cannot be started yet.
-                </div>
-            ) : null}
-
-            {activeRunId && apiBaseUrl ? (
-                <PipelineStatusPoller
-                    activeRunId={activeRunId}
-                    apiBaseUrl={apiBaseUrl}
-                    setActiveRunId={setActiveRunId}
-                    setEditableResultMarkdown={setEditableResultMarkdown}
-                    setErrorMessage={setErrorMessage}
-                    setInfoMessage={setInfoMessage}
-                    setIsRunningPipeline={setIsRunningPipeline}
-                    setResultMarkdown={setResultMarkdown}
-                    setResultRunId={setResultRunId}
-                    setSuccessMessage={setSuccessMessage}
-                />
-            ) : null}
-
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>DMP template</span>
-                <select
-                    value={selectedTemplateUuid}
-                    onChange={(event) => {
-                        setSelectedTemplateUuid(event.target.value)
-                        setLocalTemplateError(null)
-                    }}
-                    disabled={isLoadingTemplates || isRunningPipeline || !project}
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
-                >
-                    <option value="">
-                        {isLoadingTemplates
-                            ? 'Loading templates...'
-                            : templates.length === 0
-                              ? 'Select a template option'
-                              : 'Select a template'}
-                    </option>
-                    {templates.map((template) => (
-                        <option key={template.uuid} value={template.uuid}>
-                            {template.title}
-                            {template.source === 'local' ? ' (local)' : ''}
-                        </option>
-                    ))}
-                    <option value={CUSTOM_TEMPLATE_OPTION}>Custom template...</option>
-                </select>
-            </label>
-
-            {isCreatingCustomTemplate ? (
-                <CustomTemplateSection
-                    localTemplateTitle={localTemplateTitle}
-                    localTemplateJson={localTemplateJson}
-                    localTemplateFileName={localTemplateFileName}
-                    localTemplateError={localTemplateError}
-                    isCreatingTemplate={isCreatingTemplate}
-                    onLocalTemplateTitleChange={setLocalTemplateTitle}
-                    onLocalTemplateJsonChange={setLocalTemplateJson}
-                    onLocalTemplateFileUpload={handleLocalTemplateFileUpload}
-                    onAddLocalTemplate={() => void handleAddLocalTemplate()}
-                />
-            ) : null}
-
-            <button
-                type="button"
-                onClick={() => void handleRunPipeline()}
-                disabled={
-                    isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
-                }
-                style={{
-                    width: 'fit-content',
-                    padding: '0.8rem 1.2rem',
-                    border: 0,
-                    borderRadius: '999px',
-                    background:
-                        isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
-                            ? '#94a3b8'
-                            : '#0f172a',
-                    color: '#fff',
-                    cursor:
-                        isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
-                            ? 'not-allowed'
-                            : 'pointer',
-                    fontWeight: 600,
-                }}
-            >
-                {isRunningPipeline ? 'Running pipeline...' : 'Run pipeline'}
-            </button>
-
-            {project ? (
-                <div style={{ color: '#475569', fontSize: '0.95rem' }}>
-                    Project: <strong>{project.name}</strong>
-                </div>
-            ) : null}
-
-            {errorMessage ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#fef2f2',
-                        color: '#b91c1c',
-                    }}
-                >
-                    {errorMessage}
-                </div>
-            ) : null}
-
-            {infoMessage ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#eff6ff',
-                        color: '#1d4ed8',
-                    }}
-                >
-                    {infoMessage}
-                </div>
-            ) : null}
-
-            {successMessage ? (
-                <div
-                    style={{
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.5rem',
-                        background: '#ecfdf5',
-                        color: '#047857',
-                    }}
-                >
-                    {successMessage}
-                </div>
-            ) : null}
-
-            <PipelineResultPanel
-                resultMarkdown={resultMarkdown}
-                editableResultMarkdown={editableResultMarkdown}
-                resultRenderMode={resultRenderMode}
-                isSavingEditedVersion={isSavingEditedVersion}
-                hasResultChanges={hasResultChanges}
-                displayedResultMarkdown={displayedResultMarkdown}
-                onResultRenderModeChange={setResultRenderMode}
-                onEditableResultMarkdownChange={setEditableResultMarkdown}
-                onCopyMarkdown={() => void handleCopyMarkdown()}
-                onDownloadMarkdown={handleDownloadMarkdown}
-                onSaveEditedVersion={() => void handleSaveEditedVersion()}
-            />
         </div>
     )
 }

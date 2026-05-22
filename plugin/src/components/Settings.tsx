@@ -1,5 +1,6 @@
 import { SettingsComponentProps } from '@ds-wizard/plugin-sdk/elements'
 
+import styles from '@/components/Settings.module.css'
 import { SettingsData } from '@/data/settings-data'
 
 export default function Settings({
@@ -7,15 +8,9 @@ export default function Settings({
     onSettingsChange,
 }: SettingsComponentProps<SettingsData>) {
     return (
-        <div
-            style={{
-                maxWidth: '48rem',
-                display: 'grid',
-                gap: '1rem',
-            }}
-        >
+        <div className={styles.root}>
             <div>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                <p className={styles.lead}>
                     Configure the LLM connection the plugin should use for pipeline execution.
                     Please select a model that supports the OpenAI API to use this plugin. Default
                     values from config: model <code>gpt-oss-120b</code> and API URL{' '}
@@ -23,8 +18,8 @@ export default function Settings({
                 </p>
             </div>
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>Model</span>
+            <label className={styles.label}>
+                <span className={styles.labelText}>Model</span>
                 <input
                     type="text"
                     value={settings.model || ''}
@@ -35,17 +30,12 @@ export default function Settings({
                         })
                     }
                     placeholder="gpt-4.1-mini"
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className={styles.input}
                 />
             </label>
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>API key</span>
+            <label className={styles.label}>
+                <span className={styles.labelText}>API key</span>
                 <input
                     type="password"
                     value={settings.apiKey || ''}
@@ -56,17 +46,12 @@ export default function Settings({
                         })
                     }
                     placeholder="sk-..."
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className={styles.input}
                 />
             </label>
 
-            <label style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600 }}>API URL</span>
+            <label className={styles.label}>
+                <span className={styles.labelText}>API URL</span>
                 <input
                     type="url"
                     value={settings.apiUrl || ''}
@@ -77,12 +62,7 @@ export default function Settings({
                         })
                     }
                     placeholder="https://api.openai.com/v1"
-                    style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                    }}
+                    className={styles.input}
                 />
             </label>
         </div>

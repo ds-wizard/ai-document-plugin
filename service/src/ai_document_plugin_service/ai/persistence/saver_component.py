@@ -18,10 +18,23 @@ class SaverComponent:
     @typing.override
     @component.output_types(markdown=str)
     def run(
-        self, template_uuid: str, knowledge_model_uuid: str, debug_markdown: str, markdown: str, database: Database
+        self,
+        template_uuid: str,
+        knowledge_model_uuid: str,
+        user_uuid: str,
+        tenant_uuid: str,
+        debug_markdown: str,
+        markdown: str,
+        database: Database,
     ) -> FileSaverComponentResult:
-
-        database.save_result(template_uuid, knowledge_model_uuid, debug_markdown, markdown)
+        database.save_result(
+            template_uuid,
+            knowledge_model_uuid,
+            user_uuid,
+            tenant_uuid,
+            debug_markdown,
+            markdown,
+        )
 
         return {
             'markdown': markdown,

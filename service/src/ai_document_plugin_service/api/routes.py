@@ -6,6 +6,7 @@ import fastapi
 
 from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
     PipelineRunRequest,
     PipelineRunResponse,
@@ -38,6 +39,8 @@ def _build_pipeline_status(
     run_id: str,
     status: str,
     questionnaire_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
     template_uuid: str,
     template_title: str,
     knowledge_model_uuid: str | None = None,
@@ -51,6 +54,8 @@ def _build_pipeline_status(
         status=status,
         questionnaire_uuid=questionnaire_uuid,
         knowledge_model_uuid=knowledge_model_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
         template_uuid=template_uuid,
         template_title=template_title,
         error=error,
@@ -65,6 +70,8 @@ def _run_pipeline_job(
     questionnaire_uuid: str,
     template_uuid: str,
     template_title: str,
+    user_uuid: str,
+    tenant_uuid: str,
     token: str,
     api_url: str | None,
     llm_override: LLMConfigOverride | None,
@@ -81,6 +88,8 @@ def _run_pipeline_job(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
                 error='Template not found.',
             ),
         )
@@ -95,6 +104,8 @@ def _run_pipeline_job(
             template_uuid=template_uuid,
             template_title=template['title'],
             template_data=template['content'],
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
             pipeline=pipeline,
             llm_override=llm_override,
         )
@@ -106,6 +117,8 @@ def _run_pipeline_job(
                 status='succeeded',
                 questionnaire_uuid=questionnaire_uuid,
                 knowledge_model_uuid=knowledge_model_uuid,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
                 result_format='markdown',
@@ -121,6 +134,8 @@ def _run_pipeline_job(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
                 error=str(error),
             ),
         )
@@ -183,6 +198,11 @@ def start_pipeline(
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
 
+    try:
+        user_uuid, tenant_uuid = extract_identity_from_token(payload.token)
+    except ValueError as error:
+        raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
+
     run_id = str(uuid4())
     _set_pipeline_status(
         run_id,
@@ -190,6 +210,8 @@ def start_pipeline(
             run_id=run_id,
             status='running',
             questionnaire_uuid=payload.questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
             template_uuid=payload.template_uuid,
             template_title=template['title'],
         ),
@@ -200,6 +222,8 @@ def start_pipeline(
         payload.questionnaire_uuid,
         payload.template_uuid,
         template['title'],
+        user_uuid,
+        tenant_uuid,
         payload.token,
         payload.api_url,
         LLMConfigOverride(
@@ -213,6 +237,8 @@ def start_pipeline(
         status='accepted',
         run_id=run_id,
         questionnaire_uuid=payload.questionnaire_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
         template_uuid=payload.template_uuid,
         template_title=template['title'],
     )
@@ -244,6 +270,8 @@ def save_pipeline_result(
     database.update_result(
         template_uuid=status.template_uuid,
         knowledge_model_uuid=status.knowledge_model_uuid,
+        user_uuid=status.user_uuid,
+        tenant_uuid=status.tenant_uuid,
         markdown=payload.result_markdown,
     )
 
@@ -252,6 +280,8 @@ def save_pipeline_result(
         status=status.status,
         questionnaire_uuid=status.questionnaire_uuid,
         knowledge_model_uuid=status.knowledge_model_uuid,
+        user_uuid=status.user_uuid,
+        tenant_uuid=status.tenant_uuid,
         template_uuid=status.template_uuid,
         template_title=status.template_title,
         error=status.error,

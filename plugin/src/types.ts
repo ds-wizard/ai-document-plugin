@@ -16,6 +16,9 @@ export type PipelineStatusResponse = {
     runId: string
     status: 'running' | 'succeeded' | 'failed'
     questionnaireUuid: string
+    knowledgeModelUuid: string
+    userUuid: string
+    tenantUuid: string
     templateUuid: string
     templateTitle: string
     error: string | null

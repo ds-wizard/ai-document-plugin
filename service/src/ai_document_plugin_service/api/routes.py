@@ -8,6 +8,7 @@ import fastapi
 
 from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
     PipelineRunRequest,
     PipelineRunResponse,
@@ -23,51 +24,6 @@ router = fastapi.APIRouter()
 
 _pipeline_runs: dict[str, PipelineStatusResponse] = {}
 _pipeline_runs_lock = threading.Lock()
-JWT_PART_COUNT = 2
-
-
-def _decode_jwt_payload(token: str) -> dict[str, object]:
-    parts = token.split('.')
-    if len(parts) < JWT_PART_COUNT:
-        msg = 'Invalid JWT token format.'
-        raise ValueError(msg)
-
-    payload = parts[1]
-    padding = '=' * ((4 - len(payload) % 4) % 4)
-
-    try:
-        decoded = base64.urlsafe_b64decode(f'{payload}{padding}')
-        parsed = json.loads(decoded)
-    except (ValueError, json.JSONDecodeError) as exc:
-        msg = 'Invalid JWT token payload.'
-        raise ValueError(msg) from exc
-
-    if not isinstance(parsed, dict):
-        msg = 'Invalid JWT token payload.'
-        raise TypeError(msg)
-
-    return parsed
-
-
-def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> str:
-    for key in keys:
-        value = payload.get(key)
-        if isinstance(value, str) and value.strip():
-            try:
-                return str(UUID(value))
-            except ValueError:
-                continue
-
-    msg = f'Missing required JWT claim: {", ".join(keys)}'
-    raise ValueError(msg)
-
-
-def _extract_identity_from_token(token: str) -> tuple[str, str]:
-    payload = _decode_jwt_payload(token)
-    user_uuid = _get_required_uuid_claim(payload, 'user_uuid', 'userUuid')
-    tenant_uuid = _get_required_uuid_claim(payload, 'tenant_uuid', 'tenantUuid')
-    return user_uuid, tenant_uuid
-
 
 def _set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
     with _pipeline_runs_lock:
@@ -244,7 +200,7 @@ def start_pipeline(
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
 
     try:
-        user_uuid, tenant_uuid = _extract_identity_from_token(payload.token)
+        user_uuid, tenant_uuid = extract_identity_from_token(payload.token)
     except ValueError as error:
         raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
 

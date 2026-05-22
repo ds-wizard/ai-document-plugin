@@ -28,7 +28,7 @@ export function CustomTemplateSection({
     return (
         <section className={styles.root}>
             <div>
-                <div className={styles.title}>Create custom template</div>
+                <h5 className={styles.title}>Create custom template</h5>
                 <div className={styles.text}>
                     Upload or paste template JSON. After saving, the template will be stored in the
                     backend database and appear in the dropdown immediately.

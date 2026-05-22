@@ -47,6 +47,15 @@
     color: var(--ai-doc-color-slate-950);
     font-weight: 600;
     white-space: nowrap;
+    transition: background-color 200ms;
+}
+
+.filePickerButton:hover {
+    background: var(--ai-doc-color-slate-250);
+}
+
+.filePickerButton:active {
+    background: var(--ai-doc-color-slate-300);
 }
 
 .fileName {

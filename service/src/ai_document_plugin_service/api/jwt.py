@@ -33,7 +33,7 @@ def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> str:
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             try:
-                # todo: https://github.com/ds-wizard/ai-document-plugin/issues/61
+                # TODO: https://github.com/ds-wizard/ai-document-plugin/issues/61
                 return str(UUID(value))
             except ValueError:
                 continue

@@ -1,8 +1,6 @@
-import base64
-import json
 import threading
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import fastapi
 
@@ -24,6 +22,7 @@ router = fastapi.APIRouter()
 
 _pipeline_runs: dict[str, PipelineStatusResponse] = {}
 _pipeline_runs_lock = threading.Lock()
+
 
 def _set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
     with _pipeline_runs_lock:

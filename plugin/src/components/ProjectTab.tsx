@@ -445,7 +445,11 @@ export default function ProjectTab({
                     type="button"
                     onClick={() => void handleRunPipeline()}
                     disabled={
-                        isLoadingTemplates || isRunningPipeline || !selectedTemplateUuid || !project
+                        isLoadingTemplates ||
+                        isRunningPipeline ||
+                        !selectedTemplateUuid ||
+                        !project ||
+                        isCreatingCustomTemplate
                     }
                     className={`btn btn-primary btn-wide ${styles.runButton}`}
                 >

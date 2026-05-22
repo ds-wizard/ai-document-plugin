@@ -92,7 +92,7 @@ export function CustomTemplateSection({
                 type="button"
                 onClick={() => onAddLocalTemplate()}
                 disabled={isCreatingTemplate}
-                className="btn btn-primary btn-wide"
+                className={`${styles.saveButton} btn btn-primary btn-wide`}
             >
                 {isCreatingTemplate ? 'Saving template...' : 'Save template'}
             </button>

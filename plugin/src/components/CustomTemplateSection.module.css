@@ -90,3 +90,7 @@
     background: var(--ai-doc-color-red-50);
     color: var(--ai-doc-color-red-700);
 }
+
+.saveButton {
+    justify-self: start;
+}

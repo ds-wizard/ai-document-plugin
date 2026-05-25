@@ -201,5 +201,5 @@ def apply_llm_override(config: Config, override: LLMConfigOverride | None = None
         model=override.model or config.model,
         api_key=override.api_key or config.api_key,
         api_url=override.api_url or config.api_url,
-        parallel_workers=override.parallel_workers or config.parallel_workers
+        parallel_workers=override.parallel_workers or config.parallel_workers,
     )

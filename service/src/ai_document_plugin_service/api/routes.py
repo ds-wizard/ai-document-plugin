@@ -108,7 +108,7 @@ def start_pipeline(
             model=payload.llm_model,
             api_key=payload.llm_api_key,
             api_url=payload.llm_api_url,
-            parallel_workers=payload.llm_max_workers
+            parallel_workers=payload.llm_max_workers,
         ),
     )
     return _model_from_fields(

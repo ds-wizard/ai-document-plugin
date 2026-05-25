@@ -48,15 +48,19 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
-def build_pipeline() -> Pipeline:
+def build_pipeline(
+    database: Database,
+    saver: DBSaver,
+    generation_llm: OpenAIGenerationLLM,
+) -> Pipeline:
     pipeline = Pipeline()
-    loader_component = AssignmentLoaderComponent()
+    loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
-    assignment_saver_component = AssignmentSaverComponent()
-    dmp_generator_component = DmpGeneratorComponent()
+    assignment_saver_component = AssignmentSaverComponent(saver=saver)
+    dmp_generator_component = DmpGeneratorComponent(llm=generation_llm)
     dmp_polisher_component = DmpPolisherComponent()
-    saver_component = SaverComponent()
+    saver_component = SaverComponent(database=database)
 
     # ROUTES
     routes: list[Route] = [
@@ -119,7 +123,6 @@ def run_pipeline(
     template_data: Mapping[str, object],
     user_uuid: str,
     tenant_uuid: str,
-    pipeline: Pipeline,
     llm_override: LLMConfigOverride | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
@@ -137,6 +140,9 @@ def run_pipeline(
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
     database = PostgresDB(config.database)
     saver = DBSaver(database)
+    generation_llm = OpenAIGenerationLLM(config=config)
+    pipeline = build_pipeline(database, saver, generation_llm)
+    # OTHER INPUTS
 
     if on_progress is not None:
         on_progress('Preparing document template')
@@ -146,7 +152,6 @@ def run_pipeline(
             'loader_component': {
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': template_uuid,
-                'database': database,
             },
             'parser_component': {'data': km_data},
             'assignment_component': {
@@ -156,7 +161,6 @@ def run_pipeline(
                 'on_progress': on_progress,
             },
             'assignment_saver_component': {
-                'saver': saver,
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'knowledge_model_name': knowledge_model_name,
                 'knowledge_model_version': knowledge_model_version,
@@ -167,6 +171,7 @@ def run_pipeline(
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
+                'workers': config.parallel_workers,
                 'config': config,
                 'on_progress': on_progress,
             },
@@ -180,7 +185,6 @@ def run_pipeline(
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'user_uuid': user_uuid,
                 'tenant_uuid': tenant_uuid,
-                'database': database,
             },
         },
         include_outputs_from={

@@ -42,13 +42,15 @@ class _ScheduledSection:
 
 @component
 class DmpGeneratorComponent:
+    def __init__(self, llm: GenerationLLM | None = None) -> None:
+        self.llm = llm
+
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
     def run(
         self,
         replies: dict,
         km: dict,
         config: Config,
-        llm: GenerationLLM | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
@@ -64,10 +66,7 @@ class DmpGeneratorComponent:
 
         stats = AssignmentStats()
 
-        if llm is None:
-            llm = OpenAIGenerationLLM(config)
-
-        if llm is None:
+        if self.llm is None:
             llm = OpenAIGenerationLLM(config)
 
         worker_count = max(1, config.parallel_workers)

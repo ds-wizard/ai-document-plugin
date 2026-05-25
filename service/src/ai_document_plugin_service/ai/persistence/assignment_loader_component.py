@@ -7,13 +7,15 @@ from ai_document_plugin_service.ai.persistence.database import Database, JsonVal
 
 @component
 class AssignmentLoaderComponent:
-    @staticmethod
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
     @component.output_types(
         assignments=JsonValue | None,
         found=bool,
     )
-    def run(knowledge_model_uuid: str, template_uuid: str, database: Database) -> dict[str, Any]:
-        assignments = database.get_assignments(knowledge_model_uuid, template_uuid)
+    def run(self, knowledge_model_uuid: str, template_uuid: str) -> dict[str, Any]:
+        assignments = self.database.get_assignments(knowledge_model_uuid, template_uuid)
 
         return {
             'assignments': assignments,

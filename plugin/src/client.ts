@@ -1,6 +1,8 @@
 import { pluginMetadata } from '@/metadata'
 import type { PipelineRunResponse, PipelineStatusResponse, TemplateOption } from '@/types'
 
+const GENERIC_ACTION_FAILURE_MESSAGE = 'The action could not be completed. Please try again later.'
+
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
         return false
@@ -97,6 +99,9 @@ export const getPipelineStatus = async (
     const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
+        if (response.status === 400 || response.status === 500) {
+            throw new Error(GENERIC_ACTION_FAILURE_MESSAGE)
+        }
         throw new Error(
             'detail' in data && data.detail ? data.detail : 'Failed to retrieve pipeline status.',
         )
@@ -153,6 +158,9 @@ export const runPipeline = async ({
     const data = await readApiResponse<PipelineRunResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
+        if (response.status === 400 || response.status === 500) {
+            throw new Error(GENERIC_ACTION_FAILURE_MESSAGE)
+        }
         throw new Error(
             'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
         )

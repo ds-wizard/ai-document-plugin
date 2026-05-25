@@ -34,11 +34,13 @@ class AssignmentSaverComponentResult(TypedDict):
 
 @component
 class AssignmentSaverComponent:
+    def __init__(self, saver: Saver) -> None:
+        self.saver = saver
+
     @typing.override
     @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
     def run(
         self,
-        saver: Saver,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
@@ -52,7 +54,7 @@ class AssignmentSaverComponent:
         serializable = [assignment.to_dict() for assignment in assignments]
         stats_payload = _serialize_stats(stats)
 
-        saver.save(
+        self.saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,

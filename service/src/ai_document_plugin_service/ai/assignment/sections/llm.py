@@ -9,7 +9,8 @@ from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     LLMClient,
     add_usage,
-    call_with_retry, LLMClient,
+    call_with_retry,
+    LLMClient,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 

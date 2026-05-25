@@ -1,3 +1,4 @@
+import itertools
 import logging
 from collections.abc import Callable
 from typing import Any, TypedDict
@@ -87,24 +88,26 @@ class AssignmentComponent:
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping = {}
+        total_chunks = len(question_chunks)
+        completed_counter = itertools.count(1)
 
         def match_chunk(question_chunk: str) -> dict[str, list[str]]:
-            return self._match_single_chunk(
+            result = self._match_single_chunk(
                 config=config,
                 sections_xml=sections_xml,
                 question_chunk=question_chunk,
                 stats=stats,
             )
+            if on_progress is not None:
+                chunk_index = next(completed_counter)
+                on_progress(f'Preparing document template ({chunk_index}/{total_chunks})')
+            return result
 
-        total_chunks = len(question_chunks)
-        for chunk_index, question_to_section_ids in enumerate(
-            thread_map(
-                match_chunk,
-                question_chunks,
-                max_workers=config.parallel_workers,
-                desc=f'Assigning questions to sections ({config.parallel_workers} workers)',
-            ),
-            start=1,
+        for question_to_section_ids in thread_map(
+            match_chunk,
+            question_chunks,
+            max_workers=config.parallel_workers,
+            desc=f'Assigning questions to sections ({config.parallel_workers} workers)',
         ):
             self._add_chunk_mapping_to_result(
                 result_mapping=result_mapping,
@@ -112,8 +115,6 @@ class AssignmentComponent:
                 question_id_to_path=question_id_to_path,
                 section_formatter=section_formatter,
             )
-            if on_progress is not None:
-                on_progress(f'Preparing document template ({chunk_index}/{total_chunks})')
 
         assignments = convert_mappings_to_assignment_tree(
             sections,

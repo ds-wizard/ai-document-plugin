@@ -76,7 +76,7 @@ def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
 
 class LLMClient:
     def __init__(self, config: Config):
-        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
+        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url, max_retries=0)
         self.max_workers = config.parallel_workers or 1
         logger.debug(
             'Initializing LLM client, setting semaphore limit to %s',

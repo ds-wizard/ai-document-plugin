@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from typing import Any, TypedDict
 
 from haystack import component
@@ -72,6 +73,7 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         config: Config,
         km: dict[str, Any],
+        on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         """Assign KM questions to template sections using the configured matcher."""
         logger.debug('Step 1: Assigning questions to sections...')
@@ -94,11 +96,15 @@ class AssignmentComponent:
                 stats=stats,
             )
 
-        for question_to_section_ids in thread_map(
-            match_chunk,
-            question_chunks,
-            max_workers=config.parallel_workers,
-            desc=f'Assigning questions to sections ({config.parallel_workers} workers)',
+        total_chunks = len(question_chunks)
+        for chunk_index, question_to_section_ids in enumerate(
+            thread_map(
+                match_chunk,
+                question_chunks,
+                max_workers=config.parallel_workers,
+                desc=f'Assigning questions to sections ({config.parallel_workers} workers)',
+            ),
+            start=1,
         ):
             self._add_chunk_mapping_to_result(
                 result_mapping=result_mapping,
@@ -106,6 +112,8 @@ class AssignmentComponent:
                 question_id_to_path=question_id_to_path,
                 section_formatter=section_formatter,
             )
+            if on_progress is not None:
+                on_progress(f'Preparing document template ({chunk_index}/{total_chunks})')
 
         assignments = convert_mappings_to_assignment_tree(
             sections,

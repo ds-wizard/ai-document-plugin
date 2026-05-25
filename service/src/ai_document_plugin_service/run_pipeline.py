@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from haystack import Pipeline
@@ -43,6 +44,8 @@ COST_PER_MIL_INPUT = 0.25
 COST_PER_MIL_OUTPUT = 2.0
 
 logger = logging.getLogger(__name__)
+
+ProgressCallback = Callable[[str], None]
 
 
 def build_pipeline() -> Pipeline:
@@ -118,6 +121,7 @@ def run_pipeline(
     tenant_uuid: str,
     pipeline: Pipeline,
     llm_override: LLMConfigOverride | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
     t1 = time.time()
     config = apply_llm_override(load_config(), llm_override)
@@ -134,7 +138,9 @@ def run_pipeline(
     database = PostgresDB(config.database)
     saver = DBSaver(database)
 
-    # OTHER INPUTS
+    if on_progress is not None:
+        on_progress('Preparing document template, initiating.')
+
     result = pipeline.run(
         data={
             'loader_component': {
@@ -147,6 +153,7 @@ def run_pipeline(
                 'template_data': template_data,
                 'config': config,
                 'km': km,
+                'on_progress': on_progress,
             },
             'assignment_saver_component': {
                 'saver': saver,
@@ -161,10 +168,12 @@ def run_pipeline(
                 'replies': replies,
                 'km': km,
                 'config': config,
+                'on_progress': on_progress,
             },
             'dmp_polisher_component': {
                 'config': config,
                 'template_data': template_data,
+                'on_progress': on_progress,
             },
             'saver_component': {
                 'template_uuid': template_uuid,

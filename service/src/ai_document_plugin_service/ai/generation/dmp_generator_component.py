@@ -1,7 +1,7 @@
 import logging
 import math
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
@@ -50,6 +50,7 @@ class DmpGeneratorComponent:
         llm: GenerationLLM | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -82,12 +83,17 @@ class DmpGeneratorComponent:
             leaf_futures = []
             for scheduled in scheduled_sections:
                 leaf_futures.extend(self._collect_leaf_futures(scheduled))
-            for _ in tqdm(
+            total_sections = len(leaf_futures)
+            completed_sections = 0
+            for future in tqdm(
                 as_completed(leaf_futures),
-                total=len(leaf_futures),
+                total=total_sections,
                 desc=f'Generating sections ({worker_count} workers)',
             ):
-                pass
+                future.result()
+                completed_sections += 1
+                if on_progress is not None:
+                    on_progress(f'Section generated ({completed_sections}/{total_sections})')
             parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])

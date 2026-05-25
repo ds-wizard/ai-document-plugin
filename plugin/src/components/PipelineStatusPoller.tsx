@@ -33,7 +33,12 @@ export function PipelineStatusPoller({
                 const data = await getPipelineStatus(apiBaseUrl, activeRunId)
 
                 if (data.status === 'running') {
-                    setInfoMessage(`Pipeline is running for the template "${data.templateTitle}".`)
+                    const progressDetail = data.progressMessage
+                    setInfoMessage(
+                        progressDetail
+                            ? progressDetail
+                            : `Pipeline is running for the template "${data.templateTitle}".`,
+                    )
                     return
                 }
 

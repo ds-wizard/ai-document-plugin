@@ -36,6 +36,7 @@ def build_pipeline_status(
     error: str | None = None,
     result_format: str | None = None,
     result_markdown: str | None = None,
+    progress_message: str | None = None,
 ) -> PipelineStatusResponse:
     return _model_from_fields(
         PipelineStatusResponse,
@@ -50,7 +51,38 @@ def build_pipeline_status(
         error=error,
         result_format=result_format,
         result_markdown=result_markdown,
+        progress_message=progress_message,
         updated_at=datetime.now(tz=UTC).isoformat(),
+    )
+
+
+def _update_running_progress(
+    run_id: str,
+    *,
+    questionnaire_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
+    template_uuid: str,
+    template_title: str,
+    progress_message: str,
+) -> None:
+    current = get_pipeline_status(run_id)
+    if current is None:
+        return
+
+    set_pipeline_status(
+        run_id,
+        build_pipeline_status(
+            run_id=run_id,
+            status='running',
+            questionnaire_uuid=questionnaire_uuid,
+            knowledge_model_uuid=current.knowledge_model_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            progress_message=progress_message,
+        ),
     )
 
 
@@ -84,6 +116,17 @@ def run_pipeline_job(
         )
         return
 
+    def on_progress(message: str) -> None:
+        _update_running_progress(
+            run_id,
+            questionnaire_uuid=questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            progress_message=message,
+        )
+
     try:
         pipeline = build_pipeline()
         knowledge_model_uuid, result = run_pipeline(
@@ -97,6 +140,7 @@ def run_pipeline_job(
             tenant_uuid=tenant_uuid,
             pipeline=pipeline,
             llm_override=llm_override,
+            on_progress=on_progress,
         )
 
         set_pipeline_status(

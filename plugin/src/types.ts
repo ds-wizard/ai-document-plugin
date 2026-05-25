@@ -24,6 +24,7 @@ export type PipelineStatusResponse = {
     error: string | null
     resultFormat: string | null
     resultMarkdown: string | null
+    progressMessage: string | null
     updatedAt: string
 }
 

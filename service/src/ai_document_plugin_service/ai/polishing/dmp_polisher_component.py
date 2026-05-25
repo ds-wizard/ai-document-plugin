@@ -6,6 +6,7 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 
 import logging
 import typing
+from collections.abc import Callable
 from typing import TypedDict
 
 from haystack import component
@@ -33,6 +34,7 @@ class DmpPolisherComponent:
         markdown: str,
         config: Config,
         template_data: dict | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.
 
@@ -46,6 +48,8 @@ class DmpPolisherComponent:
 
         """
         stats = AssignmentStats()
+        if on_progress is not None:
+            on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
         llm = OpenAIGenerationLLM(config=config)
         file = llm.polish_dmp(

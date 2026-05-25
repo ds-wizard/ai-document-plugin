@@ -57,4 +57,5 @@ class PipelineStatusResponse(ApiModel):
     error: str | None = None
     result_format: str | None = Field(default=None, alias='resultFormat')
     result_markdown: str | None = Field(default=None, alias='resultMarkdown')
+    progress_message: str | None = Field(default=None, alias='progressMessage')
     updated_at: str = Field(alias='updatedAt')

@@ -30,7 +30,7 @@ class PipelineRunRequest(ApiModel):
     llm_model: str | None = Field(default=None, alias='llmModel')
     llm_api_key: str | None = Field(default=None, alias='llmApiKey')
     llm_api_url: str | None = Field(default=None, alias='llmApiUrl')
-    llm_max_workers: int | None = Field(default=None, alias='llmMaxWorkers')
+    llm_max_workers: int | None = Field(default=None, alias='llmMaxWorkers', ge=1)
 
 
 class PipelineRunResponse(ApiModel):

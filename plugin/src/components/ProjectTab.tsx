@@ -177,7 +177,7 @@ export default function ProjectTab({
                 llmModel: settings.model || null,
                 llmApiKey: settings.apiKey || null,
                 llmApiUrl: settings.apiUrl || null,
-                llmMaxWorkers: settings.maxWorkers || null,
+                llmMaxWorkers: settings.maxWorkers ?? null,
             })
 
             setActiveRunId(data.runId)

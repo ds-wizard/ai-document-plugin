@@ -31,7 +31,7 @@ class DmpPolisherComponent:
     def run(
         self,
         markdown: str,
-        config: Config | None = None,
+        config: Config,
         template_data: dict | None = None,
     ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.

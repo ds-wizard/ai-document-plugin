@@ -2,10 +2,10 @@ import logging
 import time
 import uuid
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from openai import APIConnectionError, APITimeoutError, RateLimitError, OpenAI, Stream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai import APIConnectionError, APITimeoutError, RateLimitError, OpenAI
+from openai.types.chat import ChatCompletion
 
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
 
@@ -84,7 +84,11 @@ class LLMClient:
         )
         semaphore.set_limit(self.max_workers)
 
-    def completion(self, *args, **kwargs) -> ChatCompletion | Stream[ChatCompletionChunk]:
+    def completion(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> ChatCompletion:
         req_id = uuid.uuid4().hex[:8]
         model = kwargs.get('model', args[0] if args else '?')
         wait_start = time.perf_counter()

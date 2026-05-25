@@ -24,6 +24,7 @@ from ai_document_plugin_service.ai.assignment.sections.sections_formatter import
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config
+from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
@@ -100,7 +101,9 @@ class AssignmentComponent:
             )
             if on_progress is not None:
                 chunk_index = next(completed_counter)
-                on_progress(f'Preparing document template ({chunk_index}/{total_chunks})')
+                on_progress(
+                    f'Preparing document template ({progress_percent(chunk_index, total_chunks)}%)',
+                )
             return result
 
         for question_to_section_ids in thread_map(

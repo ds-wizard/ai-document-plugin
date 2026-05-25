@@ -63,6 +63,7 @@ class DmpGeneratorComponent:
         replies = self._filter_reachable_replies(replies, km)
 
         stats = AssignmentStats()
+        llm = OpenAIGenerationLLM(config)
 
         if llm is None:
             llm = OpenAIGenerationLLM(config)

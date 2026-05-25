@@ -1,21 +1,29 @@
 import threading
+from types import TracebackType
+from typing import Self
 
 
 class DynamicSemaphore:
     """A semaphore where the maximum capacity can be changed dynamically at runtime."""
 
-    def __init__(self, initial_limit: int):
+    def __init__(self, initial_limit: int) -> None:
         if initial_limit < 0:
-            raise ValueError('Initial limit must be >= 0')
+            msg = 'Initial limit must be >= 0'
+            raise ValueError(msg)
 
         self.limit = initial_limit
         self.active_count = 0
         self.condition = threading.Condition()
 
     def set_limit(self, new_limit: int) -> None:
-        """Update the maximum number of allowed concurrent threads."""
+        """Update the maximum number of allowed concurrent threads.
+
+        Raises:
+            ValueError: If ``new_limit`` is negative.
+        """
         if new_limit < 0:
-            raise ValueError('Limit must be >= 0')
+            msg = 'Limit must be >= 0'
+            raise ValueError(msg)
 
         with self.condition:
             self.limit = new_limit
@@ -31,19 +39,28 @@ class DynamicSemaphore:
             self.active_count += 1
 
     def release(self) -> None:
-        """Release a semaphore, decrementing the active count."""
+        """Release a semaphore, decrementing the active count.
+
+        Raises:
+            ValueError: If release is called when no slot is held.
+        """
         with self.condition:
             if self.active_count <= 0:
-                raise ValueError('Semaphore released too many times')
+                msg = 'Semaphore released too many times'
+                raise ValueError(msg)
 
             self.active_count -= 1
             # Wake up one waiting thread
             self.condition.notify()
 
-    # Context Manager Protocol
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.acquire()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.release()

@@ -1,11 +1,13 @@
 import logging
 import threading
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.types import PipelineStatusResponse, _model_from_fields
 from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
+
+logger = logging.getLogger(__name__)
 
 _pipeline_runs: dict[str, PipelineStatusResponse] = {}
 _pipeline_runs_lock = threading.Lock()
@@ -126,4 +128,4 @@ def run_pipeline_job(
                 error=str(error),
             ),
         )
-        logging.error(error)
+        logger.exception('Pipeline run failed')

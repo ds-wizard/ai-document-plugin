@@ -4,13 +4,14 @@ import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from openai import APIConnectionError, APITimeoutError, RateLimitError, OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 from openai.types.chat import ChatCompletion
 
+from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
 
 if TYPE_CHECKING:
-    from ai_document_plugin_service.ai.common import AssignmentStats, Config
+    from ai_document_plugin_service.ai.common import AssignmentStats
 
 logger = logging.getLogger(__name__)
 semaphore = DynamicSemaphore(1)
@@ -75,7 +76,7 @@ def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
 
 
 class LLMClient:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         self.client = OpenAI(api_key=config.api_key, base_url=config.api_url, max_retries=0)
         self.max_workers = config.parallel_workers or 1
         logger.debug(
@@ -86,8 +87,8 @@ class LLMClient:
 
     def completion(
         self,
-        *args: Any,
-        **kwargs: Any,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
     ) -> ChatCompletion:
         req_id = uuid.uuid4().hex[:8]
         model = kwargs.get('model', args[0] if args else '?')

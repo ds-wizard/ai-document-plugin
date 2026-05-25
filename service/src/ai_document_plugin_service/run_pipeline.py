@@ -139,7 +139,7 @@ def run_pipeline(
     saver = DBSaver(database)
 
     if on_progress is not None:
-        on_progress('Preparing document template, initiating.')
+        on_progress('Preparing document template')
 
     result = pipeline.run(
         data={

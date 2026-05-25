@@ -93,7 +93,7 @@ class DmpGeneratorComponent:
                 future.result()
                 if on_progress is not None:
                     on_progress(
-                        f'Section generated ({progress_percent(i, total_sections)}%)',
+                        f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
                     )
             parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])

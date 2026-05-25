@@ -6,13 +6,12 @@ from json import JSONDecodeError
 from typing import TYPE_CHECKING
 
 from json_repair import repair_json
-from openai import OpenAI
 
 from ai_document_plugin_service.ai.common import AssignmentStats
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     add_usage,
-    call_with_retry,
+    call_with_retry, LLMClient,
 )
 
 if TYPE_CHECKING:
@@ -47,7 +46,7 @@ class LayerMatcher(ABC):
 class OpenAILayerMatcher(LayerMatcher):
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
+        self.client = LLMClient(config)
 
     def match_questions_to_sections(
         self,
@@ -73,7 +72,7 @@ class OpenAILayerMatcher(LayerMatcher):
         ]
 
         def call_and_parse() -> dict[str, list[str]]:
-            response = self.client.chat.completions.create(
+            response = self.client.completion(
                 model=self.config.model,
                 messages=messages,
                 temperature=self.config.assignment.temperature,

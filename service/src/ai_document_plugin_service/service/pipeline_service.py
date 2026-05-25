@@ -1,0 +1,129 @@
+import logging
+import threading
+from datetime import datetime, UTC
+
+from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
+from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.api.types import PipelineStatusResponse, _model_from_fields
+from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
+
+_pipeline_runs: dict[str, PipelineStatusResponse] = {}
+_pipeline_runs_lock = threading.Lock()
+
+
+def set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
+    with _pipeline_runs_lock:
+        _pipeline_runs[run_id] = status
+
+
+def get_pipeline_status(run_id: str) -> PipelineStatusResponse | None:
+    with _pipeline_runs_lock:
+        return _pipeline_runs.get(run_id)
+
+
+def build_pipeline_status(
+    *,
+    run_id: str,
+    status: str,
+    questionnaire_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
+    template_uuid: str,
+    template_title: str,
+    knowledge_model_uuid: str | None = None,
+    error: str | None = None,
+    result_format: str | None = None,
+    result_markdown: str | None = None,
+) -> PipelineStatusResponse:
+    return _model_from_fields(
+        PipelineStatusResponse,
+        run_id=run_id,
+        status=status,
+        questionnaire_uuid=questionnaire_uuid,
+        knowledge_model_uuid=knowledge_model_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
+        template_uuid=template_uuid,
+        template_title=template_title,
+        error=error,
+        result_format=result_format,
+        result_markdown=result_markdown,
+        updated_at=datetime.now(tz=UTC).isoformat(),
+    )
+
+
+def run_pipeline_job(
+    run_id: str,
+    questionnaire_uuid: str,
+    template_uuid: str,
+    template_title: str,
+    user_uuid: str,
+    tenant_uuid: str,
+    token: str,
+    api_url: str | None,
+    llm_override: LLMConfigOverride | None,
+) -> None:
+    config = load_config()
+    database = PostgresDB(config.database)
+    template = database.get_template(template_uuid)
+    if template is None:
+        set_pipeline_status(
+            run_id,
+            build_pipeline_status(
+                run_id=run_id,
+                status='failed',
+                questionnaire_uuid=questionnaire_uuid,
+                template_uuid=template_uuid,
+                template_title=template_title,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
+                error='Template not found.',
+            ),
+        )
+        return
+
+    try:
+        pipeline = build_pipeline()
+        knowledge_model_uuid, result = run_pipeline(
+            questionnaire_uuid=questionnaire_uuid,
+            token=token,
+            dsw_api_url=api_url,
+            template_uuid=template_uuid,
+            template_title=template['title'],
+            template_data=template['content'],
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            pipeline=pipeline,
+            llm_override=llm_override,
+        )
+
+        set_pipeline_status(
+            run_id,
+            build_pipeline_status(
+                run_id=run_id,
+                status='succeeded',
+                questionnaire_uuid=questionnaire_uuid,
+                knowledge_model_uuid=knowledge_model_uuid,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
+                template_uuid=template_uuid,
+                template_title=template_title,
+                result_format='markdown',
+                result_markdown=result,
+            ),
+        )
+    except Exception as error:
+        set_pipeline_status(
+            run_id,
+            build_pipeline_status(
+                run_id=run_id,
+                status='failed',
+                questionnaire_uuid=questionnaire_uuid,
+                template_uuid=template_uuid,
+                template_title=template_title,
+                user_uuid=user_uuid,
+                tenant_uuid=tenant_uuid,
+                error=str(error),
+            ),
+        )
+        logging.error(error)

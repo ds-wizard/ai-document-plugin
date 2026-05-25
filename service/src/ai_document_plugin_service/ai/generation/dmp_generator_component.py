@@ -11,6 +11,7 @@ from haystack import component
 from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.common import Config
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
@@ -45,8 +46,7 @@ class DmpGeneratorComponent:
         self,
         replies: dict,
         km: dict,
-        llm: GenerationLLM | None = None,
-        workers: int = 1,
+        config: Config,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
     ) -> DmpGeneratorComponentResult:
@@ -60,11 +60,9 @@ class DmpGeneratorComponent:
         replies = self._filter_reachable_replies(replies, km)
 
         stats = AssignmentStats()
+        llm = OpenAIGenerationLLM(config)
 
-        if llm is None:
-            llm = OpenAIGenerationLLM()
-
-        worker_count = max(1, workers)
+        worker_count = max(1, config.parallel_workers)
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             scheduled_sections = [
                 self._schedule_section(

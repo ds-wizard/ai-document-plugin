@@ -65,6 +65,22 @@ export default function Settings({
                     className={styles.input}
                 />
             </label>
+
+            <label className={styles.label}>
+                <span className={styles.labelText}>Maximum parallel calls to LLM server</span>
+                <input
+                    type="number"
+                    value={settings.maxWorkers || ''}
+                    onChange={(event) =>
+                        onSettingsChange({
+                            ...settings,
+                            maxWorkers: Number.parseInt(event.target.value),
+                        })
+                    }
+                    placeholder="4"
+                    className={styles.input}
+                />
+            </label>
         </div>
     )
 }

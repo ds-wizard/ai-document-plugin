@@ -118,6 +118,7 @@ type RunPipelineParams = {
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
+    llmMaxWorkers?: number | null
 }
 
 export const runPipeline = async ({
@@ -129,6 +130,7 @@ export const runPipeline = async ({
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
+    llmMaxWorkers = null,
 }: RunPipelineParams): Promise<PipelineRunResponse> => {
     const url = `${apiBaseUrl}/pipelines/run`
     const response = await fetch(url, {
@@ -144,6 +146,7 @@ export const runPipeline = async ({
             llmModel,
             llmApiKey,
             llmApiUrl,
+            llmMaxWorkers,
         }),
     })
 

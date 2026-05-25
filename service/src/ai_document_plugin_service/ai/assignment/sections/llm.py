@@ -8,7 +8,7 @@ from ai_document_plugin_service.ai.assignment.types import LeafSection
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     add_usage,
-    call_with_retry,
+    call_with_retry, LLMClient,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 
@@ -30,7 +30,7 @@ class SectionIdGenerator(ABC):
 class OpenAISectionIdGenerator(SectionIdGenerator):
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
+        self.client = LLMClient(config)
 
     @typing.override
     def generate_leaf_section_ids(
@@ -57,7 +57,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                 .replace('{section_content}', content_block)
             )
             response = call_with_retry(
-                lambda um=user_msg: self.client.chat.completions.create(
+                lambda um=user_msg: self.client.completion(
                     model=self.config.model,
                     messages=[
                         {'role': 'system', 'content': system_msg},

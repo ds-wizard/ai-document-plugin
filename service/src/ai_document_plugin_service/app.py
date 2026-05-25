@@ -15,3 +15,10 @@ def create_app() -> fastapi.FastAPI:
     )
     app.include_router(router)
     return app
+
+
+# Useful for debugging, otherwise it is better to run the app using make dev
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(create_app(), host="0.0.0.0", port=8010)

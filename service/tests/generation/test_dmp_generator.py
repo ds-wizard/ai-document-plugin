@@ -1,6 +1,13 @@
 from typing import Optional
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
+from ai_document_plugin_service.ai.common.config import (
+    Config,
+    DatabaseConfig,
+    FilePaths,
+    SystemAndUserPrompt,
+    SystemPrompt,
+)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
@@ -11,6 +18,37 @@ from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 
 def _component() -> DmpGeneratorComponent:
     return DmpGeneratorComponent()
+
+
+def _test_config() -> Config:
+    prompt = SystemAndUserPrompt(
+        temperature=0.0,
+        max_tokens=1,
+        system_message='',
+        user_message='',
+    )
+    system_prompt = SystemPrompt(temperature=0.0, max_tokens=1, system_message='')
+    return Config(
+        api_key='',
+        api_url='',
+        dsw_api_url='',
+        model='test',
+        log_level='DEBUG',
+        database=DatabaseConfig(
+            host='',
+            port=0,
+            name='',
+            user='',
+            password='',
+            schema='',
+        ),
+        files=FilePaths(config_path='', prompts_path=''),
+        assignment=prompt,
+        section_id=prompt,
+        dmp_generation=system_prompt,
+        dmp_polishing=prompt,
+        parallel_workers=1,
+    )
 
 
 def _serialize_assignments(assignments: list[SectionAssignment]) -> list[SerializedSectionAssignment]:
@@ -426,6 +464,7 @@ def test_run_renders_parent_and_leaf_sections() -> None:
     result = component.run(
         replies=replies,
         km=km,
+        config=_test_config(),
         llm=stub,
         new_assignments=_serialize_assignments(assignments),
     )
@@ -453,6 +492,7 @@ def test_run_handles_empty_section() -> None:
     result = component.run(
         replies={},
         km=km,
+        config=_test_config(),
         llm=stub,
         new_assignments=_serialize_assignments(assignments),
     )

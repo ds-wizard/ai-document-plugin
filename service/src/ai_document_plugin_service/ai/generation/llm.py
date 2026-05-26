@@ -1,14 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from openai import OpenAI
-
 from ai_document_plugin_service.ai.common.config import (
-    DEFAULT_CONFIG_PATH,
     Config,
-    load_config,
 )
 from ai_document_plugin_service.ai.common.llm_client import (
+    LLMClient,
     add_usage,
     call_with_retry,
 )
@@ -43,12 +40,9 @@ class GenerationLLM(ABC):
 
 
 class OpenAIGenerationLLM(GenerationLLM):
-    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH, config: Config | None = None) -> None:
-        self.config = config or load_config(config_path)
-        self.client = OpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_url,
-        )
+    def __init__(self, config: Config) -> None:
+        self.config = config
+        self.client = LLMClient(config)
 
     def section_from_qa(
         self,
@@ -71,7 +65,7 @@ class OpenAIGenerationLLM(GenerationLLM):
             user_message,
         ]
         response = call_with_retry(
-            lambda: self.client.chat.completions.create(
+            lambda: self.client.completion(
                 model=self.config.model,
                 messages=messages,
                 temperature=self.config.dmp_generation.temperature,
@@ -109,7 +103,7 @@ class OpenAIGenerationLLM(GenerationLLM):
         ]
 
         response = call_with_retry(
-            lambda: self.client.chat.completions.create(
+            lambda: self.client.completion(
                 model=self.config.model,
                 messages=messages,
                 temperature=self.config.dmp_polishing.temperature,

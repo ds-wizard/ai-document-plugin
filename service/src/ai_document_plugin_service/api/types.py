@@ -30,6 +30,7 @@ class PipelineRunRequest(ApiModel):
     llm_model: str | None = Field(default=None, alias='llmModel')
     llm_api_key: str | None = Field(default=None, alias='llmApiKey')
     llm_api_url: str | None = Field(default=None, alias='llmApiUrl')
+    llm_max_workers: int | None = Field(default=None, alias='llmMaxWorkers', ge=1)
 
 
 class PipelineRunResponse(ApiModel):
@@ -56,4 +57,5 @@ class PipelineStatusResponse(ApiModel):
     error: str | None = None
     result_format: str | None = Field(default=None, alias='resultFormat')
     result_markdown: str | None = Field(default=None, alias='resultMarkdown')
+    progress_message: str | None = Field(default=None, alias='progressMessage')
     updated_at: str = Field(alias='updatedAt')

@@ -1,7 +1,7 @@
 import logging
 import math
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
@@ -11,6 +11,8 @@ from haystack import component
 from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.common import Config
+from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
@@ -45,10 +47,11 @@ class DmpGeneratorComponent:
         self,
         replies: dict,
         km: dict,
+        config: Config,
         llm: GenerationLLM | None = None,
-        workers: int = 1,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -62,9 +65,9 @@ class DmpGeneratorComponent:
         stats = AssignmentStats()
 
         if llm is None:
-            llm = OpenAIGenerationLLM()
+            llm = OpenAIGenerationLLM(config)
 
-        worker_count = max(1, workers)
+        worker_count = max(1, config.parallel_workers)
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             scheduled_sections = [
                 self._schedule_section(
@@ -81,12 +84,17 @@ class DmpGeneratorComponent:
             leaf_futures = []
             for scheduled in scheduled_sections:
                 leaf_futures.extend(self._collect_leaf_futures(scheduled))
-            for _ in tqdm(
-                as_completed(leaf_futures),
-                total=len(leaf_futures),
+            total_sections = len(leaf_futures)
+            for i, future in tqdm(
+                enumerate(as_completed(leaf_futures), start=1),
+                total=total_sections,
                 desc=f'Generating sections ({worker_count} workers)',
             ):
-                pass
+                future.result()
+                if on_progress is not None:
+                    on_progress(
+                        f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
+                    )
             parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])

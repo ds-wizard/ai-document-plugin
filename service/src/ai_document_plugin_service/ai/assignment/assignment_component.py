@@ -1,4 +1,6 @@
+import itertools
 import logging
+from collections.abc import Callable
 from typing import Any, TypedDict
 
 from haystack import component
@@ -22,6 +24,7 @@ from ai_document_plugin_service.ai.assignment.sections.sections_formatter import
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config
+from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
@@ -72,6 +75,7 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         config: Config,
         km: dict[str, Any],
+        on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         """Assign KM questions to template sections using the configured matcher."""
         logger.debug('Step 1: Assigning questions to sections...')
@@ -85,14 +89,22 @@ class AssignmentComponent:
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping = {}
+        total_chunks = len(question_chunks)
+        completed_counter = itertools.count(1)
 
         def match_chunk(question_chunk: str) -> dict[str, list[str]]:
-            return self._match_single_chunk(
+            result = self._match_single_chunk(
                 config=config,
                 sections_xml=sections_xml,
                 question_chunk=question_chunk,
                 stats=stats,
             )
+            if on_progress is not None:
+                chunk_index = next(completed_counter)
+                on_progress(
+                    f'Preparing document template ({progress_percent(chunk_index, total_chunks)}%)',
+                )
+            return result
 
         for question_to_section_ids in thread_map(
             match_chunk,

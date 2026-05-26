@@ -6,6 +6,7 @@ export const SettingsDataSchema = z.object({
     model: z.string().trim().optional(),
     apiKey: z.string().trim().optional(),
     apiUrl: z.string().trim().url().optional().or(z.literal('')),
+    maxWorkers: z.int().min(1).nullable().optional(),
 })
 
 export type SettingsData = z.infer<typeof SettingsDataSchema>

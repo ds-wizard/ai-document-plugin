@@ -6,12 +6,12 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 
 import logging
 import typing
+from collections.abc import Callable
 from typing import TypedDict
 
 from haystack import component
 
 from ai_document_plugin_service.ai.common.config import (
-    DEFAULT_CONFIG_PATH,
     Config,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
@@ -32,15 +32,15 @@ class DmpPolisherComponent:
     def run(
         self,
         markdown: str,
-        config_path: str = DEFAULT_CONFIG_PATH,
-        config: Config | None = None,
+        config: Config,
         template_data: dict | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
             markdown: The raw DMP markdown to polish.
-            config_path: Path to OpenAI config file.
+            config: Config with up to date llm config
             template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
 
         Returns:
@@ -48,8 +48,10 @@ class DmpPolisherComponent:
 
         """
         stats = AssignmentStats()
+        if on_progress is not None:
+            on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        llm = OpenAIGenerationLLM(config_path=config_path, config=config)
+        llm = OpenAIGenerationLLM(config=config)
         file = llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,

@@ -60,6 +60,7 @@ class LLMConfigOverride:
     model: str | None = None
     api_key: str | None = None
     api_url: str | None = None
+    parallel_workers: int | None = None
 
 
 def _expand_env_vars(value: str) -> str:
@@ -200,4 +201,5 @@ def apply_llm_override(config: Config, override: LLMConfigOverride | None = None
         model=override.model or config.model,
         api_key=override.api_key or config.api_key,
         api_url=override.api_url or config.api_url,
+        parallel_workers=override.parallel_workers or config.parallel_workers,
     )

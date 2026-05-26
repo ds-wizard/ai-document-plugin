@@ -1,5 +1,3 @@
-import threading
-from datetime import UTC, datetime
 from uuid import uuid4
 
 import fastapi
@@ -16,129 +14,9 @@ from ai_document_plugin_service.api.types import (
     TemplateListItem,
     _model_from_fields,
 )
-from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
+from ai_document_plugin_service.service import pipeline_service as pipeline
 
 router = fastapi.APIRouter()
-
-_pipeline_runs: dict[str, PipelineStatusResponse] = {}
-_pipeline_runs_lock = threading.Lock()
-
-
-def _set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
-    with _pipeline_runs_lock:
-        _pipeline_runs[run_id] = status
-
-
-def _get_pipeline_status(run_id: str) -> PipelineStatusResponse | None:
-    with _pipeline_runs_lock:
-        return _pipeline_runs.get(run_id)
-
-
-def _build_pipeline_status(
-    *,
-    run_id: str,
-    status: str,
-    questionnaire_uuid: str,
-    user_uuid: str,
-    tenant_uuid: str,
-    template_uuid: str,
-    template_title: str,
-    knowledge_model_uuid: str | None = None,
-    error: str | None = None,
-    result_format: str | None = None,
-    result_markdown: str | None = None,
-) -> PipelineStatusResponse:
-    return _model_from_fields(
-        PipelineStatusResponse,
-        run_id=run_id,
-        status=status,
-        questionnaire_uuid=questionnaire_uuid,
-        knowledge_model_uuid=knowledge_model_uuid,
-        user_uuid=user_uuid,
-        tenant_uuid=tenant_uuid,
-        template_uuid=template_uuid,
-        template_title=template_title,
-        error=error,
-        result_format=result_format,
-        result_markdown=result_markdown,
-        updated_at=datetime.now(tz=UTC).isoformat(),
-    )
-
-
-def _run_pipeline_job(
-    run_id: str,
-    questionnaire_uuid: str,
-    template_uuid: str,
-    template_title: str,
-    user_uuid: str,
-    tenant_uuid: str,
-    token: str,
-    api_url: str | None,
-    llm_override: LLMConfigOverride | None,
-) -> None:
-    config = load_config()
-    database = PostgresDB(config.database)
-    template = database.get_template(template_uuid)
-    if template is None:
-        _set_pipeline_status(
-            run_id,
-            _build_pipeline_status(
-                run_id=run_id,
-                status='failed',
-                questionnaire_uuid=questionnaire_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                error='Template not found.',
-            ),
-        )
-        return
-
-    try:
-        pipeline = build_pipeline()
-        knowledge_model_uuid, result = run_pipeline(
-            questionnaire_uuid=questionnaire_uuid,
-            token=token,
-            dsw_api_url=api_url,
-            template_uuid=template_uuid,
-            template_title=template['title'],
-            template_data=template['content'],
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            pipeline=pipeline,
-            llm_override=llm_override,
-        )
-
-        _set_pipeline_status(
-            run_id,
-            _build_pipeline_status(
-                run_id=run_id,
-                status='succeeded',
-                questionnaire_uuid=questionnaire_uuid,
-                knowledge_model_uuid=knowledge_model_uuid,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                result_format='markdown',
-                result_markdown=result,
-            ),
-        )
-    except (KeyError, RuntimeError, TypeError, ValueError) as error:
-        _set_pipeline_status(
-            run_id,
-            _build_pipeline_status(
-                run_id=run_id,
-                status='failed',
-                questionnaire_uuid=questionnaire_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                error=str(error),
-            ),
-        )
 
 
 @router.get('/health')
@@ -204,9 +82,9 @@ def start_pipeline(
         raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
 
     run_id = str(uuid4())
-    _set_pipeline_status(
+    pipeline.set_pipeline_status(
         run_id,
-        _build_pipeline_status(
+        pipeline.build_pipeline_status(
             run_id=run_id,
             status='running',
             questionnaire_uuid=payload.questionnaire_uuid,
@@ -217,7 +95,7 @@ def start_pipeline(
         ),
     )
     background_tasks.add_task(
-        _run_pipeline_job,
+        pipeline.run_pipeline_job,
         run_id,
         payload.questionnaire_uuid,
         payload.template_uuid,
@@ -230,6 +108,7 @@ def start_pipeline(
             model=payload.llm_model,
             api_key=payload.llm_api_key,
             api_url=payload.llm_api_url,
+            parallel_workers=payload.llm_max_workers,
         ),
     )
     return _model_from_fields(
@@ -246,7 +125,7 @@ def start_pipeline(
 
 @router.get('/pipelines/status/{run_id}')
 def get_pipeline_status(run_id: str) -> PipelineStatusResponse:
-    status = _get_pipeline_status(run_id)
+    status = pipeline.get_pipeline_status(run_id)
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
     return status
@@ -257,7 +136,7 @@ def save_pipeline_result(
     run_id: str,
     payload: PipelineSaveRequest,
 ) -> PipelineStatusResponse:
-    status = _get_pipeline_status(run_id)
+    status = pipeline.get_pipeline_status(run_id)
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
 
@@ -275,7 +154,7 @@ def save_pipeline_result(
         markdown=payload.result_markdown,
     )
 
-    updated_status = _build_pipeline_status(
+    updated_status = pipeline.build_pipeline_status(
         run_id=status.run_id,
         status=status.status,
         questionnaire_uuid=status.questionnaire_uuid,
@@ -288,5 +167,5 @@ def save_pipeline_result(
         result_format='markdown',
         result_markdown=payload.result_markdown,
     )
-    _set_pipeline_status(run_id, updated_status)
+    pipeline.set_pipeline_status(run_id, updated_status)
     return updated_status

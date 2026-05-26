@@ -2,7 +2,13 @@ import logging
 import threading
 from datetime import UTC, datetime
 
-from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
+from ai_document_plugin_service.ai.common.config import (
+    LLMConfigOverride,
+    apply_llm_override,
+    load_config,
+)
+from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.types import PipelineStatusResponse, _model_from_fields
 from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
@@ -98,7 +104,10 @@ def run_pipeline_job(
     llm_override: LLMConfigOverride | None,
 ) -> None:
     config = load_config()
+    resolved_config = apply_llm_override(config, llm_override)
     database = PostgresDB(config.database)
+    saver = DBSaver(database)
+    generation_llm = OpenAIGenerationLLM(config=resolved_config)
     template = database.get_template(template_uuid)
     if template is None:
         set_pipeline_status(
@@ -128,7 +137,7 @@ def run_pipeline_job(
         )
 
     try:
-        pipeline = build_pipeline()
+        pipeline = build_pipeline(database=database, saver=saver, generation_llm=generation_llm)
         knowledge_model_uuid, result = run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             token=token,
@@ -140,6 +149,7 @@ def run_pipeline_job(
             tenant_uuid=tenant_uuid,
             pipeline=pipeline,
             llm_override=llm_override,
+            database=database,
             on_progress=on_progress,
         )
 

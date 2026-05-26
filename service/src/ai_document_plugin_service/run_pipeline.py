@@ -123,6 +123,8 @@ def run_pipeline(
     template_data: Mapping[str, object],
     user_uuid: str,
     tenant_uuid: str,
+    pipeline: Pipeline,
+    database: Database,
     llm_override: LLMConfigOverride | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
@@ -138,11 +140,6 @@ def run_pipeline(
     knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
-    database = PostgresDB(config.database)
-    saver = DBSaver(database)
-    generation_llm = OpenAIGenerationLLM(config=config)
-    pipeline = build_pipeline(database, saver, generation_llm)
-    # OTHER INPUTS
 
     if on_progress is not None:
         on_progress('Preparing document template')
@@ -171,7 +168,6 @@ def run_pipeline(
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
-                'workers': config.parallel_workers,
                 'config': config,
                 'on_progress': on_progress,
             },

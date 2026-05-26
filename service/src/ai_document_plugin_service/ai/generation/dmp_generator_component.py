@@ -51,6 +51,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         config: Config,
+        llm: GenerationLLM | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
@@ -66,8 +67,7 @@ class DmpGeneratorComponent:
 
         stats = AssignmentStats()
 
-        if self.llm is None:
-            llm = OpenAIGenerationLLM(config)
+        active_llm = llm or self.llm or OpenAIGenerationLLM(config)
 
         worker_count = max(1, config.parallel_workers)
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -77,7 +77,7 @@ class DmpGeneratorComponent:
                     depth=0,
                     replies=replies,
                     km=km,
-                    llm=llm,
+                    llm=active_llm,
                     stats=stats,
                     executor=executor,
                 )

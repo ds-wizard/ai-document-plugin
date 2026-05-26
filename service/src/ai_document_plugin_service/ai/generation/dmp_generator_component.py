@@ -67,6 +67,9 @@ class DmpGeneratorComponent:
         if llm is None:
             llm = OpenAIGenerationLLM(config)
 
+        if llm is None:
+            llm = OpenAIGenerationLLM(config)
+
         worker_count = max(1, config.parallel_workers)
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             scheduled_sections = [

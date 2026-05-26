@@ -3,6 +3,7 @@ from collections.abc import Iterator
 
 from haystack import component
 
+from ai_document_plugin_service.ai.generation.parse_answers import parse_integration_reply_value
 from ai_document_plugin_service.ai.knowledgemodel.types import (
     Chapter,
     Choice,
@@ -181,7 +182,8 @@ class ParserComponent:
         path: str,
     ) -> str:
         """Get the reply for the question."""
-        return replies.get(path, {}).get('value', {}).get('value', {}).get('value', '')
+        answer = replies.get(path, {}).get('value', {})
+        return parse_integration_reply_value(answer)
 
     def parse_list_question(
         self,
@@ -361,7 +363,8 @@ class ParserComponent:
                 continue
 
             if question_type == 'IntegrationQuestion':
-                value = reply_payload.get('value', {}).get('value', {}).get('value', '')
+                answer = reply_payload.get('value', {})
+                value = parse_integration_reply_value(answer)
                 if value:
                     return value
 

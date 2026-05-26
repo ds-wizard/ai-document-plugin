@@ -14,6 +14,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
 def _component() -> DmpGeneratorComponent:
@@ -431,6 +432,186 @@ def test_parse_answer_item_select_reply_returns_selected_item_value() -> None:
     )
 
     assert parsed == 'English'
+
+
+def test_parse_answer_integration_reply_returns_first_non_data_url_from_raw() -> None:
+    km = {
+        'entities': {
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+            'questions': {},
+        },
+    }
+    answer = {
+        'type': 'IntegrationReply',
+        'value': {
+            'type': 'IntegrationType',
+            'value': '![Logo](data:image/svg+xml;base64,abc) [**Comma-separated Values**](https://fairsharing.org/1398)',
+            'raw': {
+                'abbreviation': 'CSV',
+                'description': (
+                    'A comma-separated values (CSV) file is a delimited text file that uses a '
+                    'comma to separate values. Each line of the file is a data record. Each '
+                    'record consists of one or more fields, separated by commas. The use of the '
+                    'comma as a field separator is the source of the name for this file format. '
+                    'A CSV file typically stores tabular data (numbers and text) in plain text, '
+                    'in which case each line will have the same number of fields.'
+                ),
+                'homepage': 'https://tools.ietf.org/html/rfc4180',
+                'doi': '10.25504/FAIRsharing.1943d4',
+                'name': 'Comma-separated Values',
+            },
+        },
+    }
+
+    parsed = parse_answer(answer, km)
+
+    assert parsed == (
+        'Comma-separated Values (CSV) A comma-separated values (CSV) file is a delimited text '
+        'file that uses a comma to separate values. Each line of the file is a data record. '
+        'Each record consists of one or more fields, separated by commas. The use of the comma '
+        'as a field separator is the source of the name for this file format. A CSV file '
+        'typically stores tabular data (numbers and text) in plain text, in which case each '
+        'line will have the same number of fields. https://tools.ietf.org/html/rfc4180, DOI: '
+        '10.25504/FAIRsharing.1943d4'
+    )
+
+
+def test_parse_answer_integration_reply_ignores_data_image_and_handles_nested_markdown_urls() -> None:
+    km = {
+        'entities': {
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+            'questions': {},
+        },
+    }
+    answer = {
+        'type': 'IntegrationReply',
+        'value': {
+            'type': 'IntegrationType',
+            'value': '![Logo](data:image/svg+xml;base64,abc123) [**Comma-separated Values**](https://fairsharing.org/1398) ([https://tools.ietf.org/html/rfc4180](https://tools.ietf.org/html/rfc4180), [DOI: 10.25504/FAIRsharing.1943d4](https://doi.org/10.25504/FAIRsharing.1943d4))',
+        },
+    }
+
+    parsed = parse_answer(answer, km)
+
+    assert parsed == 'https://fairsharing.org/1398'
+
+
+def test_parse_answer_integration_reply_falls_back_to_legacy_top_level_raw() -> None:
+    km = {
+        'entities': {
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+            'questions': {},
+        },
+    }
+    answer = {
+        'type': 'IntegrationReply',
+        'value': {
+            'type': 'IntegrationType',
+            'value': 'ignored-value',
+        },
+        'raw': '![Logo](data:image/svg+xml;base64,abc) [CSV](https://fairsharing.org/1398)',
+    }
+
+    parsed = parse_answer(answer, km)
+
+    assert parsed == 'https://fairsharing.org/1398'
+
+
+def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> None:
+    km = {
+        'entities': {
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+            'questions': {},
+        },
+    }
+    answer = {
+        'type': 'IntegrationReply',
+        'value': {
+            'type': 'IntegrationType',
+            'value': 'ignored-value',
+            'raw': {
+                'name': 'Zenodo',
+                'homepage': None,
+                'url': None,
+                'doi': None,
+                'description': None,
+            },
+        },
+    }
+
+    parsed = parse_answer(answer, km)
+
+    assert parsed == 'Zenodo'
+
+
+def test_parser_component_integration_reply_uses_nested_raw_and_extracts_url() -> None:
+    replies = {
+        'chapter.integrationQ': {
+            'value': {
+                'type': 'IntegrationReply',
+                'value': {
+                    'type': 'IntegrationType',
+                    'value': 'ignored-value',
+                    'raw': {
+                        'homepage': 'https://tools.ietf.org/html/rfc4180',
+                        'doi': '10.25504/FAIRsharing.1943d4',
+                    },
+                },
+            },
+        },
+    }
+
+    parsed = ParserComponent.get_integration_reply(replies, _question=None, path='chapter.integrationQ')
+
+    assert parsed == (
+        'https://tools.ietf.org/html/rfc4180, DOI: 10.25504/FAIRsharing.1943d4'
+    )
+
+
+def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
+    parser = ParserComponent()
+    parser.km = {
+        'entities': {
+            'questions': {
+                'integrationQ': {'questionType': 'IntegrationQuestion'},
+            },
+        },
+    }
+    replies = {
+        'chapter.selectQ': {
+            'value': {
+                'type': 'ItemSelectReply',
+                'value': 'selected-item',
+            },
+        },
+        'chapter.listQ.selected-item.reply.integrationQ': {
+            'value': {
+                'type': 'IntegrationReply',
+                'value': {
+                    'type': 'IntegrationType',
+                    'value': 'ignored-value',
+                    'raw': {
+                        'homepage': 'https://tools.ietf.org/html/rfc4180',
+                        'doi': '10.25504/FAIRsharing.1943d4',
+                    },
+                },
+            },
+        },
+    }
+
+    parsed = parser.get_item_select_question_reply(replies, _question=None, path='chapter.selectQ')
+
+    assert parsed == (
+        'https://tools.ietf.org/html/rfc4180, DOI: 10.25504/FAIRsharing.1943d4'
+    )
 
 
 def test_run_renders_parent_and_leaf_sections() -> None:

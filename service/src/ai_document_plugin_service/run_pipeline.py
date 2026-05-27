@@ -22,6 +22,7 @@ from ai_document_plugin_service.ai.common.config import (
     load_config,
 )
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
+from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent

@@ -135,14 +135,13 @@ class ParserComponent:
             parent_answer=parent_answer,
         )
 
-        value_question.reply = self.get_value_reply(replies, value_question, path)
+        value_question.reply = self.get_value_reply(replies, path)
 
         return value_question
 
     @staticmethod
     def get_value_reply(
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -169,7 +168,6 @@ class ParserComponent:
 
         integration_question.reply = self.get_integration_reply(
             replies,
-            integration_question,
             path,
         )
 
@@ -178,7 +176,6 @@ class ParserComponent:
     @staticmethod
     def get_integration_reply(
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -253,7 +250,6 @@ class ParserComponent:
 
         options_question.reply = self.get_option_reply(
             replies,
-            options_question,
             path,
         )
 
@@ -262,7 +258,6 @@ class ParserComponent:
     def get_option_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -290,7 +285,7 @@ class ParserComponent:
         )
 
         multichoice_question.reply = '\n'.join(
-            self.get_multichoice_reply(replies, multichoice_question, path),
+            self.get_multichoice_reply(replies, path),
         )
 
         return multichoice_question
@@ -298,7 +293,6 @@ class ParserComponent:
     def get_multichoice_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> list[str]:
         """Get the reply for the question."""
@@ -327,14 +321,13 @@ class ParserComponent:
             parent_answer=parent_answer,
         )
 
-        item_select_question.reply = self.get_item_select_question_reply(replies, item_select_question, path)
+        item_select_question.reply = self.get_item_select_question_reply(replies, path)
 
         return item_select_question
 
     def get_item_select_question_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""

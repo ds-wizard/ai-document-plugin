@@ -14,6 +14,7 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.ai.knowledgemodel import ValueQuestion
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
@@ -72,7 +73,6 @@ def _km_fixture() -> dict:
             'choices': {},
         },
     }
-
 
 def _reachable_km_fixture() -> dict:
     return {
@@ -569,7 +569,10 @@ def test_parser_component_integration_reply_uses_nested_raw_and_extracts_url() -
         },
     }
 
-    parsed = ParserComponent.get_integration_reply(replies, _question=None, path='chapter.integrationQ')
+    parsed = ParserComponent.get_integration_reply(
+        replies,
+        path='chapter.integrationQ',
+    )
 
     assert parsed == (
         'https://tools.ietf.org/html/rfc4180, DOI: 10.25504/FAIRsharing.1943d4'
@@ -607,7 +610,10 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
         },
     }
 
-    parsed = parser.get_item_select_question_reply(replies, _question=None, path='chapter.selectQ')
+    parsed = parser.get_item_select_question_reply(
+        replies,
+        path='chapter.selectQ',
+    )
 
     assert parsed == (
         'https://tools.ietf.org/html/rfc4180, DOI: 10.25504/FAIRsharing.1943d4'

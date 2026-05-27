@@ -41,11 +41,11 @@ const isAuthorizationErrorPayload = (data: unknown): boolean => {
     if (isPipelineStatusResponse(data) && typeof data.error === 'string') {
         const normalizedError = data.error.toLowerCase()
         return (
-            normalizedError.includes('authentication error')
-            || normalizedError.includes('invalid proxy server token')
-            || normalizedError.includes('token_not_found_in_db')
-            || normalizedError.includes('error code: 401')
-            || normalizedError.startsWith('401 ')
+            normalizedError.includes('authentication error') ||
+            normalizedError.includes('invalid proxy server token') ||
+            normalizedError.includes('token_not_found_in_db') ||
+            normalizedError.includes('error code: 401') ||
+            normalizedError.startsWith('401 ')
         )
     }
 

@@ -38,6 +38,7 @@ def _failed_pipeline_status_code(error: str | None) -> int:
 
     return 500
 
+
 @router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}

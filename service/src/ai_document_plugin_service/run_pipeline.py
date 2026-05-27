@@ -22,7 +22,6 @@ from ai_document_plugin_service.ai.common.config import (
     load_config,
 )
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
-from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
@@ -31,7 +30,6 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
     DBSaver,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
@@ -39,6 +37,9 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from haystack.components.routers.conditional_router import Route
+
+    from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+    from ai_document_plugin_service.ai.persistence.database import Database
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25

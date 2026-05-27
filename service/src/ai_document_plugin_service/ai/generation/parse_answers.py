@@ -50,7 +50,7 @@ def _normalize_whitespace(value: str) -> str:
     return ' '.join(value.split())
 
 
-def _as_non_empty_string(value: Any) -> str | None:
+def _as_non_empty_string(value: str) -> str | None:
     if not isinstance(value, str):
         return None
     stripped = value.strip()
@@ -206,6 +206,7 @@ def _parse_item_select_reply(
 
     return ''
 
+
 def parse_integration_reply(answer: dict[str, Any]) -> str | None:
     val = answer['value']
     answer_type = answer['type']
@@ -214,9 +215,8 @@ def parse_integration_reply(answer: dict[str, Any]) -> str | None:
         return val['value']
     if val['type'] == 'IntegrationType':
         return parse_integration_reply_value(answer)
-    else:
-        msg = 'Unknown answer type'
-        raise RuntimeError(msg, answer_type)
+    msg = 'Unknown answer type'
+    raise RuntimeError(msg, answer_type)
 
 
 def parse_answer(  # noqa: PLR0911

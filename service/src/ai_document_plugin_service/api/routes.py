@@ -18,6 +18,26 @@ from ai_document_plugin_service.service import pipeline_service as pipeline
 
 router = fastapi.APIRouter()
 
+
+def _failed_pipeline_status_code(error: str | None) -> int:
+    if error is None:
+        return 500
+
+    normalized_error = error.casefold()
+    auth_error_markers = (
+        '401 ',
+        'error code: 401',
+        "'code': '401'",
+        '"code": "401"',
+        'authentication error',
+        'invalid proxy server token',
+        'token_not_found_in_db',
+    )
+    if any(marker in normalized_error for marker in auth_error_markers):
+        return 401
+
+    return 500
+
 @router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
@@ -131,7 +151,7 @@ def get_pipeline_status(
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
     if status.status == 'failed':
-        response.status_code = 500
+        response.status_code = _failed_pipeline_status_code(status.error)
     return status
 
 

@@ -1,7 +1,8 @@
 import { pluginMetadata } from '@/metadata'
 import type { PipelineRunResponse, PipelineStatusResponse, TemplateOption } from '@/types'
 
-const GENERIC_ACTION_FAILURE_MESSAGE = 'The action could not be completed. Please try again later.'
+const AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
+const INTERNAL_SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
@@ -27,6 +28,33 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
     } catch {
         throw new Error(`Endpoint ${url} returned invalid JSON.`)
     }
+}
+
+const getApiFailureMessage = (statusCode: number): string =>
+    statusCode === 401 ? AUTHORIZATION_ERROR_MESSAGE : INTERNAL_SERVER_ERROR_MESSAGE
+
+const isAuthorizationErrorPayload = (data: unknown): boolean => {
+    if (!data || typeof data !== 'object') {
+        return false
+    }
+
+    if (isPipelineStatusResponse(data) && typeof data.error === 'string') {
+        const normalizedError = data.error.toLowerCase()
+        return (
+            normalizedError.includes('authentication error')
+            || normalizedError.includes('invalid proxy server token')
+            || normalizedError.includes('token_not_found_in_db')
+            || normalizedError.includes('error code: 401')
+            || normalizedError.startsWith('401 ')
+        )
+    }
+
+    if ('detail' in data && typeof data.detail === 'string') {
+        const normalizedDetail = data.detail.toLowerCase()
+        return normalizedDetail.includes('401') || normalizedDetail.includes('token')
+    }
+
+    return false
 }
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '')
@@ -84,7 +112,7 @@ export const getTemplates = async (
     const templates = await readApiResponse<TemplateOption[]>(response, url)
 
     if (!response.ok) {
-        throw new Error(`Failed to load the list of templates (${response.status}).`)
+        throw new Error(getApiFailureMessage(response.status))
     }
 
     return { baseUrl, templates }
@@ -99,12 +127,10 @@ export const getPipelineStatus = async (
     const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
-        if (response.status === 400 || response.status === 500) {
-            throw new Error(GENERIC_ACTION_FAILURE_MESSAGE)
+        if (isAuthorizationErrorPayload(data)) {
+            throw new Error(AUTHORIZATION_ERROR_MESSAGE)
         }
-        throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Failed to retrieve pipeline status.',
-        )
+        throw new Error(getApiFailureMessage(response.status))
     }
 
     if (!isPipelineStatusResponse(data)) {
@@ -158,12 +184,7 @@ export const runPipeline = async ({
     const data = await readApiResponse<PipelineRunResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
-        if (response.status === 400 || response.status === 500) {
-            throw new Error(GENERIC_ACTION_FAILURE_MESSAGE)
-        }
-        throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
-        )
+        throw new Error(getApiFailureMessage(response.status))
     }
 
     if (!('runId' in data)) {
@@ -198,7 +219,7 @@ export const createTemplate = async ({
 
     const data = await readApiResponse<TemplateOption | { detail?: string }>(response, url)
     if (!response.ok) {
-        throw new Error('detail' in data && data.detail ? data.detail : 'Failed to save template.')
+        throw new Error(getApiFailureMessage(response.status))
     }
 
     if (!('uuid' in data) || !('title' in data)) {
@@ -227,9 +248,7 @@ export const saveEditedPipelineResult = async (
     const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
-        throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Failed to save the edited version.',
-        )
+        throw new Error(getApiFailureMessage(response.status))
     }
 
     if (!isPipelineStatusResponse(data)) {

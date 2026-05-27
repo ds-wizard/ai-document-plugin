@@ -14,7 +14,6 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
-from ai_document_plugin_service.ai.knowledgemodel import ValueQuestion
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
@@ -434,7 +433,7 @@ def test_parse_answer_item_select_reply_returns_selected_item_value() -> None:
     assert parsed == 'English'
 
 
-def test_parse_answer_integration_reply_returns_first_non_data_url_from_raw() -> None:
+def test_parse_answer_integration_reply_returns_first_raw_and_url() -> None:
     km = {
         'entities': {
             'answers': {},
@@ -468,60 +467,15 @@ def test_parse_answer_integration_reply_returns_first_non_data_url_from_raw() ->
     parsed = parse_answer(answer, km)
 
     assert parsed == (
-        'Comma-separated Values (CSV) A comma-separated values (CSV) file is a delimited text '
-        'file that uses a comma to separate values. Each line of the file is a data record. '
-        'Each record consists of one or more fields, separated by commas. The use of the comma '
-        'as a field separator is the source of the name for this file format. A CSV file '
-        'typically stores tabular data (numbers and text) in plain text, in which case each '
-        'line will have the same number of fields. https://tools.ietf.org/html/rfc4180, DOI: '
-        '10.25504/FAIRsharing.1943d4'
+        '{"abbreviation": "CSV", "description": "A comma-separated values (CSV) file is a '
+        'delimited text file that uses a comma to separate values. Each line of the file is a '
+        'data record. Each record consists of one or more fields, separated by commas. The use '
+        'of the comma as a field separator is the source of the name for this file format. A '
+        'CSV file typically stores tabular data (numbers and text) in plain text, in which case '
+        'each line will have the same number of fields.", "homepage": '
+        '"https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4", "name": '
+        '"Comma-separated Values"} https://fairsharing.org/1398'
     )
-
-
-def test_parse_answer_integration_reply_ignores_data_image_and_handles_nested_markdown_urls() -> None:
-    km = {
-        'entities': {
-            'answers': {},
-            'chapters': {},
-            'choices': {},
-            'questions': {},
-        },
-    }
-    answer = {
-        'type': 'IntegrationReply',
-        'value': {
-            'type': 'IntegrationType',
-            'value': '![Logo](data:image/svg+xml;base64,abc123) [**Comma-separated Values**](https://fairsharing.org/1398) ([https://tools.ietf.org/html/rfc4180](https://tools.ietf.org/html/rfc4180), [DOI: 10.25504/FAIRsharing.1943d4](https://doi.org/10.25504/FAIRsharing.1943d4))',
-        },
-    }
-
-    parsed = parse_answer(answer, km)
-
-    assert parsed == 'https://fairsharing.org/1398'
-
-
-def test_parse_answer_integration_reply_falls_back_to_legacy_top_level_raw() -> None:
-    km = {
-        'entities': {
-            'answers': {},
-            'chapters': {},
-            'choices': {},
-            'questions': {},
-        },
-    }
-    answer = {
-        'type': 'IntegrationReply',
-        'value': {
-            'type': 'IntegrationType',
-            'value': 'ignored-value',
-        },
-        'raw': '![Logo](data:image/svg+xml;base64,abc) [CSV](https://fairsharing.org/1398)',
-    }
-
-    parsed = parse_answer(answer, km)
-
-    assert parsed == 'https://fairsharing.org/1398'
-
 
 def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> None:
     km = {
@@ -536,7 +490,7 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
         'type': 'IntegrationReply',
         'value': {
             'type': 'IntegrationType',
-            'value': 'ignored-value',
+            'value': 'value',
             'raw': {
                 'name': 'Zenodo',
                 'homepage': None,
@@ -549,35 +503,9 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
 
     parsed = parse_answer(answer, km)
 
-    assert parsed == 'Zenodo'
-
-
-def test_parser_component_integration_reply_uses_nested_raw_and_extracts_url() -> None:
-    replies = {
-        'chapter.integrationQ': {
-            'value': {
-                'type': 'IntegrationReply',
-                'value': {
-                    'type': 'IntegrationType',
-                    'value': 'ignored-value',
-                    'raw': {
-                        'homepage': 'https://tools.ietf.org/html/rfc4180',
-                        'doi': '10.25504/FAIRsharing.1943d4',
-                    },
-                },
-            },
-        },
-    }
-
-    parsed = ParserComponent.get_integration_reply(
-        replies,
-        path='chapter.integrationQ',
-    )
-
     assert parsed == (
-        'https://tools.ietf.org/html/rfc4180, DOI: 10.25504/FAIRsharing.1943d4'
+        '{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value'
     )
-
 
 def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
     parser = ParserComponent()
@@ -600,7 +528,7 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
                 'type': 'IntegrationReply',
                 'value': {
                     'type': 'IntegrationType',
-                    'value': 'ignored-value',
+                    'value': 'value',
                     'raw': {
                         'homepage': 'https://tools.ietf.org/html/rfc4180',
                         'doi': '10.25504/FAIRsharing.1943d4',
@@ -616,7 +544,7 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
     )
 
     assert parsed == (
-        'https://tools.ietf.org/html/rfc4180, DOI: 10.25504/FAIRsharing.1943d4'
+        '{"homepage": "https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4"} value'
     )
 
 

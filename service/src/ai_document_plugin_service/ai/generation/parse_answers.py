@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from typing import Any
@@ -43,14 +44,14 @@ def _extract_first_non_data_url(raw_value: str) -> str | None:
     if plain_url_match is not None:
         return plain_url_match.group(0)
 
-    return None
+    return raw_value
 
 
 def _normalize_whitespace(value: str) -> str:
     return ' '.join(value.split())
 
 
-def _as_non_empty_string(value: str) -> str | None:
+def _as_non_empty_string(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     stripped = value.strip()
@@ -89,78 +90,20 @@ def _extract_url_from_raw_mapping(raw_value: dict[str, Any]) -> str | None:
     return None
 
 
-def _format_raw_mapping(raw_value: dict[str, Any]) -> str | None:
-    name = raw_value.get('name')
-    abbreviation = raw_value.get('abbreviation')
-    description = raw_value.get('description')
-    reference = _extract_url_from_raw_mapping(raw_value)
-
-    parts: list[str] = []
-
-    title = None
-    stripped_name = _as_non_empty_string(name)
-    stripped_abbreviation = _as_non_empty_string(abbreviation)
-    stripped_description = _as_non_empty_string(description)
-    stripped_reference = _as_non_empty_string(reference)
-
-    if stripped_name is not None:
-        title = stripped_name
-    if stripped_abbreviation is not None:
-        abbreviation_text = stripped_abbreviation
-        if title is None:
-            title = abbreviation_text
-        elif abbreviation_text.lower() not in title.lower():
-            title = f'{title} ({abbreviation_text})'
-    if title is not None:
-        parts.append(title)
-
-    if stripped_description is not None:
-        parts.append(_normalize_whitespace(stripped_description))
-
-    if stripped_reference is not None:
-        parts.append(stripped_reference)
-
-    if parts:
-        return ' '.join(parts)
-
-    return None
-
-
 def parse_integration_reply_value(answer: dict[str, Any]) -> str:
     value = answer.get('value', {})
-    nested_raw_value = value.get('raw') if isinstance(value, dict) else None
-    if isinstance(nested_raw_value, dict):
-        formatted_raw_value = _format_raw_mapping(nested_raw_value)
-        if formatted_raw_value is not None:
-            return formatted_raw_value
-    elif isinstance(nested_raw_value, str) and nested_raw_value.strip():
-        extracted_url = _extract_first_non_data_url(nested_raw_value)
-        if extracted_url is not None:
-            return extracted_url
-        return _normalize_whitespace(_strip_markdown_images(nested_raw_value).strip())
 
-    raw_value = answer.get('raw')
-    if isinstance(raw_value, dict):
-        formatted_raw_value = _format_raw_mapping(raw_value)
-        if formatted_raw_value is not None:
-            return formatted_raw_value
-    elif isinstance(raw_value, str) and raw_value.strip():
-        extracted_url = _extract_first_non_data_url(raw_value)
-        if extracted_url is not None:
-            return extracted_url
-        return _normalize_whitespace(_strip_markdown_images(raw_value).strip())
-
-    if isinstance(value, dict) and value.get('type') in {
-        'PlainType',
-        'IntegrationType'
-    }:
+    if value.get('type') == 'PlainType':
+        return value.get('value', '')
+    if value.get('type') == 'IntegrationType':
+        nested_raw_value = value.get('raw')
         nested_value = value.get('value', '')
-        if isinstance(nested_value, str):
-            extracted_url = _extract_first_non_data_url(nested_value)
-            if extracted_url is not None:
-                return extracted_url
-            return _normalize_whitespace(_strip_markdown_images(nested_value).strip())
-        return str(nested_value)
+        extracted_url = _extract_first_non_data_url(nested_value)
+
+        raw_json = json.dumps(nested_raw_value, ensure_ascii=False)
+        if extracted_url is not None:
+            return f'{raw_json} {extracted_url}'
+        return raw_json
 
     msg = 'Unkown integration answer type'
     raise RuntimeError(msg, value.get('type'))

@@ -22,47 +22,84 @@
     font-weight: 600;
 }
 
-.filePicker {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
+.segmentedControl {
+    display: inline-flex;
+    justify-self: start;
+}
+
+.fileDropZone {
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    min-height: 9rem;
+    padding: 1.5rem 1.25rem;
     border-radius: var(--bs-border-radius);
-    border: 1px solid var(--bs-border-color);
+    border: 2px dashed var(--bs-border-color);
     background: var(--ai-doc-color-white);
-    cursor: pointer;
-}
-
-.filePickerButton {
-    padding: 0.45rem 0.75rem;
-    border-radius: var(--bs-border-radius);
-    background: var(--ai-doc-color-slate-200);
     color: var(--ai-doc-color-slate-950);
+    text-align: center;
+    cursor: pointer;
+    transition:
+        border-color 200ms,
+        background-color 200ms,
+        box-shadow 200ms;
+}
+
+.fileDropZone:hover {
+    border-color: var(--ai-doc-color-slate-400);
+    background: var(--ai-doc-color-slate-50);
+}
+
+.fileDropZone:focus-within {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.fileDropZoneDragging {
+    border-color: var(--bs-primary);
+    background: color-mix(in srgb, var(--bs-primary) 8%, var(--ai-doc-color-white));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bs-primary) 20%, transparent);
+}
+
+.fileDropZoneFilled {
+    border-style: solid;
+    border-color: var(--ai-doc-color-slate-300);
+}
+
+.fileDropIcon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: var(--ai-doc-color-slate-100);
+    color: var(--ai-doc-color-slate-600);
+    font-size: 1.1rem;
+    transition:
+        background-color 200ms,
+        color 200ms;
+}
+
+.fileDropZone:hover .fileDropIcon,
+.fileDropZoneDragging .fileDropIcon {
+    background: color-mix(in srgb, var(--bs-primary) 12%, var(--ai-doc-color-white));
+    color: var(--bs-primary);
+}
+
+.fileDropTitle {
     font-weight: 600;
-    white-space: nowrap;
-    transition: background-color 200ms;
-}
-
-.filePickerButton:hover {
-    background: var(--ai-doc-color-slate-250);
-}
-
-.filePickerButton:active {
-    background: var(--ai-doc-color-slate-300);
-}
-
-.fileName {
+    line-height: 1.4;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.fileNameEmpty {
+.fileDropHint {
     color: var(--ai-doc-color-slate-500);
-}
-
-.fileNameFilled {
-    color: var(--ai-doc-color-slate-950);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    font-weight: 400;
 }
 
 .hiddenInput {

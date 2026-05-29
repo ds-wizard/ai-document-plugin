@@ -1,5 +1,6 @@
 import { ChangeEvent } from 'react'
 
+import { Alert } from '@/components/Alert'
 import styles from '@/components/CustomTemplateSection.module.css'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 
@@ -84,7 +85,7 @@ export function CustomTemplateSection({
                 {isCreatingTemplate ? 'Saving template...' : 'Save template'}
             </button>
 
-            {localTemplateError ? <div className={styles.alert}>{localTemplateError}</div> : null}
+            <Alert variant="error">{localTemplateError}</Alert>
         </section>
     )
 }

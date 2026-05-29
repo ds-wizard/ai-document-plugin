@@ -1,14 +1,14 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { runPipeline } from '@/client'
+import { Alert } from '@/components/Alert'
 import { DmpTemplateSection } from '@/components/DmpTemplateSection'
 import { ExportView } from '@/components/ExportView'
 import styles from '@/components/ProjectTab.module.css'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
-import type { PipelineStatusResponse } from '@/types'
 import { getLastExportRunId, setLastExportRunId } from '@/utils/last-export-cookie'
 
 type ProjectTabView = 'main' | 'export'
@@ -20,34 +20,15 @@ export default function ProjectTab({
 }: ProjectTabComponentProps<SettingsData, UserSettingsData>) {
     const [view, setView] = useState<ProjectTabView>('main')
     const [exportRunId, setExportRunId] = useState<string | null>(null)
-    const [lastExportRunId, setLastExportRunIdState] = useState<string | null>(null)
     const [mainErrorMessage, setMainErrorMessage] = useState<string | null>(null)
 
     const projectUuid = project?.uuid
-
-    useEffect(() => {
-        if (!projectUuid) {
-            setLastExportRunIdState(null)
-            return
-        }
-
-        setLastExportRunIdState(getLastExportRunId(projectUuid))
-    }, [projectUuid])
+    const lastExportRunId = projectUuid ? getLastExportRunId(projectUuid) : null
 
     const openExportView = useCallback((runId: string) => {
         setExportRunId(runId)
         setView('export')
     }, [])
-
-    const handlePipelineSucceeded = useCallback(
-        (data: PipelineStatusResponse) => {
-            if (projectUuid) {
-                setLastExportRunId(projectUuid, data.runId)
-                setLastExportRunIdState(data.runId)
-            }
-        },
-        [projectUuid],
-    )
 
     const handleRunPipeline = useCallback(
         async (templateUuid: string) => {
@@ -75,11 +56,7 @@ export default function ProjectTab({
                     llmMaxWorkers: settings.maxWorkers ?? null,
                 })
 
-                if (projectUuid) {
-                    setLastExportRunId(projectUuid, data.runId)
-                    setLastExportRunIdState(data.runId)
-                }
-
+                setLastExportRunId(project.uuid, data.runId)
                 openExportView(data.runId)
             } catch (error) {
                 const message =
@@ -90,7 +67,6 @@ export default function ProjectTab({
         [
             openExportView,
             project,
-            projectUuid,
             settings.apiKey,
             settings.apiUrl,
             settings.maxWorkers,
@@ -120,9 +96,9 @@ export default function ProjectTab({
                         </div>
 
                         {!project ? (
-                            <div className={`${styles.alert} ${styles.warningAlert}`}>
+                            <Alert variant="warning">
                                 The project is not loaded; the pipeline cannot be started yet.
-                            </div>
+                            </Alert>
                         ) : null}
 
                         <DmpTemplateSection
@@ -132,18 +108,14 @@ export default function ProjectTab({
                             onShowLastExport={handleShowLastExport}
                         />
 
-                        {mainErrorMessage ? (
-                            <div className={`${styles.alert} ${styles.errorAlert}`}>
-                                {mainErrorMessage}
-                            </div>
-                        ) : null}
+                        <Alert variant="error">{mainErrorMessage}</Alert>
                     </>
-                ) : exportRunId ? (
+                ) : exportRunId && projectUuid ? (
                     <ExportView
                         key={exportRunId}
                         runId={exportRunId}
+                        projectUuid={projectUuid}
                         onBack={() => setView('main')}
-                        onPipelineSucceeded={handlePipelineSucceeded}
                     />
                 ) : null}
             </div>

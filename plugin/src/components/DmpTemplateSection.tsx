@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createTemplate, getTemplates } from '@/client'
+import { Alert } from '@/components/Alert'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import styles from '@/components/DmpTemplateSection.module.css'
 import type { TemplateOption } from '@/types'
@@ -314,13 +315,8 @@ export function DmpTemplateSection({
                 ) : null}
             </div>
 
-            {errorMessage ? (
-                <div className={`${styles.alert} ${styles.errorAlert}`}>{errorMessage}</div>
-            ) : null}
-
-            {successMessage ? (
-                <div className={`${styles.alert} ${styles.successAlert}`}>{successMessage}</div>
-            ) : null}
+            <Alert variant="error">{errorMessage}</Alert>
+            <Alert variant="success">{successMessage}</Alert>
         </>
     )
 }

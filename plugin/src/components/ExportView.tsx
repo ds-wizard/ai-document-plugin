@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
 
 import { getPipelineStatus, saveEditedPipelineResult } from '@/client'
+import { Alert } from '@/components/Alert'
 import styles from '@/components/ExportView.module.css'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
-import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
+import type { ResultRenderMode } from '@/types'
+import { setLastExportRunId } from '@/utils/last-export-cookie'
 
 type ExportStatus = 'polling' | 'succeeded' | 'failed'
 
 type ExportViewProps = {
     runId: string
+    projectUuid: string
     onBack: () => void
-    onPipelineSucceeded: (data: PipelineStatusResponse) => void
 }
 
-export function ExportView({ runId, onBack, onPipelineSucceeded }: ExportViewProps) {
+export function ExportView({ runId, projectUuid, onBack }: ExportViewProps) {
     const [status, setStatus] = useState<ExportStatus>('polling')
     const [progressMessage, setProgressMessage] = useState<string | null>(null)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -61,7 +63,7 @@ export function ExportView({ runId, onBack, onPipelineSucceeded }: ExportViewPro
                     setProgressMessage(null)
                     setResultMarkdown(data.resultMarkdown)
                     setEditableResultMarkdown(data.resultMarkdown || '')
-                    onPipelineSucceeded(data)
+                    setLastExportRunId(projectUuid, data.runId)
                     setSuccessMessage(
                         `Pipeline has been completed for the template "${data.templateTitle}".`,
                     )
@@ -105,7 +107,7 @@ export function ExportView({ runId, onBack, onPipelineSucceeded }: ExportViewPro
             isMounted = false
             stopPolling()
         }
-    }, [onPipelineSucceeded, runId])
+    }, [projectUuid, runId])
 
     const handleCopyMarkdown = async () => {
         if (!displayedResultMarkdown) {
@@ -175,16 +177,11 @@ export function ExportView({ runId, onBack, onPipelineSucceeded }: ExportViewPro
             </header>
 
             {isPolling ? (
-                <div className={styles.loading}>{progressMessage || 'Loading export...'}</div>
+                <Alert variant="success">{progressMessage || 'Loading export...'}</Alert>
             ) : null}
 
-            {errorMessage ? (
-                <div className={`${styles.alert} ${styles.errorAlert}`}>{errorMessage}</div>
-            ) : null}
-
-            {successMessage ? (
-                <div className={`${styles.alert} ${styles.successAlert}`}>{successMessage}</div>
-            ) : null}
+            <Alert variant="error">{errorMessage}</Alert>
+            {!isPolling ? <Alert variant="success">{successMessage}</Alert> : null}
 
             {!isPolling ? (
                 <PipelineResultPanel

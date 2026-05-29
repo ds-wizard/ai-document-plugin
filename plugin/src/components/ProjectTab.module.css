@@ -124,29 +124,3 @@
     font-size: 0.95rem;
     line-height: 1.5;
 }
-
-.alert {
-    padding: 0.75rem 1rem;
-    border-radius: var(--bs-border-radius);
-    line-height: 1.55;
-}
-
-.warningAlert {
-    background: var(--ai-doc-color-orange-50);
-    color: var(--ai-doc-color-orange-700);
-}
-
-.errorAlert {
-    background: var(--ai-doc-color-red-50);
-    color: var(--ai-doc-color-red-700);
-}
-
-.infoAlert {
-    background: var(--ai-doc-color-blue-50);
-    color: var(--ai-doc-color-blue-700);
-}
-
-.successAlert {
-    background: var(--ai-doc-color-emerald-50);
-    color: var(--ai-doc-color-emerald-700);
-}

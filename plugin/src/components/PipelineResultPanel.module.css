@@ -50,7 +50,7 @@
     min-width: 0;
     min-height: 14rem;
     padding: 1.25rem;
-    border-radius: 1rem;
+    border-radius: var(--bs-border-radius);
     border: 1px solid var(--ai-doc-color-slate-300);
     background: var(--ai-doc-color-slate-50);
     display: grid;
@@ -70,7 +70,7 @@
     min-height: 20rem;
     resize: vertical;
     border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: 0.75rem;
+    border-radius: var(--bs-border-radius);
     padding: 1rem;
     background: var(--ai-doc-color-white);
     line-height: 1.6;

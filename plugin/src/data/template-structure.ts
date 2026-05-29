@@ -57,7 +57,9 @@ export function parseTemplateJson(json: string): TemplateContent | null {
 
         return {
             sections: parsed.sections
-                .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+                .filter(
+                    (item): item is Record<string, unknown> => !!item && typeof item === 'object',
+                )
                 .map(parseSectionNode),
         }
     } catch {

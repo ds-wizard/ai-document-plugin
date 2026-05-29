@@ -340,10 +340,9 @@ export default function ProjectTab({
         <div className="Projects__Detail__Content Projects__Detail__Content--Metrics">
             <div className={`questionnaire__summary-report container ${styles.root}`}>
                 <div>
-                    <h2 className={styles.title}>AI Document Generation</h2>
+                    <h2 className={styles.title}>AI DMP Export</h2>
                     <p className={styles.lead}>
-                        Select a DMP template from the database and run the pipeline on the current
-                        project.
+                        Convert your questionnaire to DMP. Select a DMP template to continue.
                     </p>
                 </div>
 
@@ -456,12 +455,6 @@ export default function ProjectTab({
                 >
                     {isRunningPipeline ? 'Running pipeline...' : 'Run pipeline'}
                 </button>
-
-                {project ? (
-                    <div className={styles.projectName}>
-                        Project: <strong>{project.name}</strong>
-                    </div>
-                ) : null}
 
                 {errorMessage ? (
                     <div className={`${styles.alert} ${styles.errorAlert}`}>{errorMessage}</div>

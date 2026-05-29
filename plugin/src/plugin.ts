@@ -23,7 +23,7 @@ export default function (_settingsInput: unknown, _userSettingsInput: unknown): 
     )
         .addProjectTab(
             'fas fa-robot', // font-awesome tab icon
-            'AI Document', // tab name
+            'AI DMP Export', // tab name
             'ai-document-url', // tab URL
             'x-ai-document-project-tab', // web component name
             ProjectTab, // React component with plugin functionality

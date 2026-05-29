@@ -1,4 +1,10 @@
-import type { PipelineRunResponse, PipelineStatusResponse, TemplateOption } from '@/types'
+import { pluginMetadata } from '@/metadata'
+import type {
+    PipelineRunResponse,
+    PipelineStatusResponse,
+    TemplateDetail,
+    TemplateOption,
+} from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
@@ -38,6 +44,26 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     }
 
     return templates
+}
+
+export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
+    const response = await fetch(url)
+    const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail
+                ? data.detail
+                : `Failed to load template (${response.status}).`,
+        )
+    }
+
+    if (!('uuid' in data) || !('title' in data) || !('content' in data)) {
+        throw new Error('The backend did not return a valid template.')
+    }
+
+    return data
 }
 
 export const getPipelineStatus = async (runId: string): Promise<PipelineStatusResponse> => {

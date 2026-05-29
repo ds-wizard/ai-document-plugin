@@ -32,6 +32,12 @@ class TemplateListItem(ApiModel):
     title: str
 
 
+class TemplateDetail(ApiModel):
+    uuid: str
+    title: str
+    content: dict
+
+
 class TemplateCreateRequest(ApiModel):
     title: str
     content: dict

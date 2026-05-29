@@ -49,10 +49,10 @@ export default function ProjectTab({
                 return 'Loading templates...'
             }
 
-            return templates.length === 0 ? 'Select a template option' : 'Select a template'
+            return 'Select a template'
         }
 
-        if (selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION) {
+        if (isCreatingCustomTemplate) {
             return 'Custom template...'
         }
 
@@ -63,7 +63,7 @@ export default function ProjectTab({
             return 'Select a template'
         }
 
-        return `${selectedTemplate.title}${selectedTemplate.source === 'local' ? ' (local)' : ''}`
+        return `${selectedTemplate.title}`
     }, [isLoadingTemplates, selectedTemplateUuid, templates])
 
     useEffect(() => {
@@ -80,9 +80,7 @@ export default function ProjectTab({
                 }
 
                 setApiBaseUrl(baseUrl)
-                setTemplates(
-                    templates.map((template) => ({ ...template, source: 'database' as const })),
-                )
+                setTemplates(templates)
                 setSelectedTemplateUuid((currentValue) => currentValue || '')
             } catch (error) {
                 if (!isMounted) {
@@ -245,7 +243,6 @@ export default function ProjectTab({
             const savedTemplate: TemplateOption = {
                 uuid: data.uuid,
                 title: data.title,
-                source: 'database',
             }
 
             setTemplates((currentTemplates) => {
@@ -368,7 +365,6 @@ export default function ProjectTab({
                 ) : null}
 
                 <label className={styles.label}>
-                    <h4>DMP template</h4>
                     <div className={styles.dropdown} ref={templateDropdownRef}>
                         <button
                             type="button"
@@ -403,7 +399,6 @@ export default function ProjectTab({
                                         }}
                                     >
                                         {template.title}
-                                        {template.source === 'local' ? ' (local)' : ''}
                                     </button>
                                 ))}
 

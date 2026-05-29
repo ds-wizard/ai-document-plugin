@@ -1,3 +1,7 @@
+export type ApiErrorDetail = {
+    detail?: string
+}
+
 export type TemplateOption = {
     uuid: string
     title: string
@@ -31,7 +35,7 @@ export type PipelineStatusResponse = {
     runId: string
     status: 'running' | 'succeeded' | 'failed'
     questionnaireUuid: string
-    knowledgeModelUuid: string
+    knowledgeModelUuid: string | null
     userUuid: string
     tenantUuid: string
     templateUuid: string

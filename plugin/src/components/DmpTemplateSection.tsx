@@ -5,7 +5,7 @@ import { Alert } from '@/components/Alert'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import styles from '@/components/DmpTemplateSection.module.css'
 import { TemplateTitlePreview } from '@/components/TemplateTitlePreview'
-import type { TemplateDetail, TemplateOption } from '@/types'
+import type { ApiTemplateContent, TemplateDetail, TemplateOption } from '@/types'
 
 const CUSTOM_TEMPLATE_OPTION = '__custom_template__'
 
@@ -215,15 +215,12 @@ export function DmpTemplateSection({
         }
 
         try {
-            const parsed = JSON.parse(trimmedJson) as { sections?: unknown }
-            if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sections)) {
-                throw new Error('Template JSON must contain a top-level "sections" array.')
-            }
+            const content = JSON.parse(trimmedJson) as ApiTemplateContent
 
             setIsCreatingTemplate(true)
             const data = await createTemplate({
                 title: trimmedTitle,
-                content: parsed,
+                content,
             })
 
             const savedTemplate: TemplateOption = {

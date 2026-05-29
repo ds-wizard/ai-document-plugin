@@ -30,7 +30,7 @@ export default function Settings({
                         })
                     }
                     placeholder="gpt-4.1-mini"
-                    className={styles.input}
+                    className="form-control"
                 />
             </label>
 
@@ -46,7 +46,7 @@ export default function Settings({
                         })
                     }
                     placeholder="sk-..."
-                    className={styles.input}
+                    className="form-control"
                 />
             </label>
 
@@ -62,7 +62,7 @@ export default function Settings({
                         })
                     }
                     placeholder="https://api.openai.com/v1"
-                    className={styles.input}
+                    className="form-control"
                 />
             </label>
 
@@ -80,7 +80,7 @@ export default function Settings({
                                 raw === '' ? null : Math.max(1, Number.parseInt(raw, 10) || 1),
                         })
                     }}
-                    className={styles.input}
+                    className="form-control"
                 />
             </label>
         </div>

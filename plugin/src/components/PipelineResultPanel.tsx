@@ -108,7 +108,7 @@ export function PipelineResultPanel({
                     <textarea
                         value={editableResultMarkdown}
                         onChange={(event) => onEditableResultMarkdownChange(event.target.value)}
-                        className={styles.textarea}
+                        className={`form-control ${styles.markdownEditor}`}
                     >
                         {editableResultMarkdown}
                     </textarea>

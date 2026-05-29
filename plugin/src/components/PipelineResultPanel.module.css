@@ -50,8 +50,8 @@
     min-width: 0;
     min-height: 14rem;
     padding: 1.25rem;
-    border-radius: 1rem;
-    border: 1px solid var(--ai-doc-color-slate-300);
+    border-radius: var(--bs-border-radius);
+    border: 1px solid var(--bs-border-color);
     background: var(--ai-doc-color-slate-50);
     display: grid;
     gap: 1rem;
@@ -62,16 +62,11 @@
     line-height: 1.6;
 }
 
-.textarea {
+.markdownEditor {
     margin: 0;
-    color: var(--ai-doc-color-slate-950);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     width: 100%;
     min-height: 20rem;
     resize: vertical;
-    border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: 0.75rem;
-    padding: 1rem;
-    background: var(--ai-doc-color-white);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     line-height: 1.6;
 }

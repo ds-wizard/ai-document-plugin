@@ -1,0 +1,120 @@
+.root {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.hint {
+    margin: 0;
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.emptyState {
+    padding: 1rem;
+    border-radius: var(--bs-border-radius);
+    border: 1px dashed var(--bs-border-color);
+    color: var(--ai-doc-color-slate-500);
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.sectionList,
+.nestedSectionList {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.nestedSectionList {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--bs-border-color);
+}
+
+.sectionCard {
+    display: grid;
+    gap: 0.65rem;
+    padding: 0.85rem;
+    border-radius: var(--bs-border-radius);
+    border: 1px solid var(--bs-border-color);
+    background: var(--ai-doc-color-white);
+}
+
+.sectionCardTinted {
+    background: var(--ai-doc-color-slate-50);
+    border-color: var(--bs-border-color);
+}
+
+.sectionCardCollapsed {
+    gap: 0.5rem;
+}
+
+.sectionSummary {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.sectionTitle {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ai-doc-color-slate-950);
+    line-height: 1.35;
+}
+
+.sectionDescription {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--ai-doc-color-slate-600);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.sectionFields {
+    display: grid;
+    gap: 0.55rem;
+    min-width: 0;
+}
+
+.field {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.fieldLabel {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ai-doc-color-slate-600);
+}
+
+.descriptionField {
+    min-height: 4.5rem;
+    resize: vertical;
+}
+
+.sectionActions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.sectionActionsEnd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.parseWarning {
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--bs-border-radius);
+    background: var(--ai-doc-color-orange-50);
+    color: var(--ai-doc-color-orange-700);
+    font-size: 0.85rem;
+    line-height: 1.45;
+}

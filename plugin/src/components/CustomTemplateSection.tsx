@@ -1,6 +1,7 @@
 import { ChangeEvent } from 'react'
 
 import styles from '@/components/CustomTemplateSection.module.css'
+import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 
 type CustomTemplateSectionProps = {
     localTemplateTitle: string
@@ -30,8 +31,8 @@ export function CustomTemplateSection({
             <div>
                 <h5 className={styles.title}>Create custom template</h5>
                 <div className={styles.text}>
-                    Upload or paste template JSON. After saving, the template will be stored in the
-                    backend database and appear in the dropdown immediately.
+                    Build a template structure or upload JSON. After saving, the template will be
+                    stored in the backend database and appear in the dropdown immediately.
                 </div>
             </div>
 
@@ -42,7 +43,7 @@ export function CustomTemplateSection({
                     value={localTemplateTitle}
                     onChange={(event) => onLocalTemplateTitleChange(event.target.value)}
                     placeholder="My custom DMP template"
-                    className={styles.input}
+                    className="form-control"
                 />
             </label>
 
@@ -66,27 +67,13 @@ export function CustomTemplateSection({
                 </label>
             </label>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>Template JSON</span>
-                <textarea
+            <div className={styles.label}>
+                <span className={styles.labelText}>Template structure</span>
+                <TemplateStructureEditor
                     value={localTemplateJson}
-                    onChange={(event) => onLocalTemplateJsonChange(event.target.value)}
-                    placeholder={`{
-  "sections": [
-    {
-      "title": "...",
-      "sections": [
-        {
-          "title": "...",
-          "content": "..."
-        }
-      ]
-    }
-  ]
-}`}
-                    className={`${styles.input} ${styles.textarea}`}
+                    onChange={onLocalTemplateJsonChange}
                 />
-            </label>
+            </div>
 
             <button
                 type="button"

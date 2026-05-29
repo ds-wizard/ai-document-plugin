@@ -149,6 +149,7 @@ def _parse_item_select_reply(
 
     return ''
 
+
 def parse_answer(  # noqa: PLR0911
     answer: dict[str, Any],
     km: dict[str, Any],

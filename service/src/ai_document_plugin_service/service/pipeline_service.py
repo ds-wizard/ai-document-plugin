@@ -31,6 +31,7 @@ AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
 SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
 TEMPLATE_NOT_FOUND_MESSAGE = 'Template not found.'
 
+
 def set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
     with _pipeline_runs_lock:
         _pipeline_runs[run_id] = status
@@ -219,8 +220,8 @@ def run_pipeline_job(
                 ),
             )
 
-        logger.exception('Pipeline run failed', error)
-    except AuthenticationError as error:
+        logger.exception('Pipeline run failed')
+    except AuthenticationError:
         set_pipeline_status(
             run_id,
             build_pipeline_status(
@@ -237,4 +238,4 @@ def run_pipeline_job(
                 ),
             ),
         )
-        logger.exception('Pipeline run failed', error)
+        logger.exception('Pipeline run failed')

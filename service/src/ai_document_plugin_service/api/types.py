@@ -64,6 +64,7 @@ class PipelineErrorResponse(ApiModel):
     type: ErrorType
     message: str
 
+
 class PipelineStatusResponse(ApiModel):
     run_id: str = Field(alias='runId')
     status: PipelineStatus

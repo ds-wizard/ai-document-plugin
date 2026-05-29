@@ -6,10 +6,10 @@ from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
-    PipelineStatus,
     PipelineRunRequest,
     PipelineRunResponse,
     PipelineSaveRequest,
+    PipelineStatus,
     PipelineStatusResponse,
     TemplateCreateRequest,
     TemplateListItem,
@@ -18,6 +18,7 @@ from ai_document_plugin_service.api.types import (
 from ai_document_plugin_service.service import pipeline_service as pipeline
 
 router = fastapi.APIRouter()
+
 
 @router.get('/health')
 def health_check() -> dict[str, str]:

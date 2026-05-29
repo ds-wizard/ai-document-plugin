@@ -1,6 +1,6 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { runPipeline } from '@/client'
 import { Alert } from '@/components/Alert'
@@ -9,25 +9,36 @@ import { ExportView } from '@/components/ExportView'
 import styles from '@/components/ProjectTab.module.css'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
+import {
+    getAiExportIdFromUrl,
+    navigateBackFromExport,
+    pushAiExportIdToUrl,
+} from '@/utils/export-url'
 import { getLastExportRunId, setLastExportRunId } from '@/utils/last-export-cookie'
-
-type ProjectTabView = 'main' | 'export'
 
 export default function ProjectTab({
     settings,
     userSettings: _userSettings,
     project,
 }: ProjectTabComponentProps<SettingsData, UserSettingsData>) {
-    const [view, setView] = useState<ProjectTabView>('main')
-    const [exportRunId, setExportRunId] = useState<string | null>(null)
+    const [exportRunId, setExportRunId] = useState<string | null>(() => getAiExportIdFromUrl())
     const [mainErrorMessage, setMainErrorMessage] = useState<string | null>(null)
 
     const projectUuid = project?.uuid
     const lastExportRunId = projectUuid ? getLastExportRunId(projectUuid) : null
 
+    useEffect(() => {
+        const syncExportRunIdFromUrl = () => {
+            setExportRunId(getAiExportIdFromUrl())
+        }
+
+        window.addEventListener('popstate', syncExportRunIdFromUrl)
+        return () => window.removeEventListener('popstate', syncExportRunIdFromUrl)
+    }, [])
+
     const openExportView = useCallback((runId: string) => {
+        pushAiExportIdToUrl(runId)
         setExportRunId(runId)
-        setView('export')
     }, [])
 
     const handleRunPipeline = useCallback(
@@ -85,7 +96,7 @@ export default function ProjectTab({
     return (
         <div className="Projects__Detail__Content Projects__Detail__Content--Metrics">
             <div className={`questionnaire__summary-report container ${styles.root}`}>
-                {view === 'main' ? (
+                {!exportRunId ? (
                     <>
                         <div>
                             <h2 className={styles.title}>AI DMP Export</h2>
@@ -115,7 +126,7 @@ export default function ProjectTab({
                         key={exportRunId}
                         runId={exportRunId}
                         projectUuid={projectUuid}
-                        onBack={() => setView('main')}
+                        onBack={navigateBackFromExport}
                     />
                 ) : null}
             </div>

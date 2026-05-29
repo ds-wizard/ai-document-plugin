@@ -29,7 +29,13 @@ function apiErrorMessage(data: ApiErrorDetail, fallback: string): string {
     return data.detail ?? fallback
 }
 
-async function fetchApi<T>(url: string, init: RequestInit | undefined, errorMessage: string): Promise<T> {
+type FetchInit = NonNullable<Parameters<typeof fetch>[1]>
+
+async function fetchApi<T>(
+    url: string,
+    init: FetchInit | undefined,
+    errorMessage: string,
+): Promise<T> {
     const response = await fetch(url, init)
     const data = await readApiResponse<T | ApiErrorDetail>(response, url)
 

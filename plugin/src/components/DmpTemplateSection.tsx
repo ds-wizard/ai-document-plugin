@@ -33,7 +33,9 @@ export function DmpTemplateSection({
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
     const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false)
-    const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<TemplateDetail | null>(null)
+    const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<TemplateDetail | null>(
+        null,
+    )
     const [isLoadingTemplateDetail, setIsLoadingTemplateDetail] = useState(false)
     const templateDropdownRef = useRef<HTMLDivElement | null>(null)
 
@@ -61,7 +63,7 @@ export function DmpTemplateSection({
         }
 
         return `${selectedTemplate.title}`
-    }, [isLoadingTemplates, selectedTemplateUuid, templates])
+    }, [isCreatingCustomTemplate, isLoadingTemplates, selectedTemplateUuid, templates])
 
     useEffect(() => {
         let isMounted = true
@@ -260,9 +262,7 @@ export function DmpTemplateSection({
                         type="button"
                         disabled={isLoadingTemplates || !projectAvailable}
                         className={styles.dropdownToggle}
-                        onClick={() =>
-                            setIsTemplateDropdownOpen((currentValue) => !currentValue)
-                        }
+                        onClick={() => setIsTemplateDropdownOpen((currentValue) => !currentValue)}
                         aria-expanded={isTemplateDropdownOpen}
                     >
                         <span>{selectedTemplateLabel}</span>

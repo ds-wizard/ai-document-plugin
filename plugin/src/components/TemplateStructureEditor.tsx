@@ -107,12 +107,11 @@ function SectionNodeEditor({
                         <div className={styles.sectionActionsEnd}>
                             <button
                                 type="button"
-                                className="btn btn-outline-danger btn-wide with-icon"
+                                className={`btn btn-outline-secondary ${styles.iconButton}`}
                                 onClick={() => onRemove(path)}
                                 aria-label={`Remove ${label}`}
                             >
                                 <i className="fas fa-trash" aria-hidden="true" />
-                                Delete
                             </button>
                             <button
                                 type="button"
@@ -129,21 +128,19 @@ function SectionNodeEditor({
                     <div className={styles.sectionActionsEnd}>
                         <button
                             type="button"
-                            className="btn btn-outline-danger btn-wide with-icon"
+                            className={`btn btn-outline-secondary ${styles.iconButton}`}
                             onClick={() => onRemove(path)}
                             aria-label={`Remove ${label}`}
                         >
                             <i className="fas fa-trash" aria-hidden="true" />
-                            Delete
                         </button>
                         <button
                             type="button"
-                            className="btn btn-primary btn-wide with-icon"
+                            className={`btn btn-outline-secondary ${styles.iconButton}`}
                             onClick={() => onStartEditing(section.id)}
                             aria-label={`Edit ${label}`}
                         >
                             <i className="fas fa-pen" aria-hidden="true" />
-                            Edit
                         </button>
                     </div>
                 )}
@@ -279,29 +276,31 @@ export function TemplateStructureEditor({ value, onChange }: TemplateStructureEd
                 </div>
             ) : null}
 
-            {sections.length === 0 ? (
-                <div className={styles.emptyState}>
-                    No sections yet. Add a section to get started.
-                </div>
-            ) : (
-                <ul className={styles.sectionList}>
-                    {sections.map((section, sectionIndex) => (
-                        <SectionNodeEditor
-                            key={section.id}
-                            section={section}
-                            path={[sectionIndex]}
-                            depth={0}
-                            isEditing={isSectionEditing(section.id)}
-                            isSectionEditing={isSectionEditing}
-                            onUpdate={handleUpdate}
-                            onRemove={handleRemove}
-                            onAddChild={handleAddChild}
-                            onStartEditing={startEditing}
-                            onStopEditing={stopEditing}
-                        />
-                    ))}
-                </ul>
-            )}
+            <div className={styles.content}>
+                {sections.length === 0 ? (
+                    <div className={styles.emptyState}>
+                        No sections yet. Add a section to get started.
+                    </div>
+                ) : (
+                    <ul className={styles.sectionList}>
+                        {sections.map((section, sectionIndex) => (
+                            <SectionNodeEditor
+                                key={section.id}
+                                section={section}
+                                path={[sectionIndex]}
+                                depth={0}
+                                isEditing={isSectionEditing(section.id)}
+                                isSectionEditing={isSectionEditing}
+                                onUpdate={handleUpdate}
+                                onRemove={handleRemove}
+                                onAddChild={handleAddChild}
+                                onStartEditing={startEditing}
+                                onStopEditing={stopEditing}
+                            />
+                        ))}
+                    </ul>
+                )}
+            </div>
 
             <button
                 type="button"

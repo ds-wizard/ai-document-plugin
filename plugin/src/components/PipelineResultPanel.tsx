@@ -32,10 +32,6 @@ export function PipelineResultPanel({
     return (
         <section className={styles.root}>
             <div className={styles.header}>
-                <div className={styles.headerContent}>
-                    <h4>Pipeline output</h4>
-                    <div className={styles.subtitle}>Preview of the generated document.</div>
-                </div>
                 <div className={styles.toolbar}>
                     <div className={`${styles.segmentedControl} btn-group`} role="group">
                         {(

@@ -1,0 +1,73 @@
+.root {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.header {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.backButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: fit-content;
+    padding: 0.25rem 0;
+    border: 0;
+    background: transparent;
+    color: var(--ai-doc-color-slate-600);
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.4;
+    cursor: pointer;
+    transition:
+        color 140ms ease,
+        background-color 140ms ease;
+}
+
+.backButton:hover {
+    color: var(--ai-doc-color-slate-900);
+}
+
+.backButton:focus-visible {
+    outline: none;
+    color: var(--ai-doc-color-blue-700);
+    box-shadow: 0 2px 0 var(--ai-doc-color-blue-500);
+}
+
+.backIcon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.title {
+    margin: 0;
+}
+
+.loading {
+    padding: 1rem;
+    color: var(--ai-doc-color-slate-600);
+    line-height: 1.55;
+}
+
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: var(--bs-border-radius);
+    line-height: 1.55;
+}
+
+.errorAlert {
+    background: var(--ai-doc-color-red-50);
+    color: var(--ai-doc-color-red-700);
+}
+
+.infoAlert {
+    background: var(--ai-doc-color-blue-50);
+    color: var(--ai-doc-color-blue-700);
+}
+
+.successAlert {
+    background: var(--ai-doc-color-emerald-50);
+    color: var(--ai-doc-color-emerald-700);
+}

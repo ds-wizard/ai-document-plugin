@@ -105,8 +105,8 @@ def parse_integration_reply_value(answer: dict[str, Any]) -> str:
             return f'{raw_json} {extracted_url}'
         return raw_json
 
-    msg = 'Unkown integration answer type'
-    raise RuntimeError(msg, value.get('type'))
+    logger.warning('Unknown integration answer type: %s', value.get('type'))
+    return ''
 
 
 def _parse_item_select_reply(
@@ -149,19 +149,6 @@ def _parse_item_select_reply(
 
     return ''
 
-
-def parse_integration_reply(answer: dict[str, Any]) -> str | None:
-    val = answer['value']
-    answer_type = answer['type']
-
-    if val['type'] == 'PlainType':
-        return val['value']
-    if val['type'] == 'IntegrationType':
-        return parse_integration_reply_value(answer)
-    msg = 'Unknown answer type'
-    raise RuntimeError(msg, answer_type)
-
-
 def parse_answer(  # noqa: PLR0911
     answer: dict[str, Any],
     km: dict[str, Any],
@@ -186,7 +173,7 @@ def parse_answer(  # noqa: PLR0911
             [km['entities']['choices'][answer_id]['label'] for answer_id in answer['value']],
         )
     if answer_type == 'IntegrationReply':
-        return parse_integration_reply(answer)
+        return parse_integration_reply_value(answer)
     if answer_type == 'ItemListReply':
         return None  # this answer is answered in it's children
     if answer_type == 'StringReply':

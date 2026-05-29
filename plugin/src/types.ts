@@ -4,6 +4,11 @@ export type TemplateOption = {
     source?: 'database' | 'local'
 }
 
+export type PipelineErrorResponse = {
+    type: string
+    message: string
+}
+
 export type PipelineRunResponse = {
     status: string
     runId: string
@@ -21,7 +26,7 @@ export type PipelineStatusResponse = {
     tenantUuid: string
     templateUuid: string
     templateTitle: string
-    error: string | null
+    error: PipelineErrorResponse | null
     resultFormat: string | null
     resultMarkdown: string | null
     progressMessage: string | null

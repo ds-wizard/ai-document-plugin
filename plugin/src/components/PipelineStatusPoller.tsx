@@ -59,8 +59,8 @@ export function PipelineStatusPoller({
 
                 setSuccessMessage(null)
                 setErrorMessage(
-                    data.error
-                        ? `Pipeline failed: ${data.error}`
+                    data.error?.message
+                        ? `Pipeline failed: ${data.error.message}`
                         : `Pipeline failed for the template "${data.templateTitle}".`,
                 )
             } catch (error) {

@@ -2,6 +2,9 @@ import logging
 import threading
 from datetime import UTC, datetime
 
+from haystack.core.errors import PipelineRuntimeError
+from openai import AuthenticationError
+
 from ai_document_plugin_service.ai.common.config import (
     LLMConfigOverride,
     apply_llm_override,
@@ -10,7 +13,13 @@ from ai_document_plugin_service.ai.common.config import (
 from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
-from ai_document_plugin_service.api.types import PipelineStatusResponse, _model_from_fields
+from ai_document_plugin_service.api.types import (
+    ErrorType,
+    PipelineErrorResponse,
+    PipelineStatus,
+    PipelineStatusResponse,
+    _model_from_fields,
+)
 from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
 
 logger = logging.getLogger(__name__)
@@ -18,6 +27,9 @@ logger = logging.getLogger(__name__)
 _pipeline_runs: dict[str, PipelineStatusResponse] = {}
 _pipeline_runs_lock = threading.Lock()
 
+AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
+SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
+TEMPLATE_NOT_FOUND_MESSAGE = 'Template not found.'
 
 def set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
     with _pipeline_runs_lock:
@@ -32,14 +44,14 @@ def get_pipeline_status(run_id: str) -> PipelineStatusResponse | None:
 def build_pipeline_status(
     *,
     run_id: str,
-    status: str,
+    status: PipelineStatus,
     questionnaire_uuid: str,
     user_uuid: str,
     tenant_uuid: str,
     template_uuid: str,
     template_title: str,
     knowledge_model_uuid: str | None = None,
-    error: str | None = None,
+    error: PipelineErrorResponse | None = None,
     result_format: str | None = None,
     result_markdown: str | None = None,
     progress_message: str | None = None,
@@ -80,7 +92,7 @@ def _update_running_progress(
         run_id,
         build_pipeline_status(
             run_id=run_id,
-            status='running',
+            status=PipelineStatus.RUNNING,
             questionnaire_uuid=questionnaire_uuid,
             knowledge_model_uuid=current.knowledge_model_uuid,
             user_uuid=user_uuid,
@@ -114,13 +126,16 @@ def run_pipeline_job(
             run_id,
             build_pipeline_status(
                 run_id=run_id,
-                status='failed',
+                status=PipelineStatus.FAILED,
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
                 user_uuid=user_uuid,
                 tenant_uuid=tenant_uuid,
-                error='Template not found.',
+                error=PipelineErrorResponse(
+                    type=ErrorType.TEMPLATE_NOT_FOUND,
+                    message=TEMPLATE_NOT_FOUND_MESSAGE,
+                ),
             ),
         )
         return
@@ -157,7 +172,7 @@ def run_pipeline_job(
             run_id,
             build_pipeline_status(
                 run_id=run_id,
-                status='succeeded',
+                status=PipelineStatus.SUCCEEDED,
                 questionnaire_uuid=questionnaire_uuid,
                 knowledge_model_uuid=knowledge_model_uuid,
                 user_uuid=user_uuid,
@@ -168,18 +183,58 @@ def run_pipeline_job(
                 result_markdown=result,
             ),
         )
-    except Exception as error:
+    except PipelineRuntimeError as error:
+        if isinstance(error.__cause__, AuthenticationError):
+            set_pipeline_status(
+                run_id,
+                build_pipeline_status(
+                    run_id=run_id,
+                    status=PipelineStatus.FAILED,
+                    questionnaire_uuid=questionnaire_uuid,
+                    template_uuid=template_uuid,
+                    template_title=template_title,
+                    user_uuid=user_uuid,
+                    tenant_uuid=tenant_uuid,
+                    error=PipelineErrorResponse(
+                        type=ErrorType.AUTHENTICATION_FAILED,
+                        message=AUTHORIZATION_ERROR_MESSAGE,
+                    )
+                ),
+            )
+        else:
+            set_pipeline_status(
+                run_id,
+                build_pipeline_status(
+                    run_id=run_id,
+                    status=PipelineStatus.FAILED,
+                    questionnaire_uuid=questionnaire_uuid,
+                    template_uuid=template_uuid,
+                    template_title=template_title,
+                    user_uuid=user_uuid,
+                    tenant_uuid=tenant_uuid,
+                    error=PipelineErrorResponse(
+                        type=ErrorType.SERVER_ERROR,
+                        message=SERVER_ERROR_MESSAGE,
+                    ),
+                ),
+            )
+
+        logger.exception('Pipeline run failed', error)
+    except AuthenticationError as error:
         set_pipeline_status(
             run_id,
             build_pipeline_status(
                 run_id=run_id,
-                status='failed',
+                status=PipelineStatus.FAILED,
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
                 template_title=template_title,
                 user_uuid=user_uuid,
                 tenant_uuid=tenant_uuid,
-                error=str(error),
+                error=PipelineErrorResponse(
+                    type=ErrorType.SERVER_ERROR,
+                    message=SERVER_ERROR_MESSAGE,
+                ),
             ),
         )
-        logger.exception('Pipeline run failed')
+        logger.exception('Pipeline run failed', error)

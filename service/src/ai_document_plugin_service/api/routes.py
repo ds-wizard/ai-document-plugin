@@ -6,6 +6,7 @@ from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
+    PipelineStatus,
     PipelineRunRequest,
     PipelineRunResponse,
     PipelineSaveRequest,
@@ -17,27 +18,6 @@ from ai_document_plugin_service.api.types import (
 from ai_document_plugin_service.service import pipeline_service as pipeline
 
 router = fastapi.APIRouter()
-
-
-def _failed_pipeline_status_code(error: str | None) -> int:
-    if error is None:
-        return 500
-
-    normalized_error = error.casefold()
-    auth_error_markers = (
-        '401 ',
-        'error code: 401',
-        "'code': '401'",
-        '"code": "401"',
-        'authentication error',
-        'invalid proxy server token',
-        'token_not_found_in_db',
-    )
-    if any(marker in normalized_error for marker in auth_error_markers):
-        return 401
-
-    return 500
-
 
 @router.get('/health')
 def health_check() -> dict[str, str]:
@@ -106,7 +86,7 @@ def start_pipeline(
         run_id,
         pipeline.build_pipeline_status(
             run_id=run_id,
-            status='running',
+            status=PipelineStatus.RUNNING,
             questionnaire_uuid=payload.questionnaire_uuid,
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
@@ -133,7 +113,7 @@ def start_pipeline(
     )
     return _model_from_fields(
         PipelineRunResponse,
-        status='accepted',
+        status=PipelineStatus.ACCEPTED,
         run_id=run_id,
         questionnaire_uuid=payload.questionnaire_uuid,
         user_uuid=user_uuid,
@@ -146,13 +126,10 @@ def start_pipeline(
 @router.get('/pipelines/status/{run_id}')
 def get_pipeline_status(
     run_id: str,
-    response: fastapi.Response,
 ) -> PipelineStatusResponse:
     status = pipeline.get_pipeline_status(run_id)
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
-    if status.status == 'failed':
-        response.status_code = _failed_pipeline_status_code(status.error)
     return status
 
 

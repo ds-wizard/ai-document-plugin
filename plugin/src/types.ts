@@ -3,6 +3,22 @@ export type TemplateOption = {
     title: string
 }
 
+export type ApiTemplateSection = {
+    title: string
+    content?: string
+    sections?: ApiTemplateSection[]
+}
+
+export type ApiTemplateContent = {
+    sections: ApiTemplateSection[]
+}
+
+export type TemplateDetail = {
+    uuid: string
+    title: string
+    content: ApiTemplateContent
+}
+
 export type PipelineRunResponse = {
     status: string
     runId: string

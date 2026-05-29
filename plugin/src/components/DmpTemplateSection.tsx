@@ -1,10 +1,11 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 
-import { createTemplate, getTemplates } from '@/client'
+import { createTemplate, getTemplate, getTemplates } from '@/client'
 import { Alert } from '@/components/Alert'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import styles from '@/components/DmpTemplateSection.module.css'
-import type { TemplateOption } from '@/types'
+import { TemplateTitlePreview } from '@/components/TemplateTitlePreview'
+import type { TemplateDetail, TemplateOption } from '@/types'
 
 const CUSTOM_TEMPLATE_OPTION = '__custom_template__'
 
@@ -32,9 +33,13 @@ export function DmpTemplateSection({
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
     const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false)
+    const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<TemplateDetail | null>(null)
+    const [isLoadingTemplateDetail, setIsLoadingTemplateDetail] = useState(false)
     const templateDropdownRef = useRef<HTMLDivElement | null>(null)
 
     const isCreatingCustomTemplate = selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
+    const showTemplatePreview =
+        Boolean(selectedTemplateUuid) && !isCreatingCustomTemplate && !isLoadingTemplates
     const selectedTemplateLabel = useMemo(() => {
         if (!selectedTemplateUuid) {
             if (isLoadingTemplates) {
@@ -121,6 +126,41 @@ export function DmpTemplateSection({
             document.removeEventListener('keydown', handleEscape)
         }
     }, [isTemplateDropdownOpen])
+
+    useEffect(() => {
+        if (!showTemplatePreview) {
+            setSelectedTemplateDetail(null)
+            setIsLoadingTemplateDetail(false)
+            return
+        }
+
+        let isMounted = true
+
+        const loadTemplateDetail = async () => {
+            setIsLoadingTemplateDetail(true)
+
+            try {
+                const detail = await getTemplate(selectedTemplateUuid)
+                if (isMounted) {
+                    setSelectedTemplateDetail(detail)
+                }
+            } catch {
+                if (isMounted) {
+                    setSelectedTemplateDetail(null)
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoadingTemplateDetail(false)
+                }
+            }
+        }
+
+        void loadTemplateDetail()
+
+        return () => {
+            isMounted = false
+        }
+    }, [selectedTemplateUuid, showTemplatePreview])
 
     const handleRunPipeline = () => {
         if (!selectedTemplateUuid) {
@@ -274,6 +314,20 @@ export function DmpTemplateSection({
                     ) : null}
                 </div>
             </label>
+
+            {showTemplatePreview ? (
+                <TemplateTitlePreview
+                    content={
+                        selectedTemplateDetail?.uuid === selectedTemplateUuid
+                            ? selectedTemplateDetail.content
+                            : undefined
+                    }
+                    isLoading={
+                        isLoadingTemplateDetail ||
+                        selectedTemplateDetail?.uuid !== selectedTemplateUuid
+                    }
+                />
+            ) : null}
 
             {isCreatingCustomTemplate ? (
                 <CustomTemplateSection

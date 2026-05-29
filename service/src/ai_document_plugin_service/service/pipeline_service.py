@@ -199,7 +199,7 @@ def run_pipeline_job(
                     error=PipelineErrorResponse(
                         type=ErrorType.AUTHENTICATION_FAILED,
                         message=AUTHORIZATION_ERROR_MESSAGE,
-                    )
+                    ),
                 ),
             )
         else:

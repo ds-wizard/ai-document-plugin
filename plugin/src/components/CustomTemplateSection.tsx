@@ -1,6 +1,7 @@
-import { ChangeEvent } from 'react'
+import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
 
 import styles from '@/components/CustomTemplateSection.module.css'
+import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 
 type CustomTemplateSectionProps = {
     localTemplateTitle: string
@@ -25,14 +26,67 @@ export function CustomTemplateSection({
     onLocalTemplateFileUpload,
     onAddLocalTemplate,
 }: CustomTemplateSectionProps) {
+    const [inputMode, setInputMode] = useState<'visual' | 'file'>('visual')
+    const [isDraggingFile, setIsDraggingFile] = useState(false)
+    const previousFileNameRef = useRef(localTemplateFileName)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const dragDepthRef = useRef(0)
+
+    const submitTemplateFile = (file: File) => {
+        const input = fileInputRef.current
+        if (!input) {
+            return
+        }
+
+        const dataTransfer = new DataTransfer()
+        dataTransfer.items.add(file)
+        input.files = dataTransfer.files
+        void onLocalTemplateFileUpload({ target: input } as ChangeEvent<HTMLInputElement>)
+    }
+
+    const handleDragEnter = (event: DragEvent<HTMLLabelElement>) => {
+        event.preventDefault()
+        dragDepthRef.current += 1
+        setIsDraggingFile(true)
+    }
+
+    const handleDragLeave = (event: DragEvent<HTMLLabelElement>) => {
+        event.preventDefault()
+        dragDepthRef.current -= 1
+        if (dragDepthRef.current <= 0) {
+            dragDepthRef.current = 0
+            setIsDraggingFile(false)
+        }
+    }
+
+    const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
+        event.preventDefault()
+    }
+
+    const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+        event.preventDefault()
+        dragDepthRef.current = 0
+        setIsDraggingFile(false)
+
+        const file = event.dataTransfer.files?.[0]
+        if (file) {
+            submitTemplateFile(file)
+        }
+    }
+
+    useEffect(() => {
+        const fileNameChanged = localTemplateFileName !== previousFileNameRef.current
+        previousFileNameRef.current = localTemplateFileName
+
+        if (inputMode === 'file' && localTemplateFileName && fileNameChanged) {
+            setInputMode('visual')
+        }
+    }, [localTemplateFileName, inputMode])
+
     return (
         <section className={styles.root}>
             <div>
                 <h5 className={styles.title}>Create custom template</h5>
-                <div className={styles.text}>
-                    Upload or paste template JSON. After saving, the template will be stored in the
-                    backend database and appear in the dropdown immediately.
-                </div>
             </div>
 
             <label className={styles.label}>
@@ -42,51 +96,70 @@ export function CustomTemplateSection({
                     value={localTemplateTitle}
                     onChange={(event) => onLocalTemplateTitleChange(event.target.value)}
                     placeholder="My custom DMP template"
-                    className={styles.input}
+                    className="form-control"
                 />
             </label>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>Template JSON file</span>
-                <label className={styles.filePicker}>
-                    <span className={styles.filePickerButton}>Choose file</span>
-                    <span
-                        className={`${styles.fileName} ${
-                            localTemplateFileName ? styles.fileNameFilled : styles.fileNameEmpty
-                        }`}
-                    >
-                        {localTemplateFileName || 'No file selected'}
-                    </span>
-                    <input
-                        type="file"
-                        accept=".json,application/json"
-                        onChange={(event) => onLocalTemplateFileUpload(event)}
-                        className={styles.hiddenInput}
+            <div className={styles.label}>
+                <span className={styles.labelText}>Template structure</span>
+                <div className={`${styles.segmentedControl} btn-group`} role="group">
+                    {(
+                        [
+                            { mode: 'visual' as const, label: 'Visual editor' },
+                            { mode: 'file' as const, label: 'From file' },
+                        ] as const
+                    ).map(({ mode, label }) => (
+                        <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setInputMode(mode)}
+                            className={
+                                inputMode === mode
+                                    ? 'btn btn-secondary'
+                                    : 'btn btn-outline-secondary'
+                            }
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                {inputMode === 'visual' ? (
+                    <TemplateStructureEditor
+                        value={localTemplateJson}
+                        onChange={onLocalTemplateJsonChange}
                     />
-                </label>
-            </label>
-
-            <label className={styles.label}>
-                <span className={styles.labelText}>Template JSON</span>
-                <textarea
-                    value={localTemplateJson}
-                    onChange={(event) => onLocalTemplateJsonChange(event.target.value)}
-                    placeholder={`{
-  "sections": [
-    {
-      "title": "...",
-      "sections": [
-        {
-          "title": "...",
-          "content": "..."
-        }
-      ]
-    }
-  ]
-}`}
-                    className={`${styles.input} ${styles.textarea}`}
-                />
-            </label>
+                ) : (
+                    <label
+                        className={`${styles.fileDropZone} ${
+                            isDraggingFile ? styles.fileDropZoneDragging : ''
+                        } ${localTemplateFileName ? styles.fileDropZoneFilled : ''}`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                    >
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".json,application/json"
+                            onChange={(event) => onLocalTemplateFileUpload(event)}
+                            className={styles.hiddenInput}
+                        />
+                        <span className={styles.fileDropIcon} aria-hidden="true">
+                            <i className="fas fa-upload" />
+                        </span>
+                        <span className={styles.fileDropTitle}>
+                            {localTemplateFileName || 'Drop JSON template here'}
+                        </span>
+                        <span className={styles.fileDropHint}>
+                            {localTemplateFileName
+                                ? 'Click or drop another file to replace'
+                                : 'or click anywhere to browse'}
+                        </span>
+                    </label>
+                )}
+            </div>
 
             <button
                 type="button"

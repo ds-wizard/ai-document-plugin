@@ -3,6 +3,7 @@ from collections.abc import Iterator
 
 from haystack import component
 
+from ai_document_plugin_service.ai.generation.parse_answers import parse_integration_reply_value
 from ai_document_plugin_service.ai.knowledgemodel.types import (
     Chapter,
     Choice,
@@ -134,14 +135,13 @@ class ParserComponent:
             parent_answer=parent_answer,
         )
 
-        value_question.reply = self.get_value_reply(replies, value_question, path)
+        value_question.reply = self.get_value_reply(replies, path)
 
         return value_question
 
     @staticmethod
     def get_value_reply(
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -168,7 +168,6 @@ class ParserComponent:
 
         integration_question.reply = self.get_integration_reply(
             replies,
-            integration_question,
             path,
         )
 
@@ -177,11 +176,11 @@ class ParserComponent:
     @staticmethod
     def get_integration_reply(
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
-        return replies.get(path, {}).get('value', {}).get('value', {}).get('value', '')
+        answer = replies.get(path, {}).get('value', {})
+        return parse_integration_reply_value(answer)
 
     def parse_list_question(
         self,
@@ -251,7 +250,6 @@ class ParserComponent:
 
         options_question.reply = self.get_option_reply(
             replies,
-            options_question,
             path,
         )
 
@@ -260,7 +258,6 @@ class ParserComponent:
     def get_option_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -288,7 +285,7 @@ class ParserComponent:
         )
 
         multichoice_question.reply = '\n'.join(
-            self.get_multichoice_reply(replies, multichoice_question, path),
+            self.get_multichoice_reply(replies, path),
         )
 
         return multichoice_question
@@ -296,7 +293,6 @@ class ParserComponent:
     def get_multichoice_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> list[str]:
         """Get the reply for the question."""
@@ -325,14 +321,13 @@ class ParserComponent:
             parent_answer=parent_answer,
         )
 
-        item_select_question.reply = self.get_item_select_question_reply(replies, item_select_question, path)
+        item_select_question.reply = self.get_item_select_question_reply(replies, path)
 
         return item_select_question
 
     def get_item_select_question_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -361,7 +356,8 @@ class ParserComponent:
                 continue
 
             if question_type == 'IntegrationQuestion':
-                value = reply_payload.get('value', {}).get('value', {}).get('value', '')
+                answer = reply_payload.get('value', {})
+                value = parse_integration_reply_value(answer)
                 if value:
                     return value
 

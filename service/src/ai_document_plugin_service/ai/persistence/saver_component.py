@@ -15,6 +15,9 @@ class FileSaverComponentResult(TypedDict):
 
 @component
 class SaverComponent:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
     @typing.override
     @component.output_types(markdown=str)
     def run(
@@ -25,9 +28,8 @@ class SaverComponent:
         tenant_uuid: str,
         debug_markdown: str,
         markdown: str,
-        database: Database,
     ) -> FileSaverComponentResult:
-        database.save_result(
+        self.database.save_result(
             template_uuid,
             knowledge_model_uuid,
             user_uuid,

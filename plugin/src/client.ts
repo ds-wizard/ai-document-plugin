@@ -81,10 +81,6 @@ export const getTemplates = async (
     const response = await fetch(url)
     const templates = await readApiResponse<TemplateOption[]>(response, url)
 
-    if (!response.ok) {
-        throw new Error(`Failed to load the list of templates (${response.status}).`)
-    }
-
     return { baseUrl, templates }
 }
 
@@ -189,8 +185,11 @@ export const createTemplate = async ({
     })
 
     const data = await readApiResponse<TemplateOption | { detail?: string }>(response, url)
+
     if (!response.ok) {
-        throw new Error('detail' in data && data.detail ? data.detail : 'Failed to save template.')
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
+        )
     }
 
     if (!('uuid' in data) || !('title' in data)) {

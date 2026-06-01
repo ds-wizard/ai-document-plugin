@@ -30,7 +30,6 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
     DBSaver,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
@@ -38,6 +37,9 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from haystack.components.routers.conditional_router import Route
+
+    from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+    from ai_document_plugin_service.ai.persistence.database import Database
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -48,15 +50,19 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
-def build_pipeline() -> Pipeline:
+def build_pipeline(
+    database: Database,
+    saver: DBSaver,
+    generation_llm: OpenAIGenerationLLM,
+) -> Pipeline:
     pipeline = Pipeline()
-    loader_component = AssignmentLoaderComponent()
+    loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
-    assignment_saver_component = AssignmentSaverComponent()
-    dmp_generator_component = DmpGeneratorComponent()
+    assignment_saver_component = AssignmentSaverComponent(saver=saver)
+    dmp_generator_component = DmpGeneratorComponent(llm=generation_llm)
     dmp_polisher_component = DmpPolisherComponent()
-    saver_component = SaverComponent()
+    saver_component = SaverComponent(database=database)
 
     # ROUTES
     routes: list[Route] = [
@@ -120,6 +126,7 @@ def run_pipeline(
     user_uuid: str,
     tenant_uuid: str,
     pipeline: Pipeline,
+    database: Database,
     llm_override: LLMConfigOverride | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
@@ -135,8 +142,6 @@ def run_pipeline(
     knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
-    database = PostgresDB(config.database)
-    saver = DBSaver(database)
 
     if on_progress is not None:
         on_progress('Preparing document template')
@@ -146,7 +151,6 @@ def run_pipeline(
             'loader_component': {
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': template_uuid,
-                'database': database,
             },
             'parser_component': {'data': km_data},
             'assignment_component': {
@@ -156,7 +160,6 @@ def run_pipeline(
                 'on_progress': on_progress,
             },
             'assignment_saver_component': {
-                'saver': saver,
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'knowledge_model_name': knowledge_model_name,
                 'knowledge_model_version': knowledge_model_version,
@@ -180,7 +183,6 @@ def run_pipeline(
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'user_uuid': user_uuid,
                 'tenant_uuid': tenant_uuid,
-                'database': database,
             },
         },
         include_outputs_from={

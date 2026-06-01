@@ -9,6 +9,7 @@ from ai_document_plugin_service.api.types import (
     PipelineRunRequest,
     PipelineRunResponse,
     PipelineSaveRequest,
+    PipelineStatus,
     PipelineStatusResponse,
     TemplateCreateRequest,
     TemplateListItem,
@@ -86,7 +87,7 @@ def start_pipeline(
         run_id,
         pipeline.build_pipeline_status(
             run_id=run_id,
-            status='running',
+            status=PipelineStatus.RUNNING,
             questionnaire_uuid=payload.questionnaire_uuid,
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
@@ -113,7 +114,7 @@ def start_pipeline(
     )
     return _model_from_fields(
         PipelineRunResponse,
-        status='accepted',
+        status=PipelineStatus.ACCEPTED,
         run_id=run_id,
         questionnaire_uuid=payload.questionnaire_uuid,
         user_uuid=user_uuid,
@@ -124,7 +125,9 @@ def start_pipeline(
 
 
 @router.get('/pipelines/status/{run_id}')
-def get_pipeline_status(run_id: str) -> PipelineStatusResponse:
+def get_pipeline_status(
+    run_id: str,
+) -> PipelineStatusResponse:
     status = pipeline.get_pipeline_status(run_id)
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')

@@ -1,4 +1,3 @@
-import { pluginMetadata } from '@/metadata'
 import type {
     PipelineRunResponse,
     PipelineStatusResponse,
@@ -46,26 +45,15 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     return templates
 }
 
-export const getTemplate = async (
-    apiBaseUrl: string,
-    templateUuid: string,
-): Promise<TemplateDetail> => {
-    const url = `${apiBaseUrl}/templates/${encodeURIComponent(templateUuid)}`
+export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
     const response = await fetch(url)
-    const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
+    const data = await readApiResponse<TemplateDetail>(response, url)
 
     if (!response.ok) {
-        throw new Error(
-            'detail' in data && data.detail
-                ? data.detail
-                : `Failed to load template (${response.status}).`,
+        throw new Error(`Failed to load template (${response.status}).`,
         )
     }
-
-    if (!('uuid' in data) || !('title' in data) || !('content' in data)) {
-        throw new Error('The backend did not return a valid template.')
-    }
-
     return data
 }
 

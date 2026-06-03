@@ -104,7 +104,7 @@ export default function ProjectTab({
     }, [settings.serviceUrl])
 
     useEffect(() => {
-        if (!showTemplatePreview || !apiBaseUrl) {
+        if (!showTemplatePreview) {
             setSelectedTemplateDetail(null)
             setIsLoadingTemplateDetail(false)
             return
@@ -120,7 +120,7 @@ export default function ProjectTab({
             setIsLoadingTemplateDetail(true)
 
             try {
-                const detail = await getTemplate(apiBaseUrl, selectedTemplateUuid)
+                const detail = await getTemplate(selectedTemplateUuid)
                 if (isMounted) {
                     setSelectedTemplateDetail(detail)
                 }
@@ -140,7 +140,7 @@ export default function ProjectTab({
         return () => {
             isMounted = false
         }
-    }, [apiBaseUrl, selectedTemplateDetail?.uuid, selectedTemplateUuid, showTemplatePreview])
+    }, [selectedTemplateDetail?.uuid, selectedTemplateUuid, showTemplatePreview])
 
     const handleRunPipeline = async () => {
         if (!project) {

@@ -1,12 +1,27 @@
 export type TemplateOption = {
     uuid: string
     title: string
-    source?: 'database' | 'local'
 }
 
 export type PipelineErrorResponse = {
     type: string
     message: string
+}
+
+export type ApiTemplateSection = {
+    title: string
+    content?: string
+    sections?: ApiTemplateSection[]
+}
+
+export type ApiTemplateContent = {
+    sections: ApiTemplateSection[]
+}
+
+export type TemplateDetail = {
+    uuid: string
+    title: string
+    content: ApiTemplateContent
 }
 
 export type PipelineRunResponse = {

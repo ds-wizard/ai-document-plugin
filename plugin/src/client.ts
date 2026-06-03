@@ -1,4 +1,9 @@
-import type { PipelineRunResponse, PipelineStatusResponse, TemplateOption } from '@/types'
+import type {
+    PipelineRunResponse,
+    PipelineStatusResponse,
+    TemplateDetail,
+    TemplateOption,
+} from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
@@ -38,6 +43,17 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     }
 
     return templates
+}
+
+export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
+    const response = await fetch(url)
+    const data = await readApiResponse<TemplateDetail>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load template (${response.status}).`)
+    }
+    return data
 }
 
 export const getPipelineStatus = async (runId: string): Promise<PipelineStatusResponse> => {
@@ -133,15 +149,15 @@ export const createTemplate = async ({
         }),
     })
 
-    const data = await readApiResponse<TemplateOption | { detail?: string }>(response, url)
+    const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
 
     if (!response.ok) {
         throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
+            'detail' in data && data.detail ? data.detail : 'Failed to save the template.',
         )
     }
 
-    if (!('uuid' in data) || !('title' in data)) {
+    if (!('uuid' in data) || !('title' in data) || !('content' in data)) {
         throw new Error('The backend did not return a saved template.')
     }
 

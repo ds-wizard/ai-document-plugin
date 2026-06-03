@@ -12,6 +12,7 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     TemplateCreateRequest,
+    TemplateDetail,
     TemplateListItem,
     _model_from_fields,
 )
@@ -32,8 +33,25 @@ def list_templates() -> list[TemplateListItem]:
     return [_model_from_fields(TemplateListItem, **item) for item in database.list_templates()]
 
 
+@router.get('/templates/{template_uuid}')
+def get_template(template_uuid: str) -> TemplateDetail:
+    config = load_config()
+    database = PostgresDB(config.database)
+    template = database.get_template(template_uuid)
+
+    if template is None:
+        raise fastapi.HTTPException(status_code=404, detail='Template not found')
+
+    return _model_from_fields(
+        TemplateDetail,
+        uuid=template['uuid'],
+        title=template['title'],
+        content=template['content'],
+    )
+
+
 @router.post('/templates', status_code=201)
-def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
+def create_template(payload: TemplateCreateRequest) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')
@@ -59,9 +77,10 @@ def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
         raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
 
     return _model_from_fields(
-        TemplateListItem,
+        TemplateDetail,
         uuid=template_uuid,
         title=trimmed_title,
+        content=payload.content,
     )
 
 

@@ -23,7 +23,7 @@
     max-width: 100%;
     background: var(--ai-doc-color-slate-950);
     color: var(--ai-doc-color-slate-200);
-    border-radius: 0.75rem;
+    border-radius: var(--bs-border-radius);
     padding: 1rem;
     overflow-x: auto;
     white-space: pre;
@@ -31,7 +31,7 @@
 
 .codeInline {
     background: var(--ai-doc-color-slate-200);
-    border-radius: 0.25rem;
+    border-radius: var(--bs-border-radius);
     padding: 0.1rem 0.3rem;
 }
 
@@ -105,7 +105,7 @@
     max-width: 100%;
     overflow-x: auto;
     border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: 0.75rem;
+    border-radius: var(--bs-border-radius);
     background: var(--ai-doc-color-white);
     margin-bottom: 1rem;
 }

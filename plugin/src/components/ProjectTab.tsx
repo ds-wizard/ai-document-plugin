@@ -1,17 +1,23 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, useEffect, useState } from 'react'
 
-import { createTemplate, getTemplates, runPipeline, saveEditedPipelineResult } from '@/client'
+import {
+    createTemplate,
+    getTemplate,
+    getTemplates,
+    runPipeline,
+    saveEditedPipelineResult,
+} from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
 import { PipelineStatusPoller } from '@/components/PipelineStatusPoller'
 import styles from '@/components/ProjectTab.module.css'
+import { CUSTOM_TEMPLATE_OPTION, TemplateDropdown } from '@/components/TemplateDropdown'
+import { TemplatePreview } from '@/components/TemplatePreview'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
-import type { ResultRenderMode, TemplateOption } from '@/types'
-
-const CUSTOM_TEMPLATE_OPTION = '__custom_template__'
+import type { ResultRenderMode, TemplateDetail, TemplateOption } from '@/types'
 
 export default function ProjectTab({
     settings,
@@ -36,34 +42,21 @@ export default function ProjectTab({
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
-    const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false)
-    const templateDropdownRef = useRef<HTMLDivElement | null>(null)
+    const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<TemplateDetail | null>(
+        null,
+    )
+    const [isLoadingTemplateDetail, setIsLoadingTemplateDetail] = useState(false)
 
     const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
     const hasResultChanges = resultMarkdown !== null && editableResultMarkdown !== resultMarkdown
     const isCreatingCustomTemplate = selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
-    const selectedTemplateLabel = useMemo(() => {
-        if (!selectedTemplateUuid) {
-            if (isLoadingTemplates) {
-                return 'Loading templates...'
-            }
+    const showTemplatePreview =
+        Boolean(selectedTemplateUuid) && !isCreatingCustomTemplate && !isLoadingTemplates
 
-            return templates.length === 0 ? 'Select a template option' : 'Select a template'
-        }
-
-        if (selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION) {
-            return 'Custom template...'
-        }
-
-        const selectedTemplate = templates.find(
-            (template) => template.uuid === selectedTemplateUuid,
-        )
-        if (!selectedTemplate) {
-            return 'Select a template'
-        }
-
-        return `${selectedTemplate.title}${selectedTemplate.source === 'local' ? ' (local)' : ''}`
-    }, [isLoadingTemplates, selectedTemplateUuid, templates])
+    const handleTemplateChange = (templateUuid: string) => {
+        setSelectedTemplateUuid(templateUuid)
+        setLocalTemplateError(null)
+    }
 
     useEffect(() => {
         let isMounted = true
@@ -78,9 +71,7 @@ export default function ProjectTab({
                     return
                 }
 
-                setTemplates(
-                    templates.map((template) => ({ ...template, source: 'database' as const })),
-                )
+                setTemplates(templates)
                 setSelectedTemplateUuid((currentValue) => currentValue || '')
             } catch (error) {
                 if (!isMounted) {
@@ -113,30 +104,43 @@ export default function ProjectTab({
     }, [settings.serviceUrl])
 
     useEffect(() => {
-        if (!isTemplateDropdownOpen) {
+        if (!showTemplatePreview || !apiBaseUrl) {
+            setSelectedTemplateDetail(null)
+            setIsLoadingTemplateDetail(false)
             return
         }
 
-        const handlePointerDown = (event: MouseEvent) => {
-            if (!templateDropdownRef.current?.contains(event.target as Node)) {
-                setIsTemplateDropdownOpen(false)
+        if (selectedTemplateDetail?.uuid === selectedTemplateUuid) {
+            return
+        }
+
+        let isMounted = true
+
+        const loadTemplateDetail = async () => {
+            setIsLoadingTemplateDetail(true)
+
+            try {
+                const detail = await getTemplate(apiBaseUrl, selectedTemplateUuid)
+                if (isMounted) {
+                    setSelectedTemplateDetail(detail)
+                }
+            } catch {
+                if (isMounted) {
+                    setSelectedTemplateDetail(null)
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoadingTemplateDetail(false)
+                }
             }
         }
 
-        const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setIsTemplateDropdownOpen(false)
-            }
-        }
-
-        document.addEventListener('mousedown', handlePointerDown)
-        document.addEventListener('keydown', handleEscape)
+        void loadTemplateDetail()
 
         return () => {
-            document.removeEventListener('mousedown', handlePointerDown)
-            document.removeEventListener('keydown', handleEscape)
+            isMounted = false
         }
-    }, [isTemplateDropdownOpen])
+    }, [apiBaseUrl, selectedTemplateDetail?.uuid, selectedTemplateUuid, showTemplatePreview])
 
     const handleRunPipeline = async () => {
         if (!project) {
@@ -239,7 +243,6 @@ export default function ProjectTab({
             const savedTemplate: TemplateOption = {
                 uuid: data.uuid,
                 title: data.title,
-                source: 'database',
             }
 
             setTemplates((currentTemplates) => {
@@ -354,64 +357,28 @@ export default function ProjectTab({
 
                 <label className={styles.label}>
                     <h4>DMP template</h4>
-                    <div className={styles.dropdown} ref={templateDropdownRef}>
-                        <button
-                            type="button"
-                            disabled={isLoadingTemplates || isRunningPipeline || !project}
-                            className={styles.dropdownToggle}
-                            onClick={() =>
-                                setIsTemplateDropdownOpen((currentValue) => !currentValue)
-                            }
-                            aria-expanded={isTemplateDropdownOpen}
-                        >
-                            <span>{selectedTemplateLabel}</span>
-                            <span className={styles.dropdownCaret} aria-hidden="true">
-                                ▼
-                            </span>
-                        </button>
-
-                        {isTemplateDropdownOpen ? (
-                            <div className={styles.dropdownMenu}>
-                                {templates.map((template) => (
-                                    <button
-                                        key={template.uuid}
-                                        type="button"
-                                        className={`${styles.dropdownItem} ${
-                                            selectedTemplateUuid === template.uuid
-                                                ? styles.dropdownItemActive
-                                                : ''
-                                        }`}
-                                        onClick={() => {
-                                            setSelectedTemplateUuid(template.uuid)
-                                            setLocalTemplateError(null)
-                                            setIsTemplateDropdownOpen(false)
-                                        }}
-                                    >
-                                        {template.title}
-                                        {template.source === 'local' ? ' (local)' : ''}
-                                    </button>
-                                ))}
-
-                                <button
-                                    type="button"
-                                    className={`${styles.dropdownItem} ${
-                                        selectedTemplateUuid === CUSTOM_TEMPLATE_OPTION
-                                            ? styles.dropdownItemActive
-                                            : ''
-                                    }`}
-                                    onClick={() => {
-                                        setSelectedTemplateUuid(CUSTOM_TEMPLATE_OPTION)
-                                        setLocalTemplateError(null)
-                                        setIsTemplateDropdownOpen(false)
-                                    }}
-                                >
-                                    Custom template...
-                                </button>
-                            </div>
-                        ) : null}
-                    </div>
+                    <TemplateDropdown
+                        value={selectedTemplateUuid}
+                        onChange={handleTemplateChange}
+                        templates={templates}
+                        isLoading={isLoadingTemplates}
+                        disabled={isRunningPipeline || !project}
+                    />
                 </label>
 
+                {selectedTemplateDetail ? (
+                    <TemplatePreview
+                        content={
+                            selectedTemplateDetail?.uuid === selectedTemplateUuid
+                                ? selectedTemplateDetail.content
+                                : undefined
+                        }
+                        isLoading={
+                            isLoadingTemplateDetail ||
+                            selectedTemplateDetail?.uuid !== selectedTemplateUuid
+                        }
+                    />
+                ) : null}
                 {isCreatingCustomTemplate ? (
                     <CustomTemplateSection
                         localTemplateTitle={localTemplateTitle}

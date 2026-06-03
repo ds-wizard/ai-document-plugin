@@ -1,7 +1,7 @@
-import styles from '@/components/TemplateTitlePreview.module.css'
+import styles from '@/components/TemplatePreview.module.css'
 import type { ApiTemplateContent, ApiTemplateSection } from '@/types'
 
-type TemplateTitlePreviewProps = {
+type TemplatePreviewProps = {
     content?: ApiTemplateContent
     isLoading: boolean
 }
@@ -42,13 +42,13 @@ function PreviewSectionNode({ section, depth, path }: PreviewSectionNodeProps) {
     )
 }
 
-export function TemplateTitlePreview({ content, isLoading }: TemplateTitlePreviewProps) {
+export function TemplatePreview({ content, isLoading }: TemplatePreviewProps) {
     const sections = content?.sections ?? []
 
     return (
-        <section className={styles.root} aria-label="Title preview">
+        <section className={styles.root} aria-label="Template preview">
             <div className={styles.label}>
-                <span className={styles.labelText}>Title preview</span>
+                <span className={styles.labelText}>Template preview</span>
                 <div className={styles.content}>
                     {isLoading ? (
                         <p className={styles.status}>Loading template structure...</p>

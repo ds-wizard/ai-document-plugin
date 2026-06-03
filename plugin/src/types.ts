@@ -1,7 +1,6 @@
 export type TemplateOption = {
     uuid: string
     title: string
-    source?: 'database' | 'local'
 }
 
 export type PipelineErrorResponse = {

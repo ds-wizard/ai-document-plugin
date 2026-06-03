@@ -46,8 +46,11 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     return templates
 }
 
-export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
-    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
+export const getTemplate = async (
+    apiBaseUrl: string,
+    templateUuid: string,
+): Promise<TemplateDetail> => {
+    const url = `${apiBaseUrl}/templates/${encodeURIComponent(templateUuid)}`
     const response = await fetch(url)
     const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
 
@@ -159,15 +162,15 @@ export const createTemplate = async ({
         }),
     })
 
-    const data = await readApiResponse<TemplateOption | { detail?: string }>(response, url)
+    const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
 
     if (!response.ok) {
         throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
+            'detail' in data && data.detail ? data.detail : 'Failed to save the template.',
         )
     }
 
-    if (!('uuid' in data) || !('title' in data)) {
+    if (!('uuid' in data) || !('title' in data) || !('content' in data)) {
         throw new Error('The backend did not return a saved template.')
     }
 

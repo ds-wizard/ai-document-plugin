@@ -88,8 +88,15 @@ export default function ProjectTab({
                     return
                 }
 
-                const message =
-                    error instanceof Error ? error.message : 'Nepodarilo se nacist seznam sablon.'
+                // Use error.name === 'TypeError' as a more robust check for "failed to fetch"
+                let message: string
+                if (error instanceof TypeError) {
+                    message = 'Cannot connect to the server.'
+                } else if (error instanceof Error) {
+                    message = error.message
+                } else {
+                    message = 'Unable to load the list of templates.'
+                }
                 setErrorMessage(message)
             } finally {
                 if (isMounted) {

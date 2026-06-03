@@ -4,7 +4,6 @@ import { getPipelineStatus } from '@/client'
 
 type PipelineStatusPollerProps = {
     activeRunId: string
-    apiBaseUrl: string
     setActiveRunId: (value: string | null) => void
     setIsRunningPipeline: (value: boolean) => void
     setInfoMessage: (value: string | null) => void
@@ -17,7 +16,6 @@ type PipelineStatusPollerProps = {
 
 export function PipelineStatusPoller({
     activeRunId,
-    apiBaseUrl,
     setActiveRunId,
     setIsRunningPipeline,
     setInfoMessage,
@@ -30,7 +28,7 @@ export function PipelineStatusPoller({
     useEffect(() => {
         const pollStatus = async () => {
             try {
-                const data = await getPipelineStatus(apiBaseUrl, activeRunId)
+                const data = await getPipelineStatus(activeRunId)
 
                 if (data.status === 'running') {
                     const progressDetail = data.progressMessage
@@ -84,7 +82,6 @@ export function PipelineStatusPoller({
         }
     }, [
         activeRunId,
-        apiBaseUrl,
         setActiveRunId,
         setEditableResultMarkdown,
         setErrorMessage,

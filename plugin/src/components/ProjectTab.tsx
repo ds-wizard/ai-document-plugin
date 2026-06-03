@@ -34,7 +34,6 @@ export default function ProjectTab({
     const [resultMarkdown, setResultMarkdown] = useState<string | null>(null)
     const [editableResultMarkdown, setEditableResultMarkdown] = useState('')
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
-    const [apiBaseUrl, setApiBaseUrl] = useState<string | null>(null)
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
     const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false)
@@ -74,12 +73,11 @@ export default function ProjectTab({
             setErrorMessage(null)
 
             try {
-                const { baseUrl, templates } = await getTemplates(settings.serviceUrl)
+                const templates = await getTemplates()
                 if (!isMounted) {
                     return
                 }
 
-                setApiBaseUrl(baseUrl)
                 setTemplates(
                     templates.map((template) => ({ ...template, source: 'database' as const })),
                 )
@@ -149,11 +147,6 @@ export default function ProjectTab({
             return
         }
 
-        if (!apiBaseUrl) {
-            setErrorMessage('Plugin backend is not available.')
-            return
-        }
-
         setIsRunningPipeline(true)
         setErrorMessage(null)
         setSuccessMessage(null)
@@ -169,7 +162,6 @@ export default function ProjectTab({
             }
 
             const data = await runPipeline({
-                apiBaseUrl,
                 questionnaireUuid: project.uuid,
                 templateUuid: selectedTemplateUuid,
                 token,
@@ -231,13 +223,8 @@ export default function ProjectTab({
                 throw new Error('Template JSON must contain a top-level "sections" array.')
             }
 
-            if (!apiBaseUrl) {
-                throw new Error('Plugin backend is not available.')
-            }
-
             setIsCreatingTemplate(true)
             const data = await createTemplate({
-                apiBaseUrl,
                 title: trimmedTitle,
                 content: parsed,
             })
@@ -310,18 +297,9 @@ export default function ProjectTab({
             return
         }
 
-        if (!apiBaseUrl) {
-            setErrorMessage('Plugin backend is not available.')
-            return
-        }
-
         setIsSavingEditedVersion(true)
         try {
-            const data = await saveEditedPipelineResult(
-                apiBaseUrl,
-                resultRunId,
-                editableResultMarkdown,
-            )
+            const data = await saveEditedPipelineResult(resultRunId, editableResultMarkdown)
 
             setResultMarkdown(data.resultMarkdown)
             setEditableResultMarkdown(data.resultMarkdown || '')
@@ -353,10 +331,9 @@ export default function ProjectTab({
                     </div>
                 ) : null}
 
-                {activeRunId && apiBaseUrl ? (
+                {activeRunId ? (
                     <PipelineStatusPoller
                         activeRunId={activeRunId}
-                        apiBaseUrl={apiBaseUrl}
                         setActiveRunId={setActiveRunId}
                         setEditableResultMarkdown={setEditableResultMarkdown}
                         setErrorMessage={setErrorMessage}

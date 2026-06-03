@@ -51,7 +51,7 @@ def get_template(template_uuid: str) -> TemplateDetail:
 
 
 @router.post('/templates', status_code=201)
-def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
+def create_template(payload: TemplateCreateRequest) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')
@@ -77,9 +77,10 @@ def create_template(payload: TemplateCreateRequest) -> TemplateListItem:
         raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
 
     return _model_from_fields(
-        TemplateListItem,
+        TemplateDetail,
         uuid=template_uuid,
         title=trimmed_title,
+        content=payload.content,
     )
 
 

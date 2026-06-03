@@ -408,12 +408,6 @@ export default function ProjectTab({
                     {isRunningPipeline ? 'Running pipeline...' : 'Run pipeline'}
                 </button>
 
-                {project ? (
-                    <div className={styles.projectName}>
-                        Project: <strong>{project.name}</strong>
-                    </div>
-                ) : null}
-
                 {errorMessage ? (
                     <div className={`${styles.alert} ${styles.errorAlert}`}>{errorMessage}</div>
                 ) : null}

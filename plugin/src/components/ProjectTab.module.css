@@ -25,12 +25,6 @@
     margin-top: 0.25rem;
 }
 
-.projectName {
-    color: var(--ai-doc-color-slate-600);
-    font-size: 0.95rem;
-    line-height: 1.5;
-}
-
 .alert {
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;

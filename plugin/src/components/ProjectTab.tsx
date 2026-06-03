@@ -57,9 +57,7 @@ export default function ProjectTab({
         })
         setSelectedTemplateUuid(savedTemplate.uuid)
         setErrorMessage(null)
-        setSuccessMessage(
-            `Template "${savedTemplate.title}" was saved and added to the dropdown.`,
-        )
+        setSuccessMessage(`Template "${savedTemplate.title}" was saved and added to the dropdown.`)
     }
 
     useEffect(() => {

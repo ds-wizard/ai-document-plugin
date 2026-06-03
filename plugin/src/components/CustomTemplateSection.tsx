@@ -116,9 +116,7 @@ export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSecti
             setError(null)
             onTemplateCreated(savedTemplate)
         } catch (saveError) {
-            setError(
-                saveError instanceof Error ? saveError.message : 'Template JSON is not valid.',
-            )
+            setError(saveError instanceof Error ? saveError.message : 'Template JSON is not valid.')
         } finally {
             setIsSaving(false)
         }

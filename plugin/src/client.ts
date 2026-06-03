@@ -51,8 +51,7 @@ export const getTemplate = async (templateUuid: string): Promise<TemplateDetail>
     const data = await readApiResponse<TemplateDetail>(response, url)
 
     if (!response.ok) {
-        throw new Error(`Failed to load template (${response.status}).`,
-        )
+        throw new Error(`Failed to load template (${response.status}).`)
     }
     return data
 }

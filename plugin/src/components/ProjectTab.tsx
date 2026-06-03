@@ -1,14 +1,8 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
-import { ChangeEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import {
-    createTemplate,
-    getTemplate,
-    getTemplates,
-    runPipeline,
-    saveEditedPipelineResult,
-} from '@/client'
+import { getTemplate, getTemplates, runPipeline, saveEditedPipelineResult } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
 import { PipelineStatusPoller } from '@/components/PipelineStatusPoller'
@@ -26,10 +20,6 @@ export default function ProjectTab({
 }: ProjectTabComponentProps<SettingsData, UserSettingsData>) {
     const [templates, setTemplates] = useState<TemplateOption[]>([])
     const [selectedTemplateUuid, setSelectedTemplateUuid] = useState('')
-    const [localTemplateTitle, setLocalTemplateTitle] = useState('')
-    const [localTemplateJson, setLocalTemplateJson] = useState('')
-    const [localTemplateFileName, setLocalTemplateFileName] = useState('')
-    const [localTemplateError, setLocalTemplateError] = useState<string | null>(null)
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true)
     const [isRunningPipeline, setIsRunningPipeline] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -41,7 +31,6 @@ export default function ProjectTab({
     const [editableResultMarkdown, setEditableResultMarkdown] = useState('')
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
-    const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
     const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<TemplateDetail | null>(
         null,
     )
@@ -55,7 +44,22 @@ export default function ProjectTab({
 
     const handleTemplateChange = (templateUuid: string) => {
         setSelectedTemplateUuid(templateUuid)
-        setLocalTemplateError(null)
+    }
+
+    const handleTemplateCreated = (savedTemplate: TemplateOption) => {
+        setTemplates((currentTemplates) => {
+            const filteredTemplates = currentTemplates.filter(
+                (template) => template.uuid !== savedTemplate.uuid,
+            )
+            return [savedTemplate, ...filteredTemplates].sort((left, right) =>
+                left.title.localeCompare(right.title),
+            )
+        })
+        setSelectedTemplateUuid(savedTemplate.uuid)
+        setErrorMessage(null)
+        setSuccessMessage(
+            `Template "${savedTemplate.title}" was saved and added to the dropdown.`,
+        )
     }
 
     useEffect(() => {
@@ -192,83 +196,6 @@ export default function ProjectTab({
         }
     }
 
-    const handleLocalTemplateFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) {
-            setLocalTemplateFileName('')
-            return
-        }
-
-        try {
-            const content = await file.text()
-            setLocalTemplateFileName(file.name)
-            setLocalTemplateJson(content)
-            if (!localTemplateTitle.trim()) {
-                setLocalTemplateTitle(file.name.replace(/\.json$/i, ''))
-            }
-            setLocalTemplateError(null)
-        } catch {
-            setLocalTemplateError('Failed to read the selected JSON file.')
-        } finally {
-            event.target.value = ''
-        }
-    }
-
-    const handleAddLocalTemplate = async () => {
-        const trimmedTitle = localTemplateTitle.trim()
-        const trimmedJson = localTemplateJson.trim()
-
-        if (!trimmedTitle) {
-            setLocalTemplateError('Enter a template title.')
-            return
-        }
-
-        if (!trimmedJson) {
-            setLocalTemplateError('Insert or upload template JSON.')
-            return
-        }
-
-        try {
-            const parsed = JSON.parse(trimmedJson) as { sections?: unknown }
-            if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sections)) {
-                throw new Error('Template JSON must contain a top-level "sections" array.')
-            }
-
-            setIsCreatingTemplate(true)
-            const data = await createTemplate({
-                title: trimmedTitle,
-                content: parsed,
-            })
-
-            const savedTemplate: TemplateOption = {
-                uuid: data.uuid,
-                title: data.title,
-            }
-
-            setTemplates((currentTemplates) => {
-                const filteredTemplates = currentTemplates.filter(
-                    (template) => template.uuid !== savedTemplate.uuid,
-                )
-                return [savedTemplate, ...filteredTemplates].sort((left, right) =>
-                    left.title.localeCompare(right.title),
-                )
-            })
-            setSelectedTemplateUuid(savedTemplate.uuid)
-            setLocalTemplateTitle('')
-            setLocalTemplateJson('')
-            setLocalTemplateFileName('')
-            setLocalTemplateError(null)
-            setErrorMessage(null)
-            setSuccessMessage(`Template "${trimmedTitle}" was saved and added to the dropdown.`)
-        } catch (error) {
-            setLocalTemplateError(
-                error instanceof Error ? error.message : 'Template JSON is not valid.',
-            )
-        } finally {
-            setIsCreatingTemplate(false)
-        }
-    }
-
     const handleCopyMarkdown = async () => {
         if (!displayedResultMarkdown) {
             return
@@ -380,17 +307,7 @@ export default function ProjectTab({
                     />
                 ) : null}
                 {isCreatingCustomTemplate ? (
-                    <CustomTemplateSection
-                        localTemplateTitle={localTemplateTitle}
-                        localTemplateJson={localTemplateJson}
-                        localTemplateFileName={localTemplateFileName}
-                        localTemplateError={localTemplateError}
-                        isCreatingTemplate={isCreatingTemplate}
-                        onLocalTemplateTitleChange={setLocalTemplateTitle}
-                        onLocalTemplateJsonChange={setLocalTemplateJson}
-                        onLocalTemplateFileUpload={handleLocalTemplateFileUpload}
-                        onAddLocalTemplate={() => void handleAddLocalTemplate()}
-                    />
+                    <CustomTemplateSection onTemplateCreated={handleTemplateCreated} />
                 ) : null}
 
                 <button

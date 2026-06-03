@@ -13,10 +13,6 @@
     gap: 0.5rem;
 }
 
-.labelText {
-    font-weight: 600;
-}
-
 .content {
     max-height: 36rem;
     overflow-y: auto;

@@ -48,7 +48,7 @@ export function TemplatePreview({ content, isLoading }: TemplatePreviewProps) {
     return (
         <section className={styles.root} aria-label="Template preview">
             <div className={styles.label}>
-                <span className={styles.labelText}>Template preview</span>
+                <h5 className={styles.title}>Template preview:</h5>
                 <div className={styles.content}>
                     {isLoading ? (
                         <p className={styles.status}>Loading template structure...</p>

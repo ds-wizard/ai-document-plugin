@@ -1,4 +1,3 @@
-import { pluginMetadata } from '@/metadata'
 import type { PipelineRunResponse, PipelineStatusResponse, TemplateOption } from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
@@ -26,69 +25,23 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
         throw new Error(`Endpoint ${url} returned invalid JSON.`)
     }
 }
+// __API_URL__ (with removed trailing /. e.g.: example.com/ => example.com
+export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
 
-const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '')
-
-const buildApiBaseCandidates = (serviceUrl: string | undefined): string[] => {
-    const explicitServiceUrl = serviceUrl?.trim()
-    const candidates = [
-        explicitServiceUrl || null,
-        __API_URL__,
-        `${__API_URL__}/api`,
-        __API_URL__.includes('/plugins/')
-            ? __API_URL__.replace('/plugins/', '/plugin-services/')
-            : null,
-        __API_URL__.includes('/plugins/') ? __API_URL__.replace('/plugins/', '/services/') : null,
-        `${window.location.origin}/gateway/plugin-services/${pluginMetadata.uuid}`,
-        `${window.location.origin}/gateway/services/${pluginMetadata.uuid}`,
-        `${window.location.origin}/gateway/plugin-service/${pluginMetadata.uuid}`,
-        `${window.location.origin}/gateway/${pluginMetadata.uuid}`,
-    ]
-
-    return [
-        ...new Set(
-            candidates
-                .filter((candidate): candidate is string => Boolean(candidate))
-                .map(normalizeBaseUrl),
-        ),
-    ]
-}
-
-export const discoverApiBase = async (serviceUrl: string | undefined): Promise<string> => {
-    const candidates = buildApiBaseCandidates(serviceUrl)
-
-    for (const candidate of candidates) {
-        try {
-            const response = await fetch(`${candidate}/health`)
-            const data = await readApiResponse<{ status?: string }>(response, `${candidate}/health`)
-
-            if (response.ok && data.status === 'healthy') {
-                return candidate
-            }
-        } catch {
-            continue
-        }
-    }
-
-    throw new Error(`Unable to locate plugin backend. Tried: ${candidates.join(', ')}`)
-}
-
-export const getTemplates = async (
-    serviceUrl: string | undefined,
-): Promise<{ baseUrl: string; templates: TemplateOption[] }> => {
-    const baseUrl = await discoverApiBase(serviceUrl)
-    const url = `${baseUrl}/templates`
+export const getTemplates = async (): Promise<TemplateOption[]> => {
+    const url = `${getApiBaseUrl()}/templates`
     const response = await fetch(url)
     const templates = await readApiResponse<TemplateOption[]>(response, url)
 
-    return { baseUrl, templates }
+    if (!response.ok) {
+        throw new Error(`Failed to load the list of templates (${response.status}).`)
+    }
+
+    return templates
 }
 
-export const getPipelineStatus = async (
-    apiBaseUrl: string,
-    runId: string,
-): Promise<PipelineStatusResponse> => {
-    const url = `${apiBaseUrl}/pipelines/status/${runId}`
+export const getPipelineStatus = async (runId: string): Promise<PipelineStatusResponse> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}`
     const response = await fetch(url)
     const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
 
@@ -106,7 +59,6 @@ export const getPipelineStatus = async (
 }
 
 type RunPipelineParams = {
-    apiBaseUrl: string
     questionnaireUuid: string
     templateUuid: string
     token: string
@@ -118,7 +70,6 @@ type RunPipelineParams = {
 }
 
 export const runPipeline = async ({
-    apiBaseUrl,
     questionnaireUuid,
     templateUuid,
     token,
@@ -128,7 +79,7 @@ export const runPipeline = async ({
     llmApiUrl = null,
     llmMaxWorkers = null,
 }: RunPipelineParams): Promise<PipelineRunResponse> => {
-    const url = `${apiBaseUrl}/pipelines/run`
+    const url = `${getApiBaseUrl()}/pipelines/run`
     const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -162,17 +113,15 @@ export const runPipeline = async ({
 }
 
 type CreateTemplateParams = {
-    apiBaseUrl: string
     title: string
     content: unknown
 }
 
 export const createTemplate = async ({
-    apiBaseUrl,
     title,
     content,
 }: CreateTemplateParams): Promise<TemplateOption> => {
-    const url = `${apiBaseUrl}/templates`
+    const url = `${getApiBaseUrl()}/templates`
     const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -200,11 +149,10 @@ export const createTemplate = async ({
 }
 
 export const saveEditedPipelineResult = async (
-    apiBaseUrl: string,
     runId: string,
     resultMarkdown: string,
 ): Promise<PipelineStatusResponse> => {
-    const url = `${apiBaseUrl}/pipelines/status/${runId}/save`
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/save`
     const response = await fetch(url, {
         method: 'POST',
         headers: {

@@ -1,5 +1,4 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
-import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 import { useEffect, useState } from 'react'
 
 import { getTemplate, getTemplates, runPipeline, saveEditedPipelineResult } from '@/client'
@@ -169,16 +168,9 @@ export default function ProjectTab({
         setEditableResultMarkdown('')
 
         try {
-            const { apiUrl, token } = getApiUrlAndToken()
-            if (!token) {
-                throw new Error("Failed to retrieve the current user's authentication token.")
-            }
-
             const data = await runPipeline({
                 questionnaireUuid: project.uuid,
                 templateUuid: selectedTemplateUuid,
-                token,
-                apiUrl,
                 llmModel: settings.model || null,
                 llmApiKey: settings.apiKey || null,
                 llmApiUrl: settings.apiUrl || null,

@@ -8,6 +8,10 @@ llm_response_generation:
 dsw:
   api_url: ""
 
+auth:
+  allowed_project_urls:
+    - "https://your-dsw-instance.example.com"
+
 logging:
   level: "INFO"
 

@@ -57,6 +57,9 @@ def _write_config_files(
               workers: 2
             dsw:
               api_url: "https://dsw.example.com"
+            auth:
+              allowed_project_urls:
+                - "https://dsw.example.com"
             logging:
               level: "INFO"
             database:
@@ -94,6 +97,7 @@ def test_load_config_uses_env_config_path_and_resolves_prompts_relative_to_it(
 
     assert config.model == 'env-model'
     assert config.api_key == 'secret-from-env'
+    assert config.allowed_project_urls == ('https://dsw.example.com',)
     assert config.files.prompts_path == str(config_path.parent / 'nested/prompts.custom.yaml')
 
 
@@ -156,6 +160,9 @@ def test_load_config_rejects_absolute_prompts_path_in_config(
               workers: 2
             dsw:
               api_url: "https://dsw.example.com"
+            auth:
+              allowed_project_urls:
+                - "https://dsw.example.com"
             logging:
               level: "INFO"
             database:
@@ -166,7 +173,7 @@ def test_load_config_rejects_absolute_prompts_path_in_config(
               password: "plugin_password"
               schema: "public"
             files:
-              prompts_path: "{absolute_prompts_path}"
+              prompts_path: "{absolute_prompts_path.as_posix()}"
             '''
         ).strip()
         + '\n',

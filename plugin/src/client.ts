@@ -1,3 +1,5 @@
+import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
+
 import type {
     PipelineRunResponse,
     PipelineStatusResponse,
@@ -33,9 +35,35 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
 // __API_URL__ (with removed trailing /. e.g.: example.com/ => example.com
 export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
 
+const buildAuthHeaders = (): Record<string, string> => {
+    const { apiUrl, token } = getApiUrlAndToken()
+    if (!token) {
+        throw new Error("Failed to retrieve the current user's authentication token.")
+    }
+    if (!apiUrl) {
+        throw new Error('Failed to retrieve the DSW API URL.')
+    }
+
+    return {
+        Authorization: `Bearer ${token}`,
+        'X-Dsw-Api-Url': apiUrl,
+    }
+}
+
+// false positive for global type RequestInit
+// eslint-disable-next-line no-undef
+const apiFetch = (url: string, init?: RequestInit): Promise<Response> =>
+    fetch(url, {
+        ...init,
+        headers: {
+            ...buildAuthHeaders(),
+            ...init?.headers,
+        },
+    })
+
 export const getTemplates = async (): Promise<TemplateOption[]> => {
     const url = `${getApiBaseUrl()}/templates`
-    const response = await fetch(url)
+    const response = await apiFetch(url)
     const templates = await readApiResponse<TemplateOption[]>(response, url)
 
     if (!response.ok) {
@@ -47,7 +75,7 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
 
 export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
     const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
-    const response = await fetch(url)
+    const response = await apiFetch(url)
     const data = await readApiResponse<TemplateDetail>(response, url)
 
     if (!response.ok) {
@@ -58,7 +86,7 @@ export const getTemplate = async (templateUuid: string): Promise<TemplateDetail>
 
 export const getPipelineStatus = async (runId: string): Promise<PipelineStatusResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/status/${runId}`
-    const response = await fetch(url)
+    const response = await apiFetch(url)
     const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
 
     if (!response.ok) {
@@ -77,8 +105,6 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
 type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
-    token: string
-    apiUrl: string
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
@@ -88,15 +114,13 @@ type RunPipelineParams = {
 export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
-    token,
-    apiUrl,
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
     llmMaxWorkers = null,
 }: RunPipelineParams): Promise<PipelineRunResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/run`
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -104,8 +128,6 @@ export const runPipeline = async ({
         body: JSON.stringify({
             questionnaireUuid,
             templateUuid,
-            token,
-            apiUrl,
             llmModel,
             llmApiKey,
             llmApiUrl,
@@ -138,7 +160,7 @@ export const createTemplate = async ({
     content,
 }: CreateTemplateParams): Promise<TemplateOption> => {
     const url = `${getApiBaseUrl()}/templates`
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -169,7 +191,7 @@ export const saveEditedPipelineResult = async (
     resultMarkdown: string,
 ): Promise<PipelineStatusResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/status/${runId}/save`
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

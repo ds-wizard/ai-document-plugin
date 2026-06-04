@@ -33,6 +33,7 @@ def _test_config() -> Config:
         api_key='',
         api_url='',
         dsw_api_url='',
+        allowed_project_urls=(),
         model='test',
         log_level='DEBUG',
         database=DatabaseConfig(

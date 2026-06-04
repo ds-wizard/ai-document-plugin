@@ -46,8 +46,6 @@ class TemplateCreateRequest(ApiModel):
 class PipelineRunRequest(ApiModel):
     questionnaire_uuid: str = Field(alias='questionnaireUuid')
     template_uuid: str = Field(alias='templateUuid')
-    token: str
-    api_url: str | None = Field(default=None, alias='apiUrl')
     llm_model: str | None = Field(default=None, alias='llmModel')
     llm_api_key: str | None = Field(default=None, alias='llmApiKey')
     llm_api_url: str | None = Field(default=None, alias='llmApiUrl')

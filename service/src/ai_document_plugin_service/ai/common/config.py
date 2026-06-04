@@ -44,6 +44,7 @@ class Config:
     api_key: str
     api_url: str
     dsw_api_url: str
+    allowed_project_urls: tuple[str, ...]
     model: str
     log_level: str
     database: DatabaseConfig
@@ -111,6 +112,26 @@ def _get_relative_file_path(config: dict, key: str) -> str:
         msg = f"Invalid config value: 'files.{key}' must be a relative path"
         raise ValueError(msg)
     return value
+
+
+def normalize_project_url(url: str) -> str:
+    return url.strip().rstrip('/')
+
+
+def _get_allowed_project_urls(config: dict[str, Any]) -> tuple[str, ...]:
+    raw_urls = _get(config, 'auth', 'allowed_project_urls')
+    if not isinstance(raw_urls, list) or not raw_urls:
+        msg = "Invalid config value: 'auth.allowed_project_urls' must be a non-empty list"
+        raise ValueError(msg)
+
+    normalized: list[str] = []
+    for index, entry in enumerate(raw_urls):
+        if not isinstance(entry, str) or not entry.strip():
+            msg = f"Invalid config value: 'auth.allowed_project_urls[{index}]' must be a non-empty string"
+            raise ValueError(msg)
+        normalized.append(normalize_project_url(entry))
+
+    return tuple(normalized)
 
 
 def _get_parallel_workers(config: dict[str, Any]) -> int:
@@ -184,6 +205,7 @@ def load_config(config_path: str | None = None) -> Config:
         api_url=_get(config, 'llm_response_generation', 'api_url'),
         model=_get(config, 'llm_response_generation', 'model'),
         dsw_api_url=_get(config, 'dsw', 'api_url'),
+        allowed_project_urls=_get_allowed_project_urls(config),
         log_level=_get_log_level(config),
         database=DatabaseConfig(
             host=_expand_env_vars(_get(config, 'database', 'host')),

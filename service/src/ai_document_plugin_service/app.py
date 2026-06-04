@@ -2,7 +2,7 @@ import fastapi
 import fastapi.middleware.cors
 
 from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
-from ai_document_plugin_service.api import router
+from ai_document_plugin_service.api.routes import protected_router, public_router
 
 
 def create_app() -> fastapi.FastAPI:
@@ -18,7 +18,8 @@ def create_app() -> fastapi.FastAPI:
         allow_methods=['*'],
         allow_headers=['*'],
     )
-    app.include_router(router)
+    app.include_router(public_router)
+    app.include_router(protected_router)
     return app
 
 

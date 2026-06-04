@@ -1,11 +1,6 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
-import type {
-    PipelineRunResponse,
-    PipelineStatusResponse,
-    TemplateDetail,
-    TemplateOption,
-} from '@/types'
+import type { PipelineRunResponse, PipelineStatusResponse, TemplateDetail, TemplateOption, } from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
     if (!value || typeof value !== 'object') {
@@ -49,7 +44,8 @@ const buildAuthHeaders = (): Record<string, string> => {
         'X-Dsw-Api-Url': apiUrl,
     }
 }
-
+// false positive for global type RequestInit
+// eslint-disable-next-line no-undef
 const apiFetch = (url: string, init?: RequestInit): Promise<Response> =>
     fetch(url, {
         ...init,

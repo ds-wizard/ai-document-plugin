@@ -10,7 +10,8 @@ uv sync --dev
 ```
 
 Create `config.yaml` with your LLM credentials (see `config.template.yaml`). All input/output file paths, including the
-prompts file, can be configured there.
+prompts file, can be configured there. To use a different config file, set `AI_DOCUMENT_PLUGIN_CONFIG_PATH` to its path
+before starting the API or CLI.
 
 Run the full pipeline:
 
@@ -22,8 +23,8 @@ uv run ai-document-pipeline \
 ```
 
 The CLI reads technical configuration such as DSW API base URL, database connection, model configuration, prompt paths,
-and output file paths from `config.yaml`. The runtime inputs `questionnaire_uuid`, `token`, and `template_uuid` are
-passed explicitly through CLI arguments.
+and output file paths from `config.yaml` or from the file referenced by `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The runtime
+inputs `questionnaire_uuid`, `token`, and `template_uuid` are passed explicitly through CLI arguments.
 
 This produces:
 
@@ -57,12 +58,14 @@ consolidating duplicates, and improving flow — without adding new content.
 ### `config.yaml`
 
 LLM connection settings (API key, base URL, model name), DSW API base URL, database connection, and all pipeline file
-paths. The API key supports environment variable expansion (e.g. `$OPENAI_API_KEY`).
+paths. The API key supports environment variable expansion (e.g. `$OPENAI_API_KEY`). The file itself can be overridden
+globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The config file does not contain its own `config_path`; the active file
+is determined only by runtime startup/defaults.
 
 ### `prompts.yaml`
 
-Prompt templates and LLM parameters for each step. Its location can be overridden via `files.prompts_path` in
-`config.yaml`.
+Prompt templates and LLM parameters for each step. In `config.yaml`, `files.prompts_path` must be a relative path and
+is resolved relative to the active config file.
 
 ## Make commands
 

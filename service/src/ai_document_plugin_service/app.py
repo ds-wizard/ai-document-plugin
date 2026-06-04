@@ -1,11 +1,16 @@
 import fastapi
 import fastapi.middleware.cors
 
+from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
 from ai_document_plugin_service.api import router
 
 
 def create_app() -> fastapi.FastAPI:
+    config_path = resolve_config_path()
+    config = load_config(config_path)
+
     app = fastapi.FastAPI(title='Plugin Service', version='1.0.0')
+    app.state.config = config
     app.add_middleware(
         middleware_class=fastapi.middleware.cors.CORSMiddleware,
         allow_origins=['*'],

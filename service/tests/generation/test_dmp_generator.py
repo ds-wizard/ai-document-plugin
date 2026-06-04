@@ -43,7 +43,7 @@ def _test_config() -> Config:
             password='',
             schema='',
         ),
-        files=FilePaths(config_path='', prompts_path=''),
+        files=FilePaths(prompts_path=''),
         assignment=prompt,
         section_id=prompt,
         dmp_generation=system_prompt,

@@ -17,9 +17,9 @@ from ai_document_plugin_service.ai.common import (
     get_component_stats,
 )
 from ai_document_plugin_service.ai.common.config import (
+    Config,
     LLMConfigOverride,
     apply_llm_override,
-    load_config,
 )
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
@@ -127,15 +127,21 @@ def run_pipeline(
     tenant_uuid: str,
     pipeline: Pipeline,
     database: Database,
+    config: Config,
     llm_override: LLMConfigOverride | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
     t1 = time.time()
-    config = apply_llm_override(load_config(), llm_override)
-    configure_logging(config.log_level)
-    model_name = config.model
+    resolved_config = apply_llm_override(config, llm_override)
+    configure_logging(resolved_config.log_level)
+    model_name = resolved_config.model
 
-    km_data = get_questionnaire_detail(questionnaire_uuid, token, dsw_api_url)
+    km_data = get_questionnaire_detail(
+        questionnaire_uuid=questionnaire_uuid,
+        config=config,
+        token=token,
+        api_url=dsw_api_url,
+    )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -155,7 +161,7 @@ def run_pipeline(
             'parser_component': {'data': km_data},
             'assignment_component': {
                 'template_data': template_data,
-                'config': config,
+                'config': resolved_config,
                 'km': km,
                 'on_progress': on_progress,
             },
@@ -170,11 +176,11 @@ def run_pipeline(
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
-                'config': config,
+                'config': resolved_config,
                 'on_progress': on_progress,
             },
             'dmp_polisher_component': {
-                'config': config,
+                'config': resolved_config,
                 'template_data': template_data,
                 'on_progress': on_progress,
             },

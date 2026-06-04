@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import fastapi
 
-from ai_document_plugin_service.ai.common.config import LLMConfigOverride, load_config
+from ai_document_plugin_service.ai.common.config import Config, LLMConfigOverride
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
@@ -21,21 +21,25 @@ from ai_document_plugin_service.service import pipeline_service as pipeline
 router = fastapi.APIRouter()
 
 
+def _load_app_config(request: fastapi.Request) -> Config:
+    return request.app.state.config
+
+
 @router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
 
 
 @router.get('/templates')
-def list_templates() -> list[TemplateListItem]:
-    config = load_config()
+def list_templates(request: fastapi.Request) -> list[TemplateListItem]:
+    config = _load_app_config(request)
     database = PostgresDB(config.database)
     return [_model_from_fields(TemplateListItem, **item) for item in database.list_templates()]
 
 
 @router.get('/templates/{template_uuid}')
-def get_template(template_uuid: str) -> TemplateDetail:
-    config = load_config()
+def get_template(template_uuid: str, request: fastapi.Request) -> TemplateDetail:
+    config = _load_app_config(request)
     database = PostgresDB(config.database)
     template = database.get_template(template_uuid)
 
@@ -51,7 +55,7 @@ def get_template(template_uuid: str) -> TemplateDetail:
 
 
 @router.post('/templates', status_code=201)
-def create_template(payload: TemplateCreateRequest) -> TemplateDetail:
+def create_template(payload: TemplateCreateRequest, request: fastapi.Request) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')
@@ -63,7 +67,7 @@ def create_template(payload: TemplateCreateRequest) -> TemplateDetail:
             detail='Template JSON must contain a top-level "sections" array.',
         )
 
-    config = load_config()
+    config = _load_app_config(request)
     database = PostgresDB(config.database)
     template_uuid = str(uuid4())
 
@@ -88,8 +92,9 @@ def create_template(payload: TemplateCreateRequest) -> TemplateDetail:
 def start_pipeline(
     payload: PipelineRunRequest,
     background_tasks: fastapi.BackgroundTasks,
+    request: fastapi.Request,
 ) -> PipelineRunResponse:
-    config = load_config()
+    config = _load_app_config(request)
     database = PostgresDB(config.database)
     template = database.get_template(payload.template_uuid)
 
@@ -130,6 +135,7 @@ def start_pipeline(
             api_url=payload.llm_api_url,
             parallel_workers=payload.llm_max_workers,
         ),
+        config,
     )
     return _model_from_fields(
         PipelineRunResponse,
@@ -157,6 +163,7 @@ def get_pipeline_status(
 def save_pipeline_result(
     run_id: str,
     payload: PipelineSaveRequest,
+    request: fastapi.Request,
 ) -> PipelineStatusResponse:
     status = pipeline.get_pipeline_status(run_id)
     if status is None:
@@ -165,7 +172,7 @@ def save_pipeline_result(
     if status.knowledge_model_uuid is None:
         raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
 
-    config = load_config()
+    config = _load_app_config(request)
     database = PostgresDB(config.database)
 
     database.update_result(

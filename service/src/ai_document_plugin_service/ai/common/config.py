@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 DEFAULT_CONFIG_PATH = 'config.yaml'
+CONFIG_PATH_ENV_VAR = 'AI_DOCUMENT_PLUGIN_CONFIG_PATH'
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,6 @@ class SystemPrompt:
 
 @dataclass(frozen=True)
 class FilePaths:
-    config_path: str
     prompts_path: str
 
 
@@ -67,6 +67,10 @@ def _expand_env_vars(value: str) -> str:
     return os.path.expandvars(value)
 
 
+def _normalize_path(path: str) -> str:
+    return str(pathlib.Path(_expand_env_vars(path).strip()).expanduser())
+
+
 def _get(config: dict[str, Any], *path: str) -> Any:  # noqa: ANN401
     current = config
     for key in path:
@@ -98,7 +102,15 @@ def _get_log_level(config: dict) -> str:
 
 def _get_file_path(config: dict, key: str) -> str:
     value = _get(config, 'files', key)
-    return str(value).strip()
+    return _normalize_path(str(value))
+
+
+def _get_relative_file_path(config: dict, key: str) -> str:
+    value = _get_file_path(config, key)
+    if pathlib.Path(value).is_absolute():
+        msg = f"Invalid config value: 'files.{key}' must be a relative path"
+        raise ValueError(msg)
+    return value
 
 
 def _get_parallel_workers(config: dict[str, Any]) -> int:
@@ -114,28 +126,48 @@ def _get_parallel_workers(config: dict[str, Any]) -> int:
     return workers_int
 
 
-def _resolve_existing_path(path: str) -> str:
-    candidates = [path]
-    if not pathlib.Path(path).is_absolute():
-        candidates.append(str(pathlib.Path('jsons') / path))
+def _resolve_existing_path(path: str, *, base_dir: pathlib.Path | None = None) -> str:
+    normalized_path = _normalize_path(path)
+    path_obj = pathlib.Path(normalized_path)
+    candidates: list[pathlib.Path] = []
+    if base_dir is not None and not path_obj.is_absolute():
+        candidates.append(base_dir / path_obj)
+
+    candidates.append(path_obj)
+    if not path_obj.is_absolute():
+        candidates.append(pathlib.Path('jsons') / path_obj)
 
     for candidate in candidates:
-        if pathlib.Path(candidate).exists():
-            return candidate
-    return path
+        if candidate.exists():
+            return str(candidate.resolve())
+    return str(candidates[0].resolve(strict=False))
 
 
-def load_config(
-    config_path: str = DEFAULT_CONFIG_PATH,
-    prompts_path: str | None = None,
-) -> Config:
-    with pathlib.Path(config_path).open(encoding='utf-8') as handle:
+def resolve_config_path(config_path: str | None = None) -> str:
+    if config_path is not None:
+        normalized_path = _normalize_path(config_path)
+        if not normalized_path:
+            msg = 'Config path must not be empty'
+            raise ValueError(msg)
+        return normalized_path
+
+    env_config_path = os.getenv(CONFIG_PATH_ENV_VAR)
+    if env_config_path is not None and env_config_path.strip():
+        return _normalize_path(env_config_path)
+    return DEFAULT_CONFIG_PATH
+
+
+def load_config(config_path: str | None = None) -> Config:
+    resolved_config_path = _resolve_existing_path(resolve_config_path(config_path))
+    config_dir = pathlib.Path(resolved_config_path).parent
+
+    with pathlib.Path(resolved_config_path).open(encoding='utf-8') as handle:
         config = yaml.safe_load(handle)
 
-    configured_prompts_path = prompts_path
-    if configured_prompts_path is None:
-        configured_prompts_path = _get_file_path(config, 'prompts_path')
-    with pathlib.Path(configured_prompts_path).open(encoding='utf-8') as handle:
+    configured_prompts_path = _get_relative_file_path(config, 'prompts_path')
+    resolved_prompts_path = _resolve_existing_path(configured_prompts_path, base_dir=config_dir)
+
+    with pathlib.Path(resolved_prompts_path).open(encoding='utf-8') as handle:
         prompts = yaml.safe_load(handle)
 
     if not isinstance(config, dict):
@@ -162,8 +194,7 @@ def load_config(
             schema=_expand_env_vars(_get(config, 'database', 'schema')),
         ),
         files=FilePaths(
-            config_path=_get_file_path(config, 'config_path'),
-            prompts_path=configured_prompts_path,
+            prompts_path=resolved_prompts_path,
         ),
         assignment=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'assignment', 'temperature')),

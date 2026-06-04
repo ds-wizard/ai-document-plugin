@@ -20,5 +20,4 @@ database:
   schema: "public"
 
 files:
-  config_path: "config.yaml"
   prompts_path: "prompts.yaml"

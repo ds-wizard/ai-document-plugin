@@ -6,9 +6,9 @@ from haystack.core.errors import PipelineRuntimeError
 from openai import AuthenticationError
 
 from ai_document_plugin_service.ai.common.config import (
+    Config,
     LLMConfigOverride,
     apply_llm_override,
-    load_config,
 )
 from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
@@ -115,8 +115,8 @@ def run_pipeline_job(
     token: str,
     api_url: str | None,
     llm_override: LLMConfigOverride | None,
+    config: Config,
 ) -> None:
-    config = load_config()
     resolved_config = apply_llm_override(config, llm_override)
     database = PostgresDB(config.database)
     saver = DBSaver(database)
@@ -167,6 +167,7 @@ def run_pipeline_job(
             llm_override=llm_override,
             database=database,
             on_progress=on_progress,
+            config=config,
         )
 
         set_pipeline_status(

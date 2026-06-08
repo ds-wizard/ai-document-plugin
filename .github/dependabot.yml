@@ -1,4 +1,5 @@
 version: 2
+
 updates:
   - package-ecosystem: 'npm'
     directory: '/plugin'
@@ -8,13 +9,21 @@ updates:
       time: '08:00'
       timezone: 'Europe/Prague'
     target-branch: 'develop'
-    assignees:
-      - 'janslifka'
+    open-pull-requests-limit: 2
     groups:
-      minor-and-patch:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - '*'
         update-types:
           - 'minor'
           - 'patch'
+      npm-major:
+        applies-to: version-updates
+        patterns:
+          - '*'
+        update-types:
+          - 'major'
 
   - package-ecosystem: 'uv'
     directory: '/service'
@@ -24,8 +33,21 @@ updates:
       time: '08:00'
       timezone: 'Europe/Prague'
     target-branch: 'develop'
-    assignees:
-      - 'MarekSuchanek'
+    open-pull-requests-limit: 2
+    groups:
+      uv-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      uv-major:
+        applies-to: version-updates
+        patterns:
+          - '*'
+        update-types:
+          - 'major'
 
   - package-ecosystem: 'github-actions'
     directory: '/'
@@ -35,5 +57,9 @@ updates:
       time: '08:00'
       timezone: 'Europe/Prague'
     target-branch: 'develop'
-    assignees:
-      - 'janslifka'
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - '*'

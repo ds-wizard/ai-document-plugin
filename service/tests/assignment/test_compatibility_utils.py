@@ -8,7 +8,7 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     expand_assignment_paths,
 )
 from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
-from ai_document_plugin_service.ai.assignment.types import SectionRecord, SectionNode, SectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionNode, SectionRecord
 
 
 def _km_fixture() -> dict:
@@ -67,16 +67,18 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
         ]
     }
     sections = build_section_records(template_data)
+    data_id = sections[0].id
+    methods_id = sections[1].id
 
     path_to_sections = {
-        "ch1.q1": ["Data"],
-        "ch1.q2": ["Methods", "Data"],
+        "ch1.q1": [data_id],
+        "ch1.q2": [methods_id, data_id],
     }
 
     assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
-    as_dict = {node.key: node.assignments for node in assignments}
-    data_assignments = as_dict["Data"]
-    methods_assignments = as_dict["Methods"]
+    by_title = {node.title: node.assignments for node in assignments}
+    data_assignments = by_title["Data"]
+    methods_assignments = by_title["Methods"]
 
     assert data_assignments is not None
     assert methods_assignments is not None
@@ -87,6 +89,56 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
     assert "q2" in methods_assignments["ch1"]["children"]
 
 
+def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
+    km = _km_fixture()
+    template_data = {
+        "sections": [
+            {
+                "title": "Parent A",
+                "sections": [
+                    {"title": "Description", "content": "Alpha desc"},
+                ],
+            },
+            {
+                "title": "Parent B",
+                "sections": [
+                    {"title": "Description", "content": "Beta desc"},
+                ],
+            },
+        ]
+    }
+    sections = build_section_records(template_data)
+    parent_a_children = sections[0].children
+    parent_b_children = sections[1].children
+    assert parent_a_children is not None
+    assert parent_b_children is not None
+    desc_a_id = parent_a_children[0].id
+    desc_b_id = parent_b_children[0].id
+    assert desc_a_id != desc_b_id
+
+    path_to_sections = {
+        "ch1.q1": [desc_a_id],
+        "ch1.q2": [desc_b_id],
+    }
+
+    assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
+    leaves_by_id = {
+        leaf.id: leaf
+        for parent in assignments
+        for leaf in (parent.children or [])
+    }
+
+    desc_a = leaves_by_id[desc_a_id]
+    desc_b = leaves_by_id[desc_b_id]
+
+    assert desc_a.title == "Description"
+    assert desc_b.title == "Description"
+    assert desc_a.assignments and "q1" in desc_a.assignments["ch1"]["children"]
+    assert "q2" not in (desc_a.assignments["ch1"]["children"])
+    assert desc_b.assignments and "q2" in desc_b.assignments["ch1"]["children"]
+    assert "q1" not in (desc_b.assignments["ch1"]["children"])
+
+
 def test_convert_mappings_real_km():
     test_dir = os.path.dirname(os.path.abspath(__file__))
     resource_path = os.path.join(test_dir, "../resources/dsw_root_km.json.json")
@@ -95,27 +147,27 @@ def test_convert_mappings_real_km():
 
     sections = [
         SectionRecord(
-            'Data management plan',
-            SectionNode({
-                'title': 'Data management plan'
-            }),
-            None,
-            [
+            id='s0',
+            title='Data management plan',
+            section=SectionNode({'title': 'Data management plan'}),
+            text=None,
+            children=[
                 SectionRecord(
-                    'Project',
-                    SectionNode({'title': 'Project'}),
-                    "[PARENT SECTION]\nTitle: Data management plan\n\n[MOST SPECIFIC SECTION]\nTitle: Project\nContent:\nIt contains project number, project acronym, project name.'",
-                    None
-                )
-            ]
+                    id='s1',
+                    title='Project',
+                    section=SectionNode({'title': 'Project'}),
+                    text="[PARENT SECTION]\nTitle: Data management plan\n\n[MOST SPECIFIC SECTION]\nTitle: Project\nContent:\nIt contains project number, project acronym, project name.'",
+                    children=None,
+                ),
+            ],
         )
     ]
     result_mapping = {
         '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b':
-            ['Project']
+            ['s1']
     }
 
-    mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km, )
+    mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km)
     sec_dmp = mappings[0]
     assert sec_dmp.assignments is None
     assert sec_dmp.children is not None

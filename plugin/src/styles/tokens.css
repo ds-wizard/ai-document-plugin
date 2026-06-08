@@ -1,0 +1,29 @@
+:root {
+    --ai-doc-spacer-1: 0.25rem;
+    --ai-doc-spacer-2: 0.5rem;
+    --ai-doc-color-slate-950: #0f172a;
+    --ai-doc-color-slate-800: #1e293b;
+    --ai-doc-color-slate-700: #334155;
+    --ai-doc-color-slate-600: #475569;
+    --ai-doc-color-slate-500: #64748b;
+    --ai-doc-color-slate-400: #94a3b8;
+    --ai-doc-color-slate-300: #cbd5e1;
+    --ai-doc-color-slate-250: #d7dfe9;
+    --ai-doc-color-slate-200: #e2e8f0;
+    --ai-doc-color-slate-50: #f8fafc;
+    --ai-doc-color-white: #fff;
+    --ai-doc-color-red-700: #b91c1c;
+    --ai-doc-color-red-50: #fef2f2;
+    --ai-doc-color-orange-700: #c2410c;
+    --ai-doc-color-orange-50: #fff7ed;
+    --ai-doc-color-blue-700: #1d4ed8;
+    --ai-doc-color-blue-50: #eff6ff;
+    --ai-doc-color-emerald-700: #047857;
+    --ai-doc-color-emerald-800: #0f766e;
+    --ai-doc-color-emerald-50: #ecfdf5;
+}
+
+.btn-wide {
+    min-width: 100px;
+    text-align: center;
+}

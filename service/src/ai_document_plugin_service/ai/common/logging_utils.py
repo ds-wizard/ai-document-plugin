@@ -12,9 +12,15 @@ def configure_logging(level: int | str = logging.DEBUG) -> None:
     root_logger = logging.getLogger()
     if root_logger.handlers:
         root_logger.setLevel(level)
+        logging.getLogger('httpx').setLevel(logging.WARNING)
+        logging.getLogger('httpcore').setLevel(logging.WARNING)
+        logging.getLogger('openai').setLevel(logging.WARNING)
         return
 
     logging.basicConfig(
         level=level,
         format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
     )
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
+    logging.getLogger('openai').setLevel(logging.WARNING)

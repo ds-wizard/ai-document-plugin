@@ -1,14 +1,20 @@
 import logging
 import time
+import uuid
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from openai import APIConnectionError, APITimeoutError, RateLimitError
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
+from openai.types.chat import ChatCompletion
+
+from ai_document_plugin_service.ai.common.config import Config
+from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats
 
 logger = logging.getLogger(__name__)
+semaphore = DynamicSemaphore(1)
 
 
 class MissingTokenUsageError(ValueError):
@@ -32,7 +38,7 @@ def call_with_retry[T](
         except (APIConnectionError, APITimeoutError, RateLimitError) as e:
             err = e
             if attempt < max_retries - 1:
-                logger.debug('Error calling LLM, retrying: %s', e)
+                logger.warning('Error calling LLM, retrying: %s', e)
                 time.sleep(delay)
     if err is not None:
         raise err
@@ -66,6 +72,45 @@ def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
     if stats is None:
         return
     input_tokens, output_tokens = extract_usage_tokens(response)
-    stats.total_calls += 1
-    stats.total_input_tokens += input_tokens
-    stats.total_output_tokens += output_tokens
+    stats.add_usage(input_tokens, output_tokens)
+
+
+class LLMClient:
+    def __init__(self, config: Config) -> None:
+        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url, max_retries=0)
+        self.max_workers = config.parallel_workers or 1
+        logger.debug(
+            'Initializing LLM client, setting semaphore limit to %s',
+            self.max_workers,
+        )
+        semaphore.set_limit(self.max_workers)
+
+    def completion(
+        self,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ChatCompletion:
+        req_id = uuid.uuid4().hex[:8]
+        model = kwargs.get('model', args[0] if args else '?')
+        wait_start = time.perf_counter()
+        logger.debug(
+            '[llm] req=%s model=%s queueing (semaphore active/limit unknown until acquire)',
+            req_id,
+            model,
+        )
+        with semaphore:
+            wait_s = time.perf_counter() - wait_start
+            logger.debug(
+                '[llm] req=%s acquired semaphore after %.3fs (limit=%s)',
+                req_id,
+                wait_s,
+                semaphore.limit,
+            )
+            call_start = time.perf_counter()
+            result = self.client.chat.completions.create(*args, **kwargs)
+            logger.debug(
+                '[llm] req=%s completed in %.3fs (releasing semaphore)',
+                req_id,
+                time.perf_counter() - call_start,
+            )
+            return result

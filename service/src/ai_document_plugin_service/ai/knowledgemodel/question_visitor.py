@@ -6,6 +6,7 @@ if TYPE_CHECKING:
         BlankQuestion,
         Chapter,
         IntegrationQuestion,
+        ItemSelectQuestion,
         ListQuestion,
         MultiChoiceQuestion,
         OptionsQuestion,
@@ -42,6 +43,13 @@ class QuestionVisitor(ABC):
         question: 'IntegrationQuestion',
     ) -> list['QuestionData']:
         """Visit an IntegrationQuestion."""
+
+    @abstractmethod
+    def visit_item_select_question(
+        self,
+        question: 'ItemSelectQuestion',
+    ) -> list['QuestionData']:
+        """Visit an ItemSelectQuestion."""
 
     @abstractmethod
     def visit_blank_question(self, question: 'BlankQuestion') -> list['QuestionData']:

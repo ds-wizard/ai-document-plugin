@@ -2,16 +2,15 @@ import json
 import logging
 import pathlib
 from abc import ABC, abstractmethod
-from dataclasses import asdict
 from json import JSONDecodeError
 from typing import TYPE_CHECKING
 
 from json_repair import repair_json
-from openai import OpenAI
 
 from ai_document_plugin_service.ai.common import AssignmentStats
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
+    LLMClient,
     add_usage,
     call_with_retry,
 )
@@ -48,7 +47,7 @@ class LayerMatcher(ABC):
 class OpenAILayerMatcher(LayerMatcher):
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
+        self.client = LLMClient(config)
 
     def match_questions_to_sections(
         self,
@@ -74,7 +73,7 @@ class OpenAILayerMatcher(LayerMatcher):
         ]
 
         def call_and_parse() -> dict[str, list[str]]:
-            response = self.client.chat.completions.create(
+            response = self.client.completion(
                 model=self.config.model,
                 messages=messages,
                 temperature=self.config.assignment.temperature,
@@ -141,7 +140,7 @@ class LoggingNoopLayerMatcher(LayerMatcher):
         record = {
             'sections_xml': sections_xml,
             'question_chunk_xml': question_chunk_xml,
-            'stats': asdict(stats),
+            'stats': stats.to_dict(),
         }
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         with self._log_path.open('a', encoding='utf-8') as handle:

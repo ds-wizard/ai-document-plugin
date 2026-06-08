@@ -10,25 +10,34 @@ uv sync --dev
 ```
 
 Create `config.yaml` with your LLM credentials (see `config.template.yaml`). All input/output file paths, including the
-prompts file, can be configured there. The loader still accepts legacy `config.yaml` as a fallback.
+prompts file, can be configured there. To use a different config file, set `AI_DOCUMENT_PLUGIN_CONFIG_PATH` to its path
+before starting the API or CLI.
 
 Run the full pipeline:
 
 ```bash
-uv run python src/ai_document_plugin_service/run_pipeline.py
+uv run ai-document-pipeline \
+  --questionnaire-uuid <QUESTIONNAIRE_UUID> \
+  --token <TOKEN> \
+  --template-uuid <TEMPLATE_UUID>
 ```
+
+The CLI reads technical configuration such as DSW API base URL, database connection, model configuration, prompt paths,
+and output file paths from `config.yaml` or from the file referenced by `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The runtime
+inputs `questionnaire_uuid`, `token`, and `template_uuid` are passed explicitly through CLI arguments.
 
 This produces:
 
-| File                                  | Description                                      |
-|---------------------------------------|--------------------------------------------------|
-| `question_section_assignments_*.json` | Question-to-section mapping (step 1 output)      |
-| `dmp_output_pre_polish.md`            | Generated DMP with debug tables before polishing |
-| `dmp_output.md`                       | Final polished DMP with token-usage summary      |
+| File                       | Description                                      |
+|----------------------------|--------------------------------------------------|
+| `dmp_output_pre_polish.md` | Generated DMP with debug tables before polishing |
+| `dmp_output.md`            | Final polished DMP with token-usage summary      |
+
+Step 1 produces new record in the `assignments` table in the DB, when questions are assigned for the first time.
 
 ## Pipeline steps
 
-`templates/run_pipeline.py` orchestrates three steps, each backed by a dedicated module:
+`src/ai_document_plugin_service/run_pipeline.py` orchestrates three steps, each backed by a dedicated module:
 
 ### Step 1 — Question-to-section assignment (`templates/assignment`)
 
@@ -48,13 +57,50 @@ consolidating duplicates, and improving flow — without adding new content.
 
 ### `config.yaml`
 
-LLM connection settings (API key, base URL, model name) plus all pipeline file paths. The API key supports environment
-variable expansion (e.g. `$OPENAI_API_KEY`).
+LLM connection settings (API key, base URL, model name), DSW API base URL, database connection, and all pipeline file
+paths. The API key supports environment variable expansion (e.g. `$OPENAI_API_KEY`). The file itself can be overridden
+globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The config file does not contain its own `config_path`; the active file
+is determined only by runtime startup/defaults.
 
 ### `prompts.yaml`
 
-Prompt templates and LLM parameters for each step. Its location can be overridden via `files.prompts_path` in
-`config.yaml`.
+Prompt templates and LLM parameters for each step. In `config.yaml`, `files.prompts_path` must be a relative path and
+is resolved relative to the active config file.
+
+## Make commands
+
+The project `Makefile` provides a few shortcuts for common development tasks:
+
+- `make install` installs project dependencies from `pyproject.toml` using `uv sync`
+- `make lint` runs Ruff checks over the source tree
+- `make typecheck` runs static type checking with `ty`
+- `make format` formats the codebase with Ruff
+- `make requirements` regenerates `requirements.txt` from `pyproject.toml`
+- `make dev` starts the FastAPI development server with auto-reload on port `8010`
+- `make build` builds the Python package
+- `make db` starts the local PostgreSQL container defined in `docker-compose.yml`
+- `make db-init` starts the local PostgreSQL container, waits for it to become healthy, and applies all Alembic migrations
+- `make db-migrate` applies all Alembic migrations to the configured database
+- `make db-current` shows the current Alembic revision stored in the database
+- `make db-history` shows available Alembic migration history
+
+Run these commands from the [service](/Users/hana/DSW/AI-playground/ai-document-plugin/service:1) directory.
+
+For a fresh local setup, the usual flow is:
+
+```bash
+make install
+make db-init
+```
+
+`docker compose` creates the PostgreSQL database itself from the `POSTGRES_DB`, `POSTGRES_USER`, and
+`POSTGRES_PASSWORD` values in [docker-compose.yml](/Users/hana/DSW/AI-playground/ai-document-plugin/service/docker-compose.yml:1). Alembic then creates or updates the schema inside that database; it does not create the PostgreSQL server or database on its own.
+
+The application runtime does not create or alter database tables on its own. Run `make db-init` or
+`make db-migrate` before starting the service against a fresh or changed database.
+
+If the PostgreSQL container already exists with an older Docker volume, the database may be missing even though the server is running. In that case `make db-init` also checks that `ai_document_plugin` exists and creates it before running Alembic migrations.
+
 
 ## Tests
 

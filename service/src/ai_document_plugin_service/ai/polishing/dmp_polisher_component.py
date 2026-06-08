@@ -4,17 +4,15 @@ Moves content that appears in one section but belongs thematically in another (e
 a topic is mentioned early but has a dedicated chapter later). Does not add new content.
 """
 
-import json
 import logging
-import pathlib
 import typing
+from collections.abc import Callable
 from typing import TypedDict
 
 from haystack import component
 
 from ai_document_plugin_service.ai.common.config import (
-    DEFAULT_CONFIG_PATH,
-    load_config,
+    Config,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
@@ -34,14 +32,15 @@ class DmpPolisherComponent:
     def run(
         self,
         markdown: str,
-        config_path: str = DEFAULT_CONFIG_PATH,
+        config: Config,
         template_data: dict | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
             markdown: The raw DMP markdown to polish.
-            config_path: Path to OpenAI config file.
+            config: Config with up to date llm config
             template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
 
         Returns:
@@ -49,8 +48,10 @@ class DmpPolisherComponent:
 
         """
         stats = AssignmentStats()
+        if on_progress is not None:
+            on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        llm = OpenAIGenerationLLM(config_path=config_path)
+        llm = OpenAIGenerationLLM(config=config)
         file = llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,
@@ -86,37 +87,3 @@ class DmpPolisherComponent:
             return ''
         lines = DmpPolisherComponent._format_template_structure(nodes)
         return '\n'.join(lines)
-
-
-if __name__ == '__main__':
-    config = load_config()
-    file_paths = config.files
-
-    markdown = pathlib.Path(file_paths.output_pre_polish_markdown).read_text(
-        encoding='utf-8',
-    )
-
-    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
-        template_data = json.load(f)
-
-    dmp_polisher_component = DmpPolisherComponent()
-    result: DmpPolisherComponentResult = dmp_polisher_component.run(
-        markdown=markdown,
-        config_path=file_paths.config_path,
-        template_data=template_data,
-    )
-    polished = result['markdown']
-    stats = result['stats']
-
-    pathlib.Path(file_paths.output_markdown).write_text(
-        polished,
-        encoding='utf-8',
-    )
-
-    logger.debug('Polished DMP saved to %s', file_paths.output_markdown)
-    logger.debug(
-        'LLM calls: %s, input tokens: %s, output tokens: %s',
-        stats.total_calls,
-        f'{stats.total_input_tokens:,}',
-        f'{stats.total_output_tokens:,}',
-    )

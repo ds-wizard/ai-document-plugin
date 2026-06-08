@@ -1,15 +1,11 @@
-import json
+import itertools
 import logging
-import pathlib
-import typing
+from collections.abc import Callable
 from typing import Any, TypedDict
 
 from haystack import component
-from tqdm import tqdm
+from tqdm.contrib.concurrent import thread_map
 
-from ai_document_plugin_service.ai.assignment.assignment_saver_component import (
-    AssignmentSaverComponent,
-)
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
 )
@@ -27,10 +23,9 @@ from ai_document_plugin_service.ai.assignment.sections.sections_formatter import
     SectionFormatter,
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
-from ai_document_plugin_service.ai.common.config import Config, load_config
+from ai_document_plugin_service.ai.common.config import Config
+from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
-from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
 logger = logging.getLogger(__name__)
@@ -43,7 +38,36 @@ class AssignmentComponentResult(TypedDict):
 
 @component
 class AssignmentComponent:
-    @typing.override
+    @staticmethod
+    def _add_chunk_mapping_to_result(
+        *,
+        result_mapping: dict[str, list[str]],
+        question_to_section_ids: dict[str, list[str]],
+        question_id_to_path: dict[str, str],
+        section_formatter: SectionFormatter,
+    ) -> None:
+        for question_id, section_ids in question_to_section_ids.items():
+            question_path = question_id_to_path.get(question_id)
+            if not question_path:
+                logger.debug('Path not found for question id %s', question_id)
+                continue
+            result_mapping[question_path] = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
+
+    @staticmethod
+    def _match_single_chunk(
+        *,
+        config: Config,
+        sections_xml: str,
+        question_chunk: str,
+        stats: AssignmentStats,
+    ) -> dict[str, list[str]]:
+        matcher = OpenAILayerMatcher(config)
+        return matcher.match_questions_to_sections(
+            sections_xml,
+            question_chunk,
+            stats,
+        )
+
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     def run(
         self,
@@ -51,13 +75,13 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         config: Config,
         km: dict[str, Any],
+        on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         """Assign KM questions to template sections using the configured matcher."""
         logger.debug('Step 1: Assigning questions to sections...')
 
         sections = build_section_records(template_data)
         question_chunks, question_id_to_path = build_question_chunks(data)
-        matcher = OpenAILayerMatcher(config)
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
@@ -65,21 +89,35 @@ class AssignmentComponent:
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping = {}
-        for question_chunk in tqdm(question_chunks, desc='Question chunks'):
-            question_to_section_ids = matcher.match_questions_to_sections(
-                sections_xml,
-                question_chunk,
-                stats,
-            )
+        total_chunks = len(question_chunks)
+        completed_counter = itertools.count(1)
 
-            for question_id, section_ids in question_to_section_ids.items():
-                question_path = question_id_to_path.get(question_id)
-                if not question_path:
-                    logger.debug('Path not found for question id %s', question_id)
-                    continue
-                result_mapping[question_path] = [
-                    section_formatter.get_original_id(section_id) for section_id in section_ids
-                ]
+        def match_chunk(question_chunk: str) -> dict[str, list[str]]:
+            result = self._match_single_chunk(
+                config=config,
+                sections_xml=sections_xml,
+                question_chunk=question_chunk,
+                stats=stats,
+            )
+            if on_progress is not None:
+                chunk_index = next(completed_counter)
+                on_progress(
+                    f'Preparing document template ({progress_percent(chunk_index, total_chunks)}%)',
+                )
+            return result
+
+        for question_to_section_ids in thread_map(
+            match_chunk,
+            question_chunks,
+            max_workers=config.parallel_workers,
+            desc=f'Assigning questions to sections ({config.parallel_workers} workers)',
+        ):
+            self._add_chunk_mapping_to_result(
+                result_mapping=result_mapping,
+                question_to_section_ids=question_to_section_ids,
+                question_id_to_path=question_id_to_path,
+                section_formatter=section_formatter,
+            )
 
         assignments = convert_mappings_to_assignment_tree(
             sections,
@@ -91,51 +129,3 @@ class AssignmentComponent:
             'assignments': assignments,
             'stats': stats,
         }
-
-
-def main() -> None:
-    config = load_config()
-    file_paths = config.files
-    questionnaire_uuid = config.questionnaire_uuid
-    token = config.token
-
-    with pathlib.Path(file_paths.dmp_template).open('r', encoding='utf-8') as f:
-        template_data = json.load(f)
-    km_data = get_questionnaire_detail(questionnaire_uuid, token)
-
-    parser_component = ParserComponent()
-    top_questions = parser_component.run(km_data)['data']
-    assignment_component = AssignmentComponent()
-    result: AssignmentComponentResult = assignment_component.run(
-        data=top_questions,
-        template_data=template_data,
-        config=config,
-        km=km_data['knowledgeModel'],
-    )
-    assignments = result['assignments']
-    stats = result['stats']
-    assignment_saver_component = AssignmentSaverComponent()
-    assignment_saver_component.run(
-        assignments=assignments,
-        output_path=file_paths.assignments_output,
-        stats=stats,
-    )
-
-    logger.debug('Saved assignments to %s', file_paths.assignments_output)
-    logger.debug('Total LLM calls: %s', stats.total_calls)
-    logger.debug('Total input tokens: %s', f'{stats.total_input_tokens:,}')
-    logger.debug('Total output tokens: %s', f'{stats.total_output_tokens:,}')
-
-    cost_per_mil_input = 0.25
-    cost_per_mil_output = 2.0
-    model_name = config.model
-    input_cost = stats.total_input_tokens * cost_per_mil_input / 1_000_000
-    output_cost = stats.total_output_tokens * cost_per_mil_output / 1_000_000
-    logger.debug('Estimated price (model %s):', model_name)
-    logger.debug('Input: %.2f USD', input_cost)
-    logger.debug('Output: %.2f USD', output_cost)
-    logger.debug('Total: %.2f USD', input_cost + output_cost)
-
-
-if __name__ == '__main__':
-    main()

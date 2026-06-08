@@ -1,0 +1,135 @@
+.root {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.root a {
+    color: var(--ai-doc-color-blue-700);
+}
+
+.root blockquote {
+    margin: 0 0 1rem;
+    padding: 0.25rem 0 0.25rem 1rem;
+    border-left: 4px solid var(--ai-doc-color-slate-300);
+    color: var(--ai-doc-color-slate-700);
+}
+
+.root code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.codeBlock {
+    display: block;
+    max-width: 100%;
+    background: var(--ai-doc-color-slate-950);
+    color: var(--ai-doc-color-slate-200);
+    border-radius: var(--bs-border-radius);
+    padding: 1rem;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.codeInline {
+    background: var(--ai-doc-color-slate-200);
+    border-radius: var(--bs-border-radius);
+    padding: 0.1rem 0.3rem;
+}
+
+.root h1 {
+    font-size: 2rem;
+    margin: 0 0 1rem;
+}
+
+.root h2 {
+    font-size: 1.65rem;
+    margin: 0.25rem 0 0.9rem;
+}
+
+.root h3 {
+    font-size: 1.35rem;
+    margin: 0.25rem 0 0.8rem;
+}
+
+.root h4 {
+    font-size: 1.15rem;
+}
+
+.root h5 {
+    font-size: 1rem;
+}
+
+.root h6 {
+    font-size: 0.95rem;
+}
+
+.root h4,
+.root h5,
+.root h6 {
+    margin: 0.25rem 0 0.75rem;
+}
+
+.root h1,
+.root h2,
+.root h3,
+.root h4,
+.root h5,
+.root h6 {
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.root hr {
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--ai-doc-color-slate-300);
+    margin: 0.25rem 0 1rem;
+}
+
+.root ol,
+.root ul {
+    margin: 0 0 1rem;
+    padding-left: 1.5rem;
+}
+
+.root p {
+    margin: 0 0 1rem;
+    color: var(--ai-doc-color-slate-800);
+    line-height: 1.7;
+}
+
+.root pre {
+    margin: 0 0 1rem;
+}
+
+.tableWrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--ai-doc-color-slate-300);
+    border-radius: var(--bs-border-radius);
+    background: var(--ai-doc-color-white);
+    margin-bottom: 1rem;
+}
+
+.root table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 24rem;
+}
+
+.root td {
+    padding: 0.75rem 0.9rem;
+    border-top: 1px solid var(--ai-doc-color-slate-200);
+    color: var(--ai-doc-color-slate-800);
+    vertical-align: top;
+}
+
+.root th {
+    text-align: left;
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--ai-doc-color-slate-300);
+    color: var(--ai-doc-color-slate-950);
+}
+
+.root thead {
+    background: var(--ai-doc-color-slate-200);
+}

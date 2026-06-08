@@ -1,11 +1,14 @@
+import logging
 from collections.abc import Iterator
 
 from haystack import component
 
+from ai_document_plugin_service.ai.generation.parse_answers import parse_integration_reply_value
 from ai_document_plugin_service.ai.knowledgemodel.types import (
     Chapter,
     Choice,
     IntegrationQuestion,
+    ItemSelectQuestion,
     ListQuestion,
     MultiChoiceQuestion,
     OptionsAnswer,
@@ -19,7 +22,12 @@ QUESTION_TYPES = [
     ListQuestion,
     OptionsQuestion,
     MultiChoiceQuestion,
+    ItemSelectQuestion,
 ]
+
+logger = logging.getLogger(__name__)
+REPLY_PATH_PARTS_MIN_LENGTH = 2
+REPLY_PARENT_SEGMENT_INDEX = -2
 
 
 @component
@@ -28,7 +36,7 @@ class ParserComponent:
         self.km: dict = {}
 
     @component.output_types(data=list[QuestionData])
-    def run(self, data: dict) -> dict[str, list[QuestionData]]:
+    def run(self, data: dict, trigger: bool) -> dict[str, list[QuestionData]]:  # noqa: FBT001, ARG002
         self.km = data['knowledgeModel']
         replies = data['replies']
         top_level_questions: list[QuestionData] = []
@@ -55,15 +63,16 @@ class ParserComponent:
         )
 
         # Parse questions with this chapter as parent_question
-        questions = [
-            self.parse_question(
+        questions = []
+        for question_uuid in chapter_data.get('questionUuids', []):
+            parsed_question = self.parse_question(
                 question_uuid,
                 replies,
                 chapter.uuid + '.' + question_uuid,
                 parent_question=chapter,
             )
-            for question_uuid in chapter_data.get('questionUuids', [])
-        ]
+            if parsed_question is not None:
+                questions.append(parsed_question)
 
         chapter.questions = questions
         return chapter
@@ -92,16 +101,17 @@ class ParserComponent:
             parent_question=parent_question,
         )
 
-        followup_questions = [
-            self.parse_question(
+        followup_questions = []
+        for question_uuid in answer_data.get('followUpUuids', []):
+            parsed_question = self.parse_question(
                 question_uuid,
                 replies,
                 parent_question=None,
                 parent_answer=answer,
                 path=path + '.' + question_uuid,
             )
-            for question_uuid in answer_data.get('followUpUuids', [])
-        ]
+            if parsed_question is not None:
+                followup_questions.append(parsed_question)
 
         answer.followup_questions = followup_questions
         return answer
@@ -125,14 +135,13 @@ class ParserComponent:
             parent_answer=parent_answer,
         )
 
-        value_question.reply = self.get_value_reply(replies, value_question, path)
+        value_question.reply = self.get_value_reply(replies, path)
 
         return value_question
 
     @staticmethod
     def get_value_reply(
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -159,7 +168,6 @@ class ParserComponent:
 
         integration_question.reply = self.get_integration_reply(
             replies,
-            integration_question,
             path,
         )
 
@@ -168,11 +176,11 @@ class ParserComponent:
     @staticmethod
     def get_integration_reply(
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
-        return replies.get(path, {}).get('value', {}).get('value', {}).get('value', '')
+        answer = replies.get(path, {}).get('value', {})
+        return parse_integration_reply_value(answer)
 
     def parse_list_question(
         self,
@@ -193,15 +201,16 @@ class ParserComponent:
             parent_answer=parent_answer,
             questions=[],
         )
-        questions = [
-            self.parse_question(
+        questions = []
+        for nested_question_uuid in question.get('itemTemplateQuestionUuids', []):
+            parsed_question = self.parse_question(
                 nested_question_uuid,
                 replies,
                 path + '.*.' + nested_question_uuid,
                 parent_question=list_question,
             )
-            for nested_question_uuid in question.get('itemTemplateQuestionUuids', [])
-        ]
+            if parsed_question is not None:
+                questions.append(parsed_question)
 
         list_question.questions = questions
         return list_question
@@ -241,7 +250,6 @@ class ParserComponent:
 
         options_question.reply = self.get_option_reply(
             replies,
-            options_question,
             path,
         )
 
@@ -250,7 +258,6 @@ class ParserComponent:
     def get_option_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> str:
         """Get the reply for the question."""
@@ -278,7 +285,7 @@ class ParserComponent:
         )
 
         multichoice_question.reply = '\n'.join(
-            self.get_multichoice_reply(replies, multichoice_question, path),
+            self.get_multichoice_reply(replies, path),
         )
 
         return multichoice_question
@@ -286,7 +293,6 @@ class ParserComponent:
     def get_multichoice_reply(
         self,
         replies: dict,
-        _question: QuestionData,
         path: str,
     ) -> list[str]:
         """Get the reply for the question."""
@@ -296,6 +302,67 @@ class ParserComponent:
             for reply_value in reply_values
         ]
 
+    def parse_item_select_question(
+        self,
+        question_uuid: str,
+        question: dict,
+        replies: dict,
+        path: str,
+        parent_question: QuestionData | None = None,
+        parent_answer: OptionsAnswer | None = None,
+    ) -> ItemSelectQuestion:
+        """Parse an ItemSelectQuestion from the knowledge model."""
+        item_select_question = ItemSelectQuestion(
+            path=path,
+            uuid=question_uuid,
+            title=question['title'],
+            text=question.get('text'),
+            parent_question=parent_question,
+            parent_answer=parent_answer,
+        )
+
+        item_select_question.reply = self.get_item_select_question_reply(replies, path)
+
+        return item_select_question
+
+    def get_item_select_question_reply(
+        self,
+        replies: dict,
+        path: str,
+    ) -> str:
+        """Get the reply for the question."""
+        selected_item_uuid = replies.get(path, {}).get('value', {}).get('value', '')
+        if not selected_item_uuid:
+            return ''
+
+        list_path_prefix = path.split('.*.', maxsplit=1)[0] if '.*.' in path else path.rsplit('.', 1)[0]
+
+        for reply_path, reply_payload in replies.items():
+            path_parts = reply_path.split('.')
+            if len(path_parts) < REPLY_PATH_PARTS_MIN_LENGTH or path_parts[REPLY_PARENT_SEGMENT_INDEX] != 'reply':
+                continue
+            if not reply_path.startswith(f'{list_path_prefix}.'):
+                continue
+            if selected_item_uuid not in path_parts:
+                continue
+
+            question_uuid = path_parts[-1]
+            question_type = self.km.get('entities', {}).get('questions', {}).get(question_uuid, {}).get('questionType')
+
+            if question_type == 'ValueQuestion':
+                value = reply_payload.get('value', {}).get('value', '')
+                if value:
+                    return value
+                continue
+
+            if question_type == 'IntegrationQuestion':
+                answer = reply_payload.get('value', {})
+                value = parse_integration_reply_value(answer)
+                if value:
+                    return value
+
+        return ''
+
     def parse_question(
         self,
         question_uuid: str,
@@ -303,7 +370,7 @@ class ParserComponent:
         path: str,
         parent_question: QuestionData | None = None,
         parent_answer: OptionsAnswer | None = None,
-    ) -> QuestionData:
+    ) -> QuestionData | None:
         """Parse a question from the knowledge model based on its type.
 
         Args:
@@ -313,17 +380,25 @@ class ParserComponent:
             parent_answer: Optional parent answer (for followup questions)
 
         Returns:
-            QuestionData instance of the appropriate type
+            QuestionData instance of the appropriate type, or None for skipped question types.
 
         Raises:
             ValueError: If the question type is unknown.
-
         """
         question = self.km['entities']['questions'][question_uuid]
         question_type = question.get('questionType')
+        parser_by_type = {
+            'ValueQuestion': self.parse_value_question,
+            'ListQuestion': self.parse_list_question,
+            'OptionsQuestion': self.parse_options_question,
+            'MultiChoiceQuestion': self.parse_multi_choice_question,
+            'IntegrationQuestion': self.parse_integration_question,
+            'ItemSelectQuestion': self.parse_item_select_question,
+        }
+        parser = parser_by_type.get(question_type)
 
-        if question_type == 'ValueQuestion':
-            return self.parse_value_question(
+        if parser is not None:
+            return parser(
                 question_uuid,
                 question,
                 replies,
@@ -331,41 +406,9 @@ class ParserComponent:
                 parent_question,
                 parent_answer,
             )
-        if question_type == 'ListQuestion':
-            return self.parse_list_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'OptionsQuestion':
-            return self.parse_options_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'MultiChoiceQuestion':
-            return self.parse_multi_choice_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
-        if question_type == 'IntegrationQuestion':
-            return self.parse_integration_question(
-                question_uuid,
-                question,
-                replies,
-                path,
-                parent_question,
-                parent_answer,
-            )
+        if question_type == 'FileQuestion':
+            logger.info('Skipping unsupported question type %s for question %s', question_type, question_uuid)
+            return None
+
         error_message = f'Unknown question type: {question_type}'
         raise ValueError(error_message)

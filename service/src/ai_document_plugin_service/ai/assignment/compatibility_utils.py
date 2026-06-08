@@ -17,22 +17,27 @@ def convert_mappings_to_assignment_tree(
     path_to_sections_mappings: dict[str, list[str]],
     km: dict[str, Any],
 ) -> list[SectionAssignment]:
-    section_to_paths_mappings: dict[str, list[str]] = {}
-    for path, section_names in path_to_sections_mappings.items():
-        for section_name in section_names:
-            if section_name not in section_to_paths_mappings:
-                section_to_paths_mappings[section_name] = []
-            section_to_paths_mappings[section_name].append(path)
+    """Build the assignment tree from question-path -> section-id mappings.
+
+    Keys in `path_to_sections_mappings` values are the synthetic record ids
+    (`SectionRecord.id`), not titles, so duplicate-titled leaves stay distinct.
+    """
+    section_id_to_paths: dict[str, list[str]] = {}
+    for path, section_ids in path_to_sections_mappings.items():
+        for section_id in section_ids:
+            if section_id not in section_id_to_paths:
+                section_id_to_paths[section_id] = []
+            section_id_to_paths[section_id].append(path)
     return convert_mappings_to_assignment_tree_recursive(
         sections,
-        section_to_paths_mappings,
+        section_id_to_paths,
         km,
     )
 
 
 def convert_mappings_to_assignment_tree_recursive(
     sections: list[SectionRecord],
-    section_to_path_mapping: dict[str, list[str]],
+    section_id_to_paths: dict[str, list[str]],
     km: dict[str, Any],
 ) -> list[SectionAssignment]:
     """Convert flat leaf assignments into the section hierarchy."""
@@ -41,20 +46,22 @@ def convert_mappings_to_assignment_tree_recursive(
         if section.children is not None:
             result.append(
                 SectionAssignment(
-                    key=section.key,
+                    id=section.id,
+                    title=section.title,
                     assignments=None,
                     children=convert_mappings_to_assignment_tree_recursive(
                         section.children,
-                        section_to_path_mapping,
+                        section_id_to_paths,
                         km,
                     ),
                 ),
             )
             continue
-        question_flags = section_to_path_mapping.get(section.key, [])
+        question_flags = section_id_to_paths.get(section.id, [])
         result.append(
             SectionAssignment(
-                key=section.key,
+                id=section.id,
+                title=section.title,
                 assignments=expand_assignment_paths(question_flags, km),
                 children=None,
             ),

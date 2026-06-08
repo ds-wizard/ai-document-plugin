@@ -1,25 +1,45 @@
-import json
+from __future__ import annotations
+
+import argparse
 import logging
-import pathlib
 import time
-from collections.abc import Mapping
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from haystack import Pipeline
+from haystack.components.routers import ConditionalRouter
 
-from ai_document_plugin_service.ai.assignment import AssignmentComponent
-from ai_document_plugin_service.ai.assignment.assignment_saver_component import AssignmentSaverComponent
+from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
     PipelineMetricsCollector,
     configure_logging,
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.common.config import (
+    Config,
+    LLMConfigOverride,
+    apply_llm_override,
+)
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
-from ai_document_plugin_service.ai.generation.file_saver_component import FileSaverComponent
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
+    AssignmentSaverComponent,
+    DBSaver,
+    SerializedSectionAssignment,
+)
+from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from haystack.components.routers.conditional_router import Route
+
+    from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+    from ai_document_plugin_service.ai.persistence.database import Database
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -27,98 +47,184 @@ COST_PER_MIL_OUTPUT = 2.0
 
 logger = logging.getLogger(__name__)
 
+ProgressCallback = Callable[[str], None]
 
-def build_pipeline() -> Pipeline:
+
+def build_pipeline(
+    database: Database,
+    saver: DBSaver,
+    generation_llm: OpenAIGenerationLLM,
+) -> Pipeline:
     pipeline = Pipeline()
+    loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent()
-    assignment_saver_component = AssignmentSaverComponent()
-    dmp_generator_component = DmpGeneratorComponent()
-    prepolished_saver_component = FileSaverComponent()
+    assignment_saver_component = AssignmentSaverComponent(saver=saver)
+    dmp_generator_component = DmpGeneratorComponent(llm=generation_llm)
     dmp_polisher_component = DmpPolisherComponent()
-    polished_saver_component = FileSaverComponent()
+    saver_component = SaverComponent(database=database)
+
+    # ROUTES
+    routes: list[Route] = [
+        {
+            'condition': '{{ not found }}',
+            'output': '{{ found }}',
+            'output_name': 'missing_assignment',
+            'output_type': bool,
+        },
+        {
+            'condition': '{{ found }}',
+            'output': '{{ assignments }}',
+            'output_name': 'retrieved_assignment',
+            'output_type': list[SerializedSectionAssignment],
+        },
+    ]
+    router = ConditionalRouter(routes=routes)
 
     # COMPONENTS
+    pipeline.add_component('loader_component', loader_component)
+    pipeline.add_component('router', router)
     pipeline.add_component('parser_component', parser_component)
     pipeline.add_component('assignment_component', assignment_component)
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
-    pipeline.add_component('prepolished_saver_component', prepolished_saver_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
-    pipeline.add_component('polished_saver_component', polished_saver_component)
+    pipeline.add_component('saver_component', saver_component)
 
     # CONNECTIONS
+    # loader_component -> router
+    pipeline.connect('loader_component.assignments', 'router.assignments')
+    pipeline.connect('loader_component.found', 'router.found')
+    # no assignments saved -> continue to parser_component
+    pipeline.connect('router.missing_assignment', 'parser_component.trigger')
+    # assignments already done -> continue to dmp_generator_component
+    pipeline.connect('router.retrieved_assignment', 'dmp_generator_component.db_assignments')
     # parser_component -> assignment_component
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
-    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
+    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> prepolished_saver_component
-    pipeline.connect('dmp_generator_component.debug_markdown', 'prepolished_saver_component.debug_markdown')
-    pipeline.connect('dmp_generator_component.markdown', 'prepolished_saver_component.markdown')
+    pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
     # prepolisher_saver_component -> dmp_polisher_component
-    pipeline.connect('prepolished_saver_component.markdown', 'dmp_polisher_component.markdown')
+    pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
     # dmp_polisher_component -> polished_saver_component
-    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.debug_markdown')
-    pipeline.connect('dmp_polisher_component.markdown', 'polished_saver_component.markdown')
+    pipeline.connect('dmp_polisher_component.markdown', 'saver_component.markdown')
 
     return pipeline
 
 
-def run_pipeline(questionnaire_uuid: str, token: str, pipeline: Pipeline) -> None:
+def run_pipeline(
+    questionnaire_uuid: str,
+    token: str,
+    dsw_api_url: str | None,
+    template_uuid: str,
+    template_title: str,
+    template_data: Mapping[str, object],
+    user_uuid: str,
+    tenant_uuid: str,
+    pipeline: Pipeline,
+    database: Database,
+    config: Config,
+    llm_override: LLMConfigOverride | None = None,
+    on_progress: ProgressCallback | None = None,
+) -> tuple[str, str]:
     t1 = time.time()
-    config = load_config()
-    configure_logging(config.log_level)
-    model_name = config.model
-    file_paths = config.files
+    resolved_config = apply_llm_override(config, llm_override)
+    configure_logging(resolved_config.log_level)
+    model_name = resolved_config.model
 
-    km_data = get_questionnaire_detail(questionnaire_uuid, token)
-
-    with pathlib.Path(file_paths.dmp_template).open(encoding='utf-8') as f:
-        template_data = json.load(f)
+    km_data = get_questionnaire_detail(
+        questionnaire_uuid=questionnaire_uuid,
+        config=config,
+        token=token,
+        api_url=dsw_api_url,
+    )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
+    knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
+    knowledge_model_name = km_data['knowledgeModelPackage']['name']
+    knowledge_model_version = km_data['knowledgeModelPackage']['version']
 
-    # OTHER INPUTS
+    if on_progress is not None:
+        on_progress('Preparing document template')
+
     result = pipeline.run(
         data={
+            'loader_component': {
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': template_uuid,
+            },
             'parser_component': {'data': km_data},
             'assignment_component': {
                 'template_data': template_data,
-                'config': config,
+                'config': resolved_config,
                 'km': km,
+                'on_progress': on_progress,
             },
-            'assignment_saver_component': {'output_path': file_paths.assignments_output},
+            'assignment_saver_component': {
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'knowledge_model_name': knowledge_model_name,
+                'knowledge_model_version': knowledge_model_version,
+                'template_uuid': template_uuid,
+                'template_title': template_title,
+                'template_data': template_data,
+            },
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
+                'config': resolved_config,
+                'on_progress': on_progress,
             },
-            'prepolished_saver_component': {'file_path': file_paths.output_pre_polish_markdown},
             'dmp_polisher_component': {
-                'config_path': file_paths.config_path,
+                'config': resolved_config,
                 'template_data': template_data,
+                'on_progress': on_progress,
             },
-            'polished_saver_component': {'file_path': file_paths.output_markdown},
+            'saver_component': {
+                'template_uuid': template_uuid,
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'user_uuid': user_uuid,
+                'tenant_uuid': tenant_uuid,
+            },
         },
         include_outputs_from={
             'assignment_saver_component',
             'dmp_generator_component',
             'dmp_polisher_component',
-            'polished_saver_component',
+            'saver_component',
         },
     )
 
-    write_metrics(result, model_name, file_paths.output_markdown, file_paths.output_with_stats, t1)
+    result_markdown = get_component_markdown(result, 'saver_component')
+    if result_markdown is None:
+        msg = 'Missing markdown output from saver_component'
+        raise RuntimeError(msg)
+
+    write_metrics(
+        database,
+        template_uuid,
+        knowledge_model_uuid,
+        user_uuid,
+        tenant_uuid,
+        result,
+        model_name,
+        t1,
+    )
+    return knowledge_model_uuid, result_markdown
 
 
 def write_metrics(
+    database: Database,
+    template_uuid: str,
+    knowledge_model_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
     result: Mapping[str, object],
     model_name: str,
-    output_path: str,
-    output_with_stats_path: str,
     t1: float,
 ) -> None:
     metrics = PipelineMetricsCollector(
@@ -139,27 +245,26 @@ def write_metrics(
         get_component_stats(result, 'dmp_polisher_component'),
     )
 
-    polished_markdown = get_component_markdown(result, 'polished_saver_component')
-    if polished_markdown is None:
-        polished_markdown = pathlib.Path(output_path).read_text(
-            encoding='utf-8',
-        )
-
     t2 = time.time()
-    metrics.write_output(
-        markdown=polished_markdown,
-        output_path=output_with_stats_path,
-        elapsed_seconds=t2 - t1,
+
+    stats = metrics.get_stats(elapsed_seconds=t2 - t1)
+    database.save_stats(
+        template_uuid=template_uuid,
+        knowledge_model_uuid=knowledge_model_uuid,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
+        stats=stats,
     )
 
-    logger.debug('Saved DMP to %s', output_with_stats_path)
+    logger.debug('Saved DMP stats')
     metrics.log_summary(logger)
 
 
-if __name__ == '__main__':
-    config = load_config()
-    questionnaire_uuid = config.questionnaire_uuid
-    token = config.token
-
-    pipeline = build_pipeline()
-    run_pipeline(questionnaire_uuid, token, pipeline)
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description='Run the AI document pipeline from the command line.',
+    )
+    parser.add_argument('--questionnaire-uuid', required=True, help='DSW questionnaire UUID to process.')
+    parser.add_argument('--token', required=True, help='DSW bearer token used to fetch the questionnaire.')
+    parser.add_argument('--template-uuid', required=True, help='Template UUID stored in the database.')
+    return parser.parse_args()

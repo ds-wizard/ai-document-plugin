@@ -1,30 +1,118 @@
 from typing import Optional
 
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
+from ai_document_plugin_service.ai.common.config import (
+    Config,
+    DatabaseConfig,
+    FilePaths,
+    SystemAndUserPrompt,
+    SystemPrompt,
+)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
+from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
 def _component() -> DmpGeneratorComponent:
     return DmpGeneratorComponent()
 
 
+def _test_config() -> Config:
+    prompt = SystemAndUserPrompt(
+        temperature=0.0,
+        max_tokens=1,
+        system_message='',
+        user_message='',
+    )
+    system_prompt = SystemPrompt(temperature=0.0, max_tokens=1, system_message='')
+    return Config(
+        api_key='',
+        api_url='',
+        dsw_api_url='',
+        allowed_project_urls=(),
+        model='test',
+        log_level='DEBUG',
+        database=DatabaseConfig(
+            host='',
+            port=0,
+            name='',
+            user='',
+            password='',
+            schema='',
+        ),
+        files=FilePaths(prompts_path=''),
+        assignment=prompt,
+        section_id=prompt,
+        dmp_generation=system_prompt,
+        dmp_polishing=prompt,
+        parallel_workers=1,
+    )
+
+
+def _serialize_assignments(assignments: list[SectionAssignment]) -> list[SerializedSectionAssignment]:
+    return [assignment.to_dict() for assignment in assignments]
+
+
 def _km_fixture() -> dict:
     return {
         'entities': {
             'questions': {
-                'listQ': {'title': 'List', 'text': 'List text'},
-                'itemQ': {'title': 'Item', 'text': 'Item text'},
-                'neighborQ': {'title': 'Neighbor', 'text': 'Neighbor text'},
+                'listQ': {'title': 'List', 'text': 'List text', 'questionType': 'ListQuestion'},
+                'itemQ': {'title': 'Item', 'text': 'Item text', 'questionType': 'ValueQuestion'},
+                'neighborQ': {'title': 'Neighbor', 'text': 'Neighbor text', 'questionType': 'ValueQuestion'},
             },
             'answers': {
                 'yes': {'label': 'Yes', 'advice': None},
                 'no': {'label': 'No', 'advice': None},
             },
             'chapters': {},
+            'choices': {},
+        },
+    }
+
+def _reachable_km_fixture() -> dict:
+    return {
+        'chapterUuids': ['chapter'],
+        'entities': {
+            'chapters': {
+                'chapter': {
+                    'uuid': 'chapter',
+                    'title': 'Chapter',
+                    'questionUuids': ['rootQ', 'datasetsQ'],
+                },
+            },
+            'questions': {
+                'rootQ': {
+                    'questionType': 'OptionsQuestion',
+                    'title': 'Root',
+                    'text': 'Root text',
+                    'answerUuids': ['yes', 'no'],
+                },
+                'childQ': {
+                    'questionType': 'ValueQuestion',
+                    'title': 'Child',
+                    'text': 'Child text',
+                },
+                'datasetsQ': {
+                    'questionType': 'ListQuestion',
+                    'title': 'Datasets',
+                    'text': 'Datasets text',
+                    'itemTemplateQuestionUuids': ['datasetNameQ'],
+                },
+                'datasetNameQ': {
+                    'questionType': 'ValueQuestion',
+                    'title': 'Dataset name',
+                    'text': 'Dataset name text',
+                },
+            },
+            'answers': {
+                'yes': {'label': 'Yes', 'advice': None, 'followUpUuids': ['childQ']},
+                'no': {'label': 'No', 'advice': None, 'followUpUuids': []},
+            },
             'choices': {},
         },
     }
@@ -217,10 +305,248 @@ def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -
     assert synthetic['debug-info']
 
 
+def test_filter_reachable_replies_drops_stale_option_branch() -> None:
+    component = _component()
+    km = _reachable_km_fixture()
+    replies = {
+        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
+        'chapter.rootQ.yes.childQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'stale child',
+            },
+        },
+    }
+
+    filtered = component._filter_reachable_replies(replies, km)
+
+    assert filtered == {
+        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
+    }
+
+
+def test_filter_reachable_replies_drops_removed_list_item_branch() -> None:
+    component = _component()
+    km = _reachable_km_fixture()
+    replies = {
+        'chapter.datasetsQ': {
+            'value': {
+                'type': 'ItemListReply',
+                'value': ['active-item'],
+            },
+        },
+        'chapter.datasetsQ.active-item.datasetNameQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'active',
+            },
+        },
+        'chapter.datasetsQ.removed-item.datasetNameQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'stale',
+            },
+        },
+    }
+
+    filtered = component._filter_reachable_replies(replies, km)
+
+    assert filtered == {
+        'chapter.datasetsQ': {
+            'value': {
+                'type': 'ItemListReply',
+                'value': ['active-item'],
+            },
+        },
+        'chapter.datasetsQ.active-item.datasetNameQ': {
+            'value': {
+                'type': 'StringReply',
+                'value': 'active',
+            },
+        },
+    }
+
+
 def test_match_replies_selection_returns_empty_for_no_questions() -> None:
     result, has_answer = _component().match_replies_selection({}, {}, _km_fixture())
     assert result == []
     assert has_answer is False
+
+
+def test_parse_answer_item_select_reply_returns_selected_item_value() -> None:
+    km = {
+        'entities': {
+            'questions': {
+                'listQ': {'questionType': 'ListQuestion', 'title': 'Languages', 'text': 'List languages'},
+                'selectQ': {
+                    'questionType': 'ItemSelectQuestion',
+                    'listQuestionUuid': 'listQ',
+                    'title': 'Preferred language',
+                    'text': 'Your preferred language for communication',
+                },
+                'levelQ': {'questionType': 'OptionsQuestion', 'title': 'Level', 'text': None},
+                'languageQ': {'questionType': 'IntegrationQuestion', 'title': 'Language', 'text': None},
+            },
+            'answers': {
+                'native': {'label': 'Native', 'advice': None},
+            },
+            'chapters': {},
+            'choices': {},
+        },
+    }
+    replies = {
+        'chapter.listQ': {
+            'value': {
+                'type': 'ItemListReply',
+                'value': ['item-a', 'selected-item'],
+            },
+        },
+        'chapter.listQ.selected-item.levelQ': {
+            'value': {
+                'type': 'AnswerReply',
+                'value': 'native',
+            },
+        },
+        'chapter.listQ.selected-item.languageQ': {
+            'value': {
+                'type': 'IntegrationReply',
+                'value': {
+                    'type': 'PlainType',
+                    'value': 'English',
+                },
+            },
+        },
+        'chapter.selectQ': {
+            'value': {
+                'type': 'ItemSelectReply',
+                'value': 'selected-item',
+            },
+        },
+    }
+
+    parsed = parse_answer(
+        replies['chapter.selectQ']['value'],
+        km,
+        replies=replies,
+        question_path='chapter.selectQ',
+    )
+
+    assert parsed == 'English'
+
+
+def test_parse_answer_integration_reply_returns_first_raw_and_url() -> None:
+    km = {
+        'entities': {
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+            'questions': {},
+        },
+    }
+    answer = {
+        'type': 'IntegrationReply',
+        'value': {
+            'type': 'IntegrationType',
+            'value': '![Logo](data:image/svg+xml;base64,abc) [**Comma-separated Values**](https://fairsharing.org/1398)',
+            'raw': {
+                'abbreviation': 'CSV',
+                'description': (
+                    'A comma-separated values (CSV) file is a delimited text file that uses a '
+                    'comma to separate values. Each line of the file is a data record. Each '
+                    'record consists of one or more fields, separated by commas. The use of the '
+                    'comma as a field separator is the source of the name for this file format. '
+                    'A CSV file typically stores tabular data (numbers and text) in plain text, '
+                    'in which case each line will have the same number of fields.'
+                ),
+                'homepage': 'https://tools.ietf.org/html/rfc4180',
+                'doi': '10.25504/FAIRsharing.1943d4',
+                'name': 'Comma-separated Values',
+            },
+        },
+    }
+
+    parsed = parse_answer(answer, km)
+
+    assert parsed == (
+        '{"abbreviation": "CSV", "description": "A comma-separated values (CSV) file is a '
+        'delimited text file that uses a comma to separate values. Each line of the file is a '
+        'data record. Each record consists of one or more fields, separated by commas. The use '
+        'of the comma as a field separator is the source of the name for this file format. A '
+        'CSV file typically stores tabular data (numbers and text) in plain text, in which case '
+        'each line will have the same number of fields.", "homepage": '
+        '"https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4", "name": '
+        '"Comma-separated Values"} https://fairsharing.org/1398'
+    )
+
+def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> None:
+    km = {
+        'entities': {
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+            'questions': {},
+        },
+    }
+    answer = {
+        'type': 'IntegrationReply',
+        'value': {
+            'type': 'IntegrationType',
+            'value': 'value',
+            'raw': {
+                'name': 'Zenodo',
+                'homepage': None,
+                'url': None,
+                'doi': None,
+                'description': None,
+            },
+        },
+    }
+
+    parsed = parse_answer(answer, km)
+
+    assert parsed == (
+        '{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value'
+    )
+
+def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
+    parser = ParserComponent()
+    parser.km = {
+        'entities': {
+            'questions': {
+                'integrationQ': {'questionType': 'IntegrationQuestion'},
+            },
+        },
+    }
+    replies = {
+        'chapter.selectQ': {
+            'value': {
+                'type': 'ItemSelectReply',
+                'value': 'selected-item',
+            },
+        },
+        'chapter.listQ.selected-item.reply.integrationQ': {
+            'value': {
+                'type': 'IntegrationReply',
+                'value': {
+                    'type': 'IntegrationType',
+                    'value': 'value',
+                    'raw': {
+                        'homepage': 'https://tools.ietf.org/html/rfc4180',
+                        'doi': '10.25504/FAIRsharing.1943d4',
+                    },
+                },
+            },
+        },
+    }
+
+    parsed = parser.get_item_select_question_reply(
+        replies,
+        path='chapter.selectQ',
+    )
+
+    assert parsed == (
+        '{"homepage": "https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4"} value'
+    )
 
 
 def test_run_renders_parent_and_leaf_sections() -> None:
@@ -228,10 +554,12 @@ def test_run_renders_parent_and_leaf_sections() -> None:
     km = _km_fixture()
     assignments = [
         SectionAssignment(
-            key='Root',
+            id='s0',
+            title='Root',
             children=[
                 SectionAssignment(
-                    key='Leaf',
+                    id='s1',
+                    title='Leaf',
                     assignments={
                         'itemQ': {
                             'question_path': 'ch.listQ.itemQ',
@@ -249,7 +577,13 @@ def test_run_renders_parent_and_leaf_sections() -> None:
     }
 
     stub = StubGenerationLLM()
-    result = component.run(assignments, replies, km, llm=stub)
+    result = component.run(
+        replies=replies,
+        km=km,
+        config=_test_config(),
+        llm=stub,
+        new_assignments=_serialize_assignments(assignments),
+    )
     markdown = result['markdown']
     debug_markdown = result['debug_markdown']
     stats = result['stats']
@@ -267,11 +601,17 @@ def test_run_handles_empty_section() -> None:
     component = _component()
     km = _km_fixture()
     assignments = [
-        SectionAssignment(key='Empty'),
+        SectionAssignment(id='s0', title='Empty'),
     ]
 
     stub = StubGenerationLLM()
-    result = component.run(assignments, {}, km, llm=stub)
+    result = component.run(
+        replies={},
+        km=km,
+        config=_test_config(),
+        llm=stub,
+        new_assignments=_serialize_assignments(assignments),
+    )
     markdown = result['markdown']
 
     assert '# Empty' in markdown

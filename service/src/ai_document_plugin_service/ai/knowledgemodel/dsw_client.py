@@ -1,11 +1,15 @@
 import httpx
 
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.common.config import Config
 
 
-def get_questionnaire_detail(questionnaire_uuid: str, token: str | None = None) -> dict:
-    config = load_config()
-    base_url = config.dsw_api_url.rstrip('/')
+def get_questionnaire_detail(
+    questionnaire_uuid: str,
+    config: Config,
+    token: str | None = None,
+    api_url: str | None = None,
+) -> dict:
+    base_url = (api_url or config.dsw_api_url).rstrip('/')
     url = f'{base_url}/projects/{questionnaire_uuid}/questionnaire'
 
     headers: dict[str, str] = {}

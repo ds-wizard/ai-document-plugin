@@ -1,23 +1,24 @@
-import json
 import logging
 import math
-import pathlib
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
+from tqdm import tqdm
 
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
-from ai_document_plugin_service.ai.common.config import load_config
+from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.common import Config
+from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
     OpenAIGenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +32,29 @@ class DmpGeneratorComponentResult(TypedDict):
     stats: AssignmentStats
 
 
+@dataclass
+class _ScheduledSection:
+    heading: str
+    future: Future[tuple[str, str]] | None = None
+    children: list['_ScheduledSection'] = field(default_factory=list)
+    no_data: bool = False
+
+
 @component
 class DmpGeneratorComponent:
+    def __init__(self, llm: GenerationLLM | None = None) -> None:
+        self.llm = llm
+
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
     def run(
         self,
-        assignments: list[SectionAssignment],
         replies: dict,
         km: dict,
+        config: Config,
         llm: GenerationLLM | None = None,
+        new_assignments: list[SerializedSectionAssignment] | None = None,
+        db_assignments: list[SerializedSectionAssignment] | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree.
 
@@ -47,17 +62,42 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        assignments_tree = [a.to_dict() for a in assignments]
+        assignments = db_assignments or new_assignments or []
+        replies = self._filter_reachable_replies(replies, km)
 
         stats = AssignmentStats()
 
-        if llm is None:
-            llm = OpenAIGenerationLLM()
+        active_llm = llm or self.llm or OpenAIGenerationLLM(config)
 
-        parts = []
-        for node in assignments_tree:
-            section, debug = self._generate_section(node, 0, replies, km, llm, stats)
-            parts.append((section, debug))
+        worker_count = max(1, config.parallel_workers)
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            scheduled_sections = [
+                self._schedule_section(
+                    node=node,
+                    depth=0,
+                    replies=replies,
+                    km=km,
+                    llm=active_llm,
+                    stats=stats,
+                    executor=executor,
+                )
+                for node in assignments
+            ]
+            leaf_futures = []
+            for scheduled in scheduled_sections:
+                leaf_futures.extend(self._collect_leaf_futures(scheduled))
+            total_sections = len(leaf_futures)
+            for i, future in tqdm(
+                enumerate(as_completed(leaf_futures), start=1),
+                total=total_sections,
+                desc=f'Generating sections ({worker_count} workers)',
+            ):
+                future.result()
+                if on_progress is not None:
+                    on_progress(
+                        f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
+                    )
+            parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
         return {
@@ -65,6 +105,129 @@ class DmpGeneratorComponent:
             'debug_markdown': debug_markdown,
             'stats': stats,
         }
+
+    @staticmethod
+    def _filter_reachable_replies(
+        replies: dict[str, Any],
+        km: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Keep only replies that are reachable in the current questionnaire state.
+
+        DSW can keep stale descendants in the raw questionnaire JSON when a user
+        changes an earlier answer (for example `YES -> NO`) or removes a list
+        item. Generation should ignore those historical branches and only use
+        replies that can be reached from the current KM roots via the currently
+        selected option answers and existing list-item UUIDs.
+        """
+        chapter_uuids = km.get('chapterUuids')
+        entities = km.get('entities', {})
+        chapters = entities.get('chapters', {})
+        questions = entities.get('questions', {})
+        answers = entities.get('answers', {})
+        if not chapter_uuids or not chapters or not questions:
+            return replies
+
+        reachable_paths: set[str] = set()
+
+        for chapter_uuid in chapter_uuids:
+            chapter = chapters.get(chapter_uuid)
+            if chapter is None:
+                continue
+            for question_uuid in chapter.get('questionUuids', []):
+                DmpGeneratorComponent._walk_reachable_question(
+                    question_uuid,
+                    f'{chapter_uuid}.{question_uuid}',
+                    replies,
+                    questions,
+                    answers,
+                    reachable_paths,
+                )
+
+        return {key: value for key, value in replies.items() if key in reachable_paths}
+
+    @staticmethod
+    def _walk_reachable_options_question(
+        path: str,
+        replies: dict[str, Any],
+        answers: dict[str, Any],
+    ) -> list[tuple[str, str]]:
+        selected_answer_uuid = replies.get(path, {}).get('value', {}).get('value')
+        if not selected_answer_uuid:
+            return []
+
+        answer = answers.get(selected_answer_uuid)
+        if answer is None:
+            return []
+
+        return [
+            (
+                follow_up_uuid,
+                f'{path}.{selected_answer_uuid}.{follow_up_uuid}',
+            )
+            for follow_up_uuid in answer.get('followUpUuids', [])
+        ]
+
+    @staticmethod
+    def _walk_reachable_list_question(
+        question: dict[str, Any],
+        path: str,
+        replies: dict[str, Any],
+    ) -> list[tuple[str, str]]:
+        list_items = replies.get(path, {}).get('value', {}).get('value', [])
+        if not isinstance(list_items, list):
+            logger.warning('Expected list items at %s, got %s', path, type(list_items).__name__)
+            return []
+
+        return [
+            (
+                nested_question_uuid,
+                f'{path}.{item_uuid}.{nested_question_uuid}',
+            )
+            for item_uuid in list_items
+            for nested_question_uuid in question.get('itemTemplateQuestionUuids', [])
+        ]
+
+    @staticmethod
+    def _walk_reachable_question(
+        question_uuid: str,
+        path: str,
+        replies: dict[str, Any],
+        questions: dict[str, Any],
+        answers: dict[str, Any],
+        reachable_paths: set[str],
+    ) -> None:
+        question = questions.get(question_uuid)
+        if question is None:
+            return
+
+        if path in replies:
+            reachable_paths.add(path)
+
+        question_type = question.get('questionType')
+        if question_type == 'OptionsQuestion':
+            child_questions = DmpGeneratorComponent._walk_reachable_options_question(
+                path,
+                replies,
+                answers,
+            )
+        elif question_type == 'ListQuestion':
+            child_questions = DmpGeneratorComponent._walk_reachable_list_question(
+                question,
+                path,
+                replies,
+            )
+        else:
+            child_questions = []
+
+        for child_question_uuid, child_path in child_questions:
+            DmpGeneratorComponent._walk_reachable_question(
+                child_question_uuid,
+                child_path,
+                replies,
+                questions,
+                answers,
+                reachable_paths,
+            )
 
     @staticmethod
     def _get_reply_keys_at_level(replies: dict[str, Any], prefix: str) -> list[str]:
@@ -304,7 +467,12 @@ class DmpGeneratorComponent:
                 question_path,
             )
         if question_path in replies:
-            res['reply'] = parse_answer(replies[question_path]['value'], km)
+            res['reply'] = parse_answer(
+                replies[question_path]['value'],
+                km,
+                replies=replies,
+                question_path=question_path,
+            )
         children, child_has_answer = self.match_replies_selection(
             item['children'],
             replies,
@@ -361,7 +529,12 @@ class DmpGeneratorComponent:
         is missing from the knowledge model.
         """
         try:
-            parsed = parse_answer(replies[key]['value'], km)
+            parsed = parse_answer(
+                replies[key]['value'],
+                km,
+                replies=replies,
+                question_path=key,
+            )
         except (KeyError, TypeError):
             return None
         if parsed is None or (isinstance(parsed, str) and not parsed.strip()):
@@ -506,119 +679,131 @@ class DmpGeneratorComponent:
         table_md = df.to_markdown(index=False)
         return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
 
-    def _generate_section(
+    def _schedule_section(
         self,
-        node: dict,
+        node: SerializedSectionAssignment,
         depth: int,
         replies: dict,
         km: dict,
         llm: GenerationLLM,
+        executor: ThreadPoolExecutor,
         stats: AssignmentStats | None = None,
-    ) -> tuple[str, str]:
-        """Recursively generate markdown for one section node.
-        Leaf: content from Q&A via LLM. Parent: summary of children via LLM.
-        Returns (section_markdown, debug_markdown).
-        """
-        key = node['key']
-        heading = self._heading(depth, key)
+    ) -> _ScheduledSection:
+        """Recursively schedule leaf-section jobs using a shared executor."""
+        title = node['title']
+        heading = self._heading(depth, title)
 
-        if node.get('assignments') is not None:
-            return self._generate_leaf_section(node, heading, replies, km, llm, stats)
+        if self._is_leaf_section(node):
+            return self._handle_leaf_section(executor, heading, km, llm, node, replies, stats)
+        return self._handle_children_section(depth, executor, heading, km, llm, node, replies, stats)
 
-        if not node.get('children'):
-            res = heading + '\nNo data'
-            return res, res
-        children_markdown, children_markdown_debug = self._generate_children_sections(
-            node['children'],
-            depth,
-            replies,
-            km,
-            llm,
-            stats,
+    def _handle_children_section(
+        self,
+        depth: int,
+        executor: ThreadPoolExecutor,
+        heading: str,
+        km: dict,
+        llm: GenerationLLM,
+        node: SerializedSectionAssignment,
+        replies: dict,
+        stats: AssignmentStats | None,
+    ) -> _ScheduledSection:
+        return _ScheduledSection(
+            heading=heading,
+            children=[
+                self._schedule_section(
+                    node=child,
+                    depth=depth + 1,
+                    replies=replies,
+                    km=km,
+                    llm=llm,
+                    stats=stats,
+                    executor=executor,
+                )
+                for child in (node.get('children') or [])
+            ],
         )
-        res = heading + '\n\n' + children_markdown
-        debug_res = heading + '\n\n' + children_markdown_debug
-        return res, debug_res
+
+    def _handle_leaf_section(
+        self,
+        executor: ThreadPoolExecutor,
+        heading: str,
+        km: dict,
+        llm: GenerationLLM,
+        node: SerializedSectionAssignment,
+        replies: dict,
+        stats: AssignmentStats | None,
+    ) -> _ScheduledSection:
+        if node.get('assignments') is not None:
+            return _ScheduledSection(
+                heading=heading,
+                future=executor.submit(
+                    self._generate_leaf_section,
+                    node,
+                    heading,
+                    replies,
+                    km,
+                    llm,
+                    stats,
+                ),
+            )
+        return _ScheduledSection(heading=heading, no_data=True)
+
+    @staticmethod
+    def _is_leaf_section(node: SerializedSectionAssignment) -> bool:
+        return not node.get('children')
 
     def _generate_leaf_section(
         self,
-        node: dict,
+        node: SerializedSectionAssignment,
         heading: str,
         replies: dict,
         km: dict,
         llm: GenerationLLM,
         stats: AssignmentStats | None = None,
     ) -> tuple[str, str]:
-        """Generate markdown/debug markdown for a leaf node with assignments."""
-        key = node['key']
-        matches, _ = self.match_replies_selection(node['assignments'], replies, km)
-        rows = self._flatten_matched_questions(matches, key)
+        """Generate markdown/debug markdown for a leaf node with assignments.
+
+        Raises:
+            ValueError: If a leaf section is missing its assignments payload.
+        """
+        title = node['title']
+        assignments = node['assignments']
+        if assignments is None:
+            msg = f"Leaf section '{title}' is missing assignments"
+            raise ValueError(msg)
+        matches, _ = self.match_replies_selection(assignments, replies, km)
+        rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
-        prompt = self.construct_chapter_prompt(key, matches)
+        prompt = self.construct_chapter_prompt(title, matches)
         content = self.llm_section_from_qa(llm, prompt, stats) if prompt else 'No data'
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content
         return section, heading + '\n\n' + debug_body
 
-    def _generate_children_sections(
+    def _collect_leaf_futures(
         self,
-        children: list[dict],
-        depth: int,
-        replies: dict,
-        km: dict,
-        llm: GenerationLLM,
-        stats: AssignmentStats | None = None,
+        scheduled: _ScheduledSection,
+    ) -> list[Future[tuple[str, str]]]:
+        if scheduled.future is not None:
+            return [scheduled.future]
+        futures = []
+        for child in scheduled.children:
+            futures.extend(self._collect_leaf_futures(child))
+        return futures
+
+    def _render_scheduled_section(
+        self,
+        scheduled: _ScheduledSection,
     ) -> tuple[str, str]:
-        """Generate and join markdown/debug markdown from child nodes."""
-        children_parts = []
-        for child in children:
-            child_section, child_debug = self._generate_section(
-                child,
-                depth + 1,
-                replies,
-                km,
-                llm,
-                stats,
-            )
-            children_parts.append((child_section, child_debug))
+        if scheduled.future is not None:
+            return scheduled.future.result()
+        if scheduled.no_data:
+            res = scheduled.heading + '\nNo data'
+            return res, res
+        children_parts = [self._render_scheduled_section(child) for child in scheduled.children]
         children_markdown = '\n\n'.join([s for s, _ in children_parts])
         children_markdown_debug = '\n\n'.join([d for _, d in children_parts])
-        return children_markdown, children_markdown_debug
-
-
-if __name__ == '__main__':
-    config = load_config()
-    file_paths = config.files
-    questionnaire_uuid = config.questionnaire_uuid
-    token = config.token
-
-    with pathlib.Path(file_paths.assignments_output).open(
-        encoding='utf-8',
-    ) as f:
-        data = json.load(f)
-    selection = data['assignments']
-    dmp = get_questionnaire_detail(questionnaire_uuid, token)
-
-    replies = dmp['replies']
-    km = dmp['knowledgeModel']
-
-    dmp_generator_component = DmpGeneratorComponent()
-    result: DmpGeneratorComponentResult = dmp_generator_component.run(
-        assignments=selection,
-        replies=replies,
-        km=km,
-    )
-    markdown = result['markdown']
-    stats = result['stats']
-
-    pathlib.Path(file_paths.output_markdown).write_text(
-        markdown,
-        encoding='utf-8',
-    )
-    logger.debug('DMP saved to %s', file_paths.output_markdown)
-    logger.debug(
-        'LLM calls: %s, input tokens: %s, output tokens: %s',
-        stats.total_calls,
-        f'{stats.total_input_tokens:,}',
-        f'{stats.total_output_tokens:,}',
-    )
+        section = scheduled.heading + '\n\n' + children_markdown
+        debug_section = scheduled.heading + '\n\n' + children_markdown_debug
+        return section, debug_section

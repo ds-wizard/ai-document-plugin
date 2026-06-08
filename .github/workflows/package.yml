@@ -35,6 +35,19 @@ jobs:
           name: plugin
           path: ./plugin/dist
 
+      - name: '[release] Create ZIP'
+        if: github.ref_type == 'tag'
+        working-directory: ./plugin
+        run: |
+          cd dist
+          zip -r plugin.zip ./*
+
+      - name: '[release] Create GitHub Release'
+        uses: softprops/action-gh-release@v3
+        if: github.ref_type == 'tag'
+        with:
+          files: plugin/dist/plugin.zip
+
   service-package:
     name: 'Service: Python Package'
     runs-on: ubuntu-latest
@@ -55,3 +68,15 @@ jobs:
       - name: '[app] Build'
         working-directory: ./service
         run: make build
+
+      - name: '[dist] Create artifact'
+        uses: actions/upload-artifact@v6
+        with:
+          name: service
+          path: ./service/dist
+
+      - name: '[release] Create GitHub Release'
+        uses: softprops/action-gh-release@v3
+        if: github.ref_type == 'tag'
+        with:
+          files: service/dist/*

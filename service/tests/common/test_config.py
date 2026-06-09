@@ -1,5 +1,8 @@
 from pathlib import Path
 from textwrap import dedent
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
 
 from ai_document_plugin_service.ai.common.config import (
     CONFIG_PATH_ENV_VAR,
@@ -203,6 +206,30 @@ def test_create_app_stores_the_resolved_config(
     monkeypatch.setenv('TEST_API_KEY', 'create-app-secret')
     monkeypatch.chdir(tmp_path)
 
-    app = create_app()
+    app = create_app(run_migrations=False)
 
     assert app.state.config.files.prompts_path == str(config_path.parent / 'runtime-prompts.yaml')
+
+
+@patch('ai_document_plugin_service.app.run_startup_migrations')
+def test_app_startup_runs_migrations_with_loaded_config(
+    mock_run_startup_migrations,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config_path = _write_config_files(
+        tmp_path / 'runtime',
+        config_name='runtime-config.yaml',
+        prompts_name='runtime-prompts.yaml',
+    )
+    monkeypatch.setenv(CONFIG_PATH_ENV_VAR, str(config_path))
+    monkeypatch.setenv('TEST_API_KEY', 'create-app-secret')
+    monkeypatch.chdir(tmp_path)
+
+    app = create_app()
+
+    client = TestClient(app)
+    response = client.get('/health')
+
+    assert response.status_code == 200
+    mock_run_startup_migrations.assert_called_once_with(app.state.config, str(config_path))

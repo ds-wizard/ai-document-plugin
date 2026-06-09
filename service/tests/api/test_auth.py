@@ -99,7 +99,7 @@ def test_health_check_does_not_require_auth(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setenv('TEST_API_KEY', 'test-secret')
     monkeypatch.chdir(tmp_path)
 
-    client = TestClient(create_app())
+    client = TestClient(create_app(run_migrations=False))
     response = client.get('/health')
 
     assert response.status_code == 200
@@ -112,7 +112,7 @@ def test_protected_route_returns_401_without_headers(tmp_path: Path, monkeypatch
     monkeypatch.setenv('TEST_API_KEY', 'test-secret')
     monkeypatch.chdir(tmp_path)
 
-    client = TestClient(create_app())
+    client = TestClient(create_app(run_migrations=False))
     response = client.get('/templates')
 
     assert response.status_code == 401
@@ -124,7 +124,7 @@ def test_protected_route_returns_401_for_disallowed_url(tmp_path: Path, monkeypa
     monkeypatch.setenv('TEST_API_KEY', 'test-secret')
     monkeypatch.chdir(tmp_path)
 
-    client = TestClient(create_app())
+    client = TestClient(create_app(run_migrations=False))
     response = client.get(
         '/templates',
         headers=_auth_headers(api_url='https://evil.example.com'),
@@ -146,7 +146,7 @@ def test_protected_route_returns_401_when_dsw_rejects_token(
     monkeypatch.setenv('TEST_API_KEY', 'test-secret')
     monkeypatch.chdir(tmp_path)
 
-    client = TestClient(create_app())
+    client = TestClient(create_app(run_migrations=False))
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 401
@@ -170,7 +170,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     monkeypatch.setenv('TEST_API_KEY', 'test-secret')
     monkeypatch.chdir(tmp_path)
 
-    client = TestClient(create_app())
+    client = TestClient(create_app(run_migrations=False))
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200

@@ -90,14 +90,15 @@ For a fresh local setup, the usual flow is:
 
 ```bash
 make install
-make db-init
+make db
+make dev
 ```
 
 `docker compose` creates the PostgreSQL database itself from the `POSTGRES_DB`, `POSTGRES_USER`, and
-`POSTGRES_PASSWORD` values in [docker-compose.yml](/Users/hana/DSW/AI-playground/ai-document-plugin/service/docker-compose.yml:1). Alembic then creates or updates the schema inside that database; it does not create the PostgreSQL server or database on its own.
+`POSTGRES_PASSWORD` values in [docker-compose.yml](/Users/hana/DSW/AI-playground/ai-document-plugin/service/docker-compose.yml:1). On application startup, the service verifies that it can connect to the configured database and runs Alembic migrations to `head`. Alembic creates or updates the schema inside that database; it does not create the PostgreSQL server or database on its own.
 
-The application runtime does not create or alter database tables on its own. Run `make db-init` or
-`make db-migrate` before starting the service against a fresh or changed database.
+`make db-init` and `make db-migrate` remain useful local shortcuts when you want to manage migrations manually, but they
+are not required by deployed service startup.
 
 If the PostgreSQL container already exists with an older Docker volume, the database may be missing even though the server is running. In that case `make db-init` also checks that `ai_document_plugin` exists and creates it before running Alembic migrations.
 

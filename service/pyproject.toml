@@ -73,6 +73,9 @@ ignore = [
 ]
 preview = true
 
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]
+
 [tool.ruff.format]
 quote-style = "single"
 indent-style = "space"

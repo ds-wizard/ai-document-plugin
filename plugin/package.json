@@ -1,47 +1,61 @@
 {
-  "name": "ai-document-plugin",
-  "version": "0.1.0",
-  "description": "Plugin for DSW to generate documents using AI.",
-  "license": "MIT",
-  "author": "",
-  "type": "module",
-  "scripts": {
-    "build": "npm run typecheck && npm run lint && npm run build:prod",
-    "build:dev": "vite build --mode development",
-    "build:prod": "vite build --mode production",
-    "build:watch": "vite build --watch --mode development",
-    "dev": "concurrently -k \"npm run build:watch\" \"npm run serve:dist\"",
-    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" && eslint src --fix",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
-    "lint": "eslint src",
-    "serve:dist": "vite preview --strictPort --port 4180",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/node": "^25.9.2",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.60.1",
-    "@typescript-eslint/parser": "^8.59.1",
-    "@vitejs/plugin-react": "^6.0.2",
-    "concurrently": "^9.2.1",
-    "eslint": "^9.39.2",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
-    "globals": "^17.6.0",
-    "prettier": "^3.8.3",
-    "terser": "^5.48.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.16"
-  },
-  "dependencies": {
-    "@ds-wizard/plugin-sdk": "^0.9.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "zod": "^4.4.3"
-  }
+    "name": "ai-document-plugin",
+    "version": "0.1.0",
+    "description": "Plugin for DSW to generate documents using AI.",
+    "license": "MIT",
+    "author": "Marek Suchánek <marek.suchanek@ds-wizard.org>",
+    "contributors": [
+        {
+            "name": "Marek Suchánek",
+            "email": "marek.suchanek@ds-wizard.org"
+        },
+        {
+            "name": "Matěj Frnka",
+            "email": "matej.frnka@cvut.cz"
+        },
+        {
+            "name": "Hana Litavská",
+            "email": "hana.litavska@fit.cvut.cz"
+        }
+    ],
+    "type": "module",
+    "scripts": {
+        "build": "npm run typecheck && npm run lint && npm run build:prod",
+        "build:dev": "vite build --mode development",
+        "build:prod": "vite build --mode production",
+        "build:watch": "vite build --watch --mode development",
+        "dev": "concurrently -k \"npm run build:watch\" \"npm run serve:dist\"",
+        "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" && eslint src --fix",
+        "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
+        "lint": "eslint src",
+        "serve:dist": "vite preview --strictPort --port 4180",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@types/node": "^25.9.2",
+        "@types/react": "^19.2.17",
+        "@types/react-dom": "^19.2.3",
+        "@typescript-eslint/eslint-plugin": "^8.60.1",
+        "@typescript-eslint/parser": "^8.59.1",
+        "@vitejs/plugin-react": "^6.0.2",
+        "concurrently": "^9.2.1",
+        "eslint": "^9.39.2",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^7.1.1",
+        "eslint-plugin-simple-import-sort": "^12.1.1",
+        "globals": "^17.6.0",
+        "prettier": "^3.8.3",
+        "terser": "^5.48.0",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.16"
+    },
+    "dependencies": {
+        "@ds-wizard/plugin-sdk": "^0.9.1",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7",
+        "react-markdown": "^10.1.0",
+        "remark-gfm": "^4.0.1",
+        "zod": "^4.4.3"
+    }
 }

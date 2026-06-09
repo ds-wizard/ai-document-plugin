@@ -5,7 +5,9 @@ description = "Plugin for DSW to generate documents using AI."
 keywords = ["wizard", "plugin", "ai", "document", "generation", "llm", "fastapi"]
 license = "MIT"
 authors = [
-    { name = "...", email = "..." }
+    { name = "Matěj Frnka", email = "matej.frnka@cvut.cz" },
+    { name = "Hana Litavská", email = "hana.litavska@fit.cvut.cz" },
+    { name = "Marek Suchánek", email = "marek.suchanek@ds-wizard.org" },
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

@@ -1,13 +1,6 @@
 from typing import Optional
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-    DatabaseConfig,
-    FilePaths,
-    SystemAndUserPrompt,
-    SystemPrompt,
-)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
@@ -19,40 +12,7 @@ from ai_document_plugin_service.ai.knowledgemodel.parser_component import Parser
 
 def _component(gen_llm: GenerationLLM | None = None) -> DmpGeneratorComponent:
     return DmpGeneratorComponent(
-        config=_test_config(),
         dmp_generator_llm=gen_llm or StubGenerationLLM(),
-    )
-
-
-def _test_config() -> Config:
-    prompt = SystemAndUserPrompt(
-        temperature=0.0,
-        max_tokens=1,
-        system_message='',
-        user_message='',
-    )
-    system_prompt = SystemPrompt(temperature=0.0, max_tokens=1, system_message='')
-    return Config(
-        api_key='',
-        api_url='',
-        dsw_api_url='',
-        allowed_project_urls=(),
-        model='test',
-        log_level='DEBUG',
-        database=DatabaseConfig(
-            host='',
-            port=0,
-            name='',
-            user='',
-            password='',
-            schema='',
-        ),
-        files=FilePaths(prompts_path=''),
-        assignment=prompt,
-        section_id=prompt,
-        dmp_generation=system_prompt,
-        dmp_polishing=prompt,
-        parallel_workers=1,
     )
 
 

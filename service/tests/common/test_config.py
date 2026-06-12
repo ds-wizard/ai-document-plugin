@@ -98,8 +98,6 @@ def test_load_config_uses_env_config_path_and_resolves_prompts_relative_to_it(
 
     config = load_config()
 
-    assert config.model == 'env-model'
-    assert config.api_key == 'secret-from-env'
     assert config.allowed_project_urls == ('https://dsw.example.com',)
     assert config.files.prompts_path == str(config_path.parent / 'nested/prompts.custom.yaml')
 
@@ -115,8 +113,6 @@ def test_load_config_falls_back_to_default_path_when_env_is_missing(
 
     config = load_config()
 
-    assert config.model == 'default-model'
-    assert config.api_key == 'default-secret'
     assert config.files.prompts_path == str(config_path.parent / 'prompts.yaml')
 
 

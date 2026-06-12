@@ -53,9 +53,9 @@ class Config:
 
 @dataclass(frozen=True)
 class LLMConfig:
-    model: str | None = None
-    api_key: str | None = None
-    api_url: str | None = None
+    model: str
+    api_key: str
+    api_url: str
     parallel_workers: int | None = None
 
 

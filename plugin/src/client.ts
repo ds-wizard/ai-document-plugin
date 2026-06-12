@@ -135,11 +135,17 @@ export const runPipeline = async ({
         }),
     })
 
-    const data = await readApiResponse<PipelineRunResponse | { detail?: string }>(response, url)
+    const data = await readApiResponse<PipelineRunResponse | { detail?: unknown }>(response, url)
 
     if (!response.ok) {
+        if (response.status == 422) {
+            throw new Error(
+                'Plugin is not configured. Set the model, API key, and API URL in the plugin settings.',
+            )
+        }
+        const detail = 'detail' in data ? data.detail : undefined
         throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
+            typeof detail === 'string' && detail ? detail : 'Pipeline execution failed.',
         )
     }
 

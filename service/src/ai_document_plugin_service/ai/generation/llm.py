@@ -20,6 +20,11 @@ if TYPE_CHECKING:
 
 
 class GenerationLLM(ABC):
+
+    @abstractmethod
+    def get_max_workers(self):
+        pass
+
     @abstractmethod
     def section_from_qa(
         self,
@@ -29,20 +34,15 @@ class GenerationLLM(ABC):
     ) -> str:
         pass
 
-    @abstractmethod
-    def polish_dmp(
-        self,
-        markdown: str,
-        structure_str: str = '',
-        stats: AssignmentStats | None = None,
-    ) -> str:
-        pass
 
 
-class OpenAIGenerationLLM(GenerationLLM):
-    def __init__(self, config: Config) -> None:
+class SectionGenerationLLM(GenerationLLM):
+    def __init__(self, llm_client: LLMClient, config: Config, ) -> None:
         self.config = config
-        self.client = LLMClient(config)
+        self.client = llm_client
+
+    def get_max_workers(self):
+        return self.client.get_max_workers()
 
     def section_from_qa(
         self,
@@ -66,48 +66,9 @@ class OpenAIGenerationLLM(GenerationLLM):
         ]
         response = call_with_retry(
             lambda: self.client.completion(
-                model=self.config.model,
                 messages=messages,
                 temperature=self.config.dmp_generation.temperature,
                 max_tokens=self.config.dmp_generation.max_tokens,
-            ),
-        )
-        add_usage(stats, response)
-        return (response.choices[0].message.content or '').strip()
-
-    def polish_dmp(
-        self,
-        markdown: str,
-        structure_str: str = '',
-        stats: AssignmentStats | None = None,
-    ) -> str:
-        system_prompt = self.config.dmp_polishing.system_message.replace(
-            '{sections}',
-            structure_str,
-        )
-        user_content = self.config.dmp_polishing.user_message.replace(
-            '{markdown}',
-            markdown,
-        )
-        system_message: ChatCompletionSystemMessageParam = {
-            'role': 'system',
-            'content': system_prompt,
-        }
-        user_message: ChatCompletionUserMessageParam = {
-            'role': 'user',
-            'content': user_content,
-        }
-        messages: list[ChatCompletionMessageParam] = [
-            system_message,
-            user_message,
-        ]
-
-        response = call_with_retry(
-            lambda: self.client.completion(
-                model=self.config.model,
-                messages=messages,
-                temperature=self.config.dmp_polishing.temperature,
-                max_tokens=self.config.dmp_polishing.max_tokens,
             ),
         )
         add_usage(stats, response)

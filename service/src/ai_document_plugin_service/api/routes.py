@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import fastapi
 
-from ai_document_plugin_service.ai.common.config import Config, LLMConfigOverride
+from ai_document_plugin_service.ai.common.config import Config, LLMConfig
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.auth import AuthenticatedUser, verify_authenticated
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
@@ -133,7 +133,7 @@ def start_pipeline(
         tenant_uuid,
         auth.token,
         auth.api_url,
-        LLMConfigOverride(
+        LLMConfig(
             model=payload.llm_model,
             api_key=payload.llm_api_key,
             api_url=payload.llm_api_url,

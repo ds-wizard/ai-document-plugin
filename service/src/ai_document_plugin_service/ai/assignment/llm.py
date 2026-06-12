@@ -45,9 +45,9 @@ class LayerMatcher(ABC):
 
 
 class OpenAILayerMatcher(LayerMatcher):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, llm_client: LLMClient, config: Config) -> None:
+        self.client = llm_client
         self.config = config
-        self.client = LLMClient(config)
 
     def match_questions_to_sections(
         self,
@@ -74,7 +74,6 @@ class OpenAILayerMatcher(LayerMatcher):
 
         def call_and_parse() -> dict[str, list[str]]:
             response = self.client.completion(
-                model=self.config.model,
                 messages=messages,
                 temperature=self.config.assignment.temperature,
                 max_tokens=self.config.assignment.max_tokens,

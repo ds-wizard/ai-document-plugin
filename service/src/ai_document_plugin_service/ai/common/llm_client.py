@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 from openai.types.chat import ChatCompletion
 
-from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
 
 if TYPE_CHECKING:
@@ -76,14 +75,21 @@ def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
 
 
 class LLMClient:
-    def __init__(self, config: Config) -> None:
-        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url, max_retries=0)
-        self.max_workers = config.parallel_workers or 1
+    def __init__(self, model: str, api_key: str, api_url: str, parallel_workers: int | None) -> None:
+        self.client = OpenAI(api_key=api_key, base_url=api_url, max_retries=0)
+        self.model = model
+        self.max_workers = parallel_workers or 1
         logger.debug(
             'Initializing LLM client, setting semaphore limit to %s',
             self.max_workers,
         )
         semaphore.set_limit(self.max_workers)
+
+    def get_max_workers(self):
+        return self.max_workers
+
+    def get_model_name(self):
+        return self.model
 
     def completion(
         self,
@@ -91,12 +97,11 @@ class LLMClient:
         **kwargs: Any,  # noqa: ANN401
     ) -> ChatCompletion:
         req_id = uuid.uuid4().hex[:8]
-        model = kwargs.get('model', args[0] if args else '?')
         wait_start = time.perf_counter()
         logger.debug(
             '[llm] req=%s model=%s queueing (semaphore active/limit unknown until acquire)',
             req_id,
-            model,
+            self.model,
         )
         with semaphore:
             wait_s = time.perf_counter() - wait_start
@@ -107,7 +112,7 @@ class LLMClient:
                 semaphore.limit,
             )
             call_start = time.perf_counter()
-            result = self.client.chat.completions.create(*args, **kwargs)
+            result = self.client.chat.completions.create(model=self.model, *args, **kwargs)
             logger.debug(
                 '[llm] req=%s completed in %.3fs (releasing semaphore)',
                 req_id,

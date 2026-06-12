@@ -1,6 +1,6 @@
 import os
 import pathlib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 import yaml
@@ -41,11 +41,7 @@ class DatabaseConfig:
 
 @dataclass(frozen=True)
 class Config:
-    api_key: str
-    api_url: str
-    dsw_api_url: str
     allowed_project_urls: tuple[str, ...]
-    model: str
     log_level: str
     database: DatabaseConfig
     files: FilePaths
@@ -53,11 +49,10 @@ class Config:
     section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
     dmp_polishing: SystemAndUserPrompt
-    parallel_workers: int
 
 
 @dataclass(frozen=True)
-class LLMConfigOverride:
+class LLMConfig:
     model: str | None = None
     api_key: str | None = None
     api_url: str | None = None
@@ -134,19 +129,6 @@ def _get_allowed_project_urls(config: dict[str, Any]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def _get_parallel_workers(config: dict[str, Any]) -> int:
-    workers = config.get('llm_response_generation', {}).get('workers', 1)
-    try:
-        workers_int = int(workers)
-    except (TypeError, ValueError) as exc:
-        msg = "Invalid config value: 'parallelism.workers' must be an integer >= 1"
-        raise ValueError(msg) from exc
-    if workers_int < 1:
-        msg = "Invalid config value: 'parallelism.workers' must be >= 1"
-        raise ValueError(msg)
-    return workers_int
-
-
 def _resolve_existing_path(path: str, *, base_dir: pathlib.Path | None = None) -> str:
     normalized_path = _normalize_path(path)
     path_obj = pathlib.Path(normalized_path)
@@ -199,12 +181,6 @@ def load_config(config_path: str | None = None) -> Config:
         raise TypeError(msg)
 
     return Config(
-        api_key=_expand_env_vars(
-            _get(config, 'llm_response_generation', 'api_key'),
-        ),
-        api_url=_get(config, 'llm_response_generation', 'api_url'),
-        model=_get(config, 'llm_response_generation', 'model'),
-        dsw_api_url=_get(config, 'dsw', 'api_url'),
         allowed_project_urls=_get_allowed_project_urls(config),
         log_level=_get_log_level(config),
         database=DatabaseConfig(
@@ -241,18 +217,4 @@ def load_config(config_path: str | None = None) -> Config:
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
-        parallel_workers=_get_parallel_workers(config),
-    )
-
-
-def apply_llm_override(config: Config, override: LLMConfigOverride | None = None) -> Config:
-    if override is None:
-        return config
-
-    return replace(
-        config,
-        model=override.model or config.model,
-        api_key=override.api_key or config.api_key,
-        api_url=override.api_url or config.api_url,
-        parallel_workers=override.parallel_workers or config.parallel_workers,
     )

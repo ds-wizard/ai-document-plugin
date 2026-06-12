@@ -1,21 +1,21 @@
 import httpx
 
-from ai_document_plugin_service.ai.common.config import Config
 
+class DSWClient:
+    def __init__(self, token: str, api_url: str):
+        self.token = token
+        self.api_url = api_url.rstrip('/')
 
-def get_questionnaire_detail(
-    questionnaire_uuid: str,
-    config: Config,
-    token: str | None = None,
-    api_url: str | None = None,
-) -> dict:
-    base_url = (api_url or config.dsw_api_url).rstrip('/')
-    url = f'{base_url}/projects/{questionnaire_uuid}/questionnaire'
+    def get_questionnaire_detail(
+        self,
+        questionnaire_uuid: str
+    ) -> dict:
+        url = f'{self.api_url}/projects/{questionnaire_uuid}/questionnaire'
 
-    headers: dict[str, str] = {}
-    if token:
-        headers['Authorization'] = f'Bearer {token}'
+        headers: dict[str, str] = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
 
-    response = httpx.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
+        response = httpx.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()

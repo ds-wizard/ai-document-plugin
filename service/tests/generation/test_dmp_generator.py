@@ -17,8 +17,11 @@ from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
-def _component() -> DmpGeneratorComponent:
-    return DmpGeneratorComponent()
+def _component(gen_llm: GenerationLLM | None = None) -> DmpGeneratorComponent:
+    return DmpGeneratorComponent(
+        config=_test_config(),
+        dmp_generator_llm=gen_llm or StubGenerationLLM(),
+    )
 
 
 def _test_config() -> Config:
@@ -74,6 +77,7 @@ def _km_fixture() -> dict:
         },
     }
 
+
 def _reachable_km_fixture() -> dict:
     return {
         'chapterUuids': ['chapter'],
@@ -120,6 +124,9 @@ def _reachable_km_fixture() -> dict:
 
 class StubGenerationLLM(GenerationLLM):
     """Deterministic LLM stub that records calls."""
+
+    def get_max_workers(self):
+        1
 
     def __init__(self, section_response: str = 'Generated section body'):
         self.section_calls: list[str] = []
@@ -478,6 +485,7 @@ def test_parse_answer_integration_reply_returns_first_raw_and_url() -> None:
         '"Comma-separated Values"} https://fairsharing.org/1398'
     )
 
+
 def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> None:
     km = {
         'entities': {
@@ -507,6 +515,7 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
     assert parsed == (
         '{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value'
     )
+
 
 def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
     parser = ParserComponent()
@@ -550,7 +559,8 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
 
 
 def test_run_renders_parent_and_leaf_sections() -> None:
-    component = _component()
+    stub = StubGenerationLLM()
+    component = _component(stub)
     km = _km_fixture()
     assignments = [
         SectionAssignment(
@@ -576,12 +586,9 @@ def test_run_renders_parent_and_leaf_sections() -> None:
         'ch.listQ.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
     }
 
-    stub = StubGenerationLLM()
     result = component.run(
         replies=replies,
         km=km,
-        config=_test_config(),
-        llm=stub,
         new_assignments=_serialize_assignments(assignments),
     )
     markdown = result['markdown']
@@ -598,18 +605,16 @@ def test_run_renders_parent_and_leaf_sections() -> None:
 
 
 def test_run_handles_empty_section() -> None:
-    component = _component()
+    stub = StubGenerationLLM()
+    component = _component(stub)
     km = _km_fixture()
     assignments = [
         SectionAssignment(id='s0', title='Empty'),
     ]
 
-    stub = StubGenerationLLM()
     result = component.run(
         replies={},
         km=km,
-        config=_test_config(),
-        llm=stub,
         new_assignments=_serialize_assignments(assignments),
     )
     markdown = result['markdown']

@@ -1,13 +1,3 @@
-llm_response_generation:
-  type: "openai-api"
-  model: "gpt-oss-120b"
-  api_url: https://llm.ai.e-infra.cz/v1/
-  api_key: "xxx"
-  workers: 4
-
-dsw:
-  api_url: ""
-
 auth:
   allowed_project_urls:
     - "https://your-dsw-instance.example.com"

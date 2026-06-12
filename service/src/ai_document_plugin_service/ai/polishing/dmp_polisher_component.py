@@ -5,7 +5,6 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 """
 
 import logging
-import typing
 from collections.abc import Callable
 from typing import TypedDict
 
@@ -15,7 +14,7 @@ from ai_document_plugin_service.ai.common.config import (
     Config,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +26,23 @@ class DmpPolisherComponentResult(TypedDict):
 
 @component
 class DmpPolisherComponent:
-    @typing.override
+    def __init__(self, section_polishing_llm: SectionPolishingLLM):
+        self.section_polishing_llm = section_polishing_llm
+
     @component.output_types(markdown=str, stats=AssignmentStats)
     def run(
         self,
         markdown: str,
-        config: Config,
         template_data: dict | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
-            markdown: The raw DMP markdown to polish.
-            config: Config with up to date llm config
-            template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
+            :param markdown: The raw DMP markdown to polish.
+            :param config: Config with up to date llm config
+            :param template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
+            :param on_progress: Callback method to report progress
 
         Returns:
             The polished DMP markdown.
@@ -51,8 +52,7 @@ class DmpPolisherComponent:
         if on_progress is not None:
             on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        llm = OpenAIGenerationLLM(config=config)
-        file = llm.polish_dmp(
+        file = self.section_polishing_llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,
             stats=stats,

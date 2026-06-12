@@ -11,14 +11,13 @@ from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
+    Config,
     PipelineMetricsCollector,
     get_component_markdown,
-    get_component_stats, Config,
+    get_component_stats,
 )
-from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
@@ -35,6 +34,8 @@ if TYPE_CHECKING:
 
     from haystack.components.routers.conditional_router import Route
 
+    from ai_document_plugin_service.ai.common.llm_client import LLMClient
+    from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
 
 # Cost per million tokens (USD) - adjust for your model
@@ -127,9 +128,6 @@ def run_pipeline(
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
     t1 = time.time()
-    # todo: this should maybe be more globally set somewhere?
-    # configure_logging(config.log_level)
-
     km_data = dsw_client.get_questionnaire_detail(
         questionnaire_uuid=questionnaire_uuid
     )

@@ -10,9 +10,6 @@ from typing import TypedDict
 
 from haystack import component
 
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
@@ -26,7 +23,7 @@ class DmpPolisherComponentResult(TypedDict):
 
 @component
 class DmpPolisherComponent:
-    def __init__(self, section_polishing_llm: SectionPolishingLLM):
+    def __init__(self, section_polishing_llm: SectionPolishingLLM) -> None:
         self.section_polishing_llm = section_polishing_llm
 
     @component.output_types(markdown=str, stats=AssignmentStats)

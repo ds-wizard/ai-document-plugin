@@ -1,6 +1,7 @@
 import fastapi
 import fastapi.middleware.cors
 
+from ai_document_plugin_service.ai.common import configure_logging
 from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
 from ai_document_plugin_service.ai.persistence.migrations import run_startup_migrations
 from ai_document_plugin_service.api.routes import protected_router, public_router
@@ -9,6 +10,7 @@ from ai_document_plugin_service.api.routes import protected_router, public_route
 def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
     config_path = resolve_config_path()
     config = load_config(config_path)
+    configure_logging(config.log_level)
 
     if run_migrations:
         run_startup_migrations(config, config_path)

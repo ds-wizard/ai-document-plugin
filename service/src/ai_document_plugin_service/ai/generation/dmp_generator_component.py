@@ -11,7 +11,6 @@ from haystack import component
 from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
-from ai_document_plugin_service.ai.common import Config
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (

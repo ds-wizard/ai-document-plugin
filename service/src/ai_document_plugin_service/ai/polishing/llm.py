@@ -1,8 +1,14 @@
-from openai.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam, \
-    ChatCompletionMessageParam
+from typing import TYPE_CHECKING
 
-from ai_document_plugin_service.ai.common import AssignmentStats, call_with_retry, Config
-from ai_document_plugin_service.ai.common.llm_client import add_usage, LLMClient
+from ai_document_plugin_service.ai.common import AssignmentStats, Config, call_with_retry
+from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage
+
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletionMessageParam,
+        ChatCompletionSystemMessageParam,
+        ChatCompletionUserMessageParam,
+    )
 
 
 class SectionPolishingLLM:
@@ -10,7 +16,7 @@ class SectionPolishingLLM:
         self.config = config
         self.client = llm_client
 
-    def get_max_workers(self):
+    def get_max_workers(self) -> int:
         return self.client.get_max_workers()
 
     def polish_dmp(

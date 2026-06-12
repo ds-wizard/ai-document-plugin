@@ -2,7 +2,7 @@ import httpx
 
 
 class DSWClient:
-    def __init__(self, token: str, api_url: str):
+    def __init__(self, token: str, api_url: str) -> None:
         self.token = token
         self.api_url = api_url.rstrip('/')
 

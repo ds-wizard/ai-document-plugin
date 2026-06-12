@@ -85,10 +85,10 @@ class LLMClient:
         )
         semaphore.set_limit(self.max_workers)
 
-    def get_max_workers(self):
+    def get_max_workers(self) -> int:
         return self.max_workers
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.model
 
     def completion(
@@ -112,7 +112,7 @@ class LLMClient:
                 semaphore.limit,
             )
             call_start = time.perf_counter()
-            result = self.client.chat.completions.create(model=self.model, *args, **kwargs)
+            result = self.client.chat.completions.create(*args, model=self.model, **kwargs)
             logger.debug(
                 '[llm] req=%s completed in %.3fs (releasing semaphore)',
                 req_id,

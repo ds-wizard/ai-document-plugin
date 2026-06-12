@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class GenerationLLM(ABC):
 
     @abstractmethod
-    def get_max_workers(self):
+    def get_max_workers(self) -> int:
         pass
 
     @abstractmethod
@@ -35,13 +35,12 @@ class GenerationLLM(ABC):
         pass
 
 
-
 class SectionGenerationLLM(GenerationLLM):
-    def __init__(self, llm_client: LLMClient, config: Config, ) -> None:
+    def __init__(self, llm_client: LLMClient, config: Config) -> None:
         self.config = config
         self.client = llm_client
 
-    def get_max_workers(self):
+    def get_max_workers(self) -> int:
         return self.client.get_max_workers()
 
     def section_from_qa(

@@ -134,8 +134,8 @@ class PostgresDB(Database):
         if missing_tables:
             msg = (
                 f'Database schema "{self.schema_name}" is not ready. Missing tables: {", ".join(missing_tables)}. '
-                'Run Alembic migrations with `make db-init` for a fresh database or `make db-migrate` for an '
-                'existing one.'
+                'Startup migrations should create or update these tables. Check the application startup logs and '
+                'database configuration.'
             )
             raise RuntimeError(msg)
 

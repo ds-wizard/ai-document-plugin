@@ -34,7 +34,7 @@ export type PipelineRunResponse = {
 
 export type PipelineStatusResponse = {
     runId: string
-    status: 'running' | 'succeeded' | 'failed'
+    status: 'queued' | 'running' | 'succeeded' | 'failed'
     questionnaireUuid: string
     knowledgeModelUuid: string
     userUuid: string

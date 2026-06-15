@@ -94,7 +94,6 @@ def create_template(payload: TemplateCreateRequest, request: fastapi.Request) ->
 @protected_router.post('/pipelines/run')
 def start_pipeline(
     payload: PipelineRunRequest,
-    background_tasks: fastapi.BackgroundTasks,
     request: fastapi.Request,
     auth: Annotated[AuthenticatedUser, fastapi.Depends(verify_authenticated)],
 ) -> PipelineRunResponse:
@@ -111,20 +110,7 @@ def start_pipeline(
         raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
 
     run_id = str(uuid4())
-    pipeline.set_pipeline_status(
-        run_id,
-        pipeline.build_pipeline_status(
-            run_id=run_id,
-            status=PipelineStatus.RUNNING,
-            questionnaire_uuid=payload.questionnaire_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            template_uuid=payload.template_uuid,
-            template_title=template['title'],
-        ),
-    )
-    background_tasks.add_task(
-        pipeline.run_pipeline_job,
+    pipeline.enqueue_pipeline_job(
         run_id,
         payload.questionnaire_uuid,
         payload.template_uuid,

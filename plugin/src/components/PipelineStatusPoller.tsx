@@ -30,7 +30,7 @@ export function PipelineStatusPoller({
             try {
                 const data = await getPipelineStatus(activeRunId)
 
-                if (data.status === 'running') {
+                if (data.status === 'queued' || data.status === 'running') {
                     const progressDetail = data.progressMessage
                     setInfoMessage(
                         progressDetail

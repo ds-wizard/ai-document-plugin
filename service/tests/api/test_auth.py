@@ -153,14 +153,15 @@ def test_protected_route_returns_401_when_dsw_rejects_token(
 
 
 @patch('ai_document_plugin_service.api.auth.httpx.get')
+@patch('ai_document_plugin_service.api.routes.PostgresDB')
 def test_protected_route_succeeds_when_dsw_validates_user(
+    mock_postgres_db: MagicMock,
     mock_httpx_get: MagicMock,
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     mock_httpx_get.return_value = httpx.Response(200, request=httpx.Request('GET', ALLOWED_URL))
-    mock_database = MagicMock()
-    mock_database.list_templates.return_value = [
+    mock_postgres_db.return_value.list_templates.return_value = [
         {'uuid': 'template-1', 'title': 'Template 1'},
     ]
 
@@ -169,11 +170,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     monkeypatch.setenv('TEST_API_KEY', 'test-secret')
     monkeypatch.chdir(tmp_path)
 
-    app = create_app(run_migrations=False)
-    from ai_document_plugin_service.api.dependencies import get_database
-
-    app.dependency_overrides[get_database] = lambda: mock_database
-    client = TestClient(app)
+    client = TestClient(create_app(run_migrations=False))
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200

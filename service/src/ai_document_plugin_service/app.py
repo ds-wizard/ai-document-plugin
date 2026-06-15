@@ -1,23 +1,10 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-
 import fastapi
 import fastapi.middleware.cors
 
-from ai_document_plugin_service.ai.common.config import Config, load_config, resolve_config_path
+from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.migrations import run_startup_migrations
 from ai_document_plugin_service.api.routes import protected_router, public_router
-
-
-@asynccontextmanager
-async def _lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
-    config: Config = app.state.config
-    app.state.database = PostgresDB(config.database)
-    try:
-        yield
-    finally:
-        app.state.database.engine.dispose()
 
 
 def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
@@ -27,9 +14,11 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
     if run_migrations:
         run_startup_migrations(config, config_path)
 
-    app = fastapi.FastAPI(title='Plugin Service', version='1.0.0', lifespan=_lifespan)
+    app = fastapi.FastAPI(title='Plugin Service', version='1.0.0')
     app.state.config = config
     app.state.config_path = config_path
+    app.state.database = PostgresDB(config.database)
+
     app.add_middleware(
         middleware_class=fastapi.middleware.cors.CORSMiddleware,
         allow_origins=['*'],

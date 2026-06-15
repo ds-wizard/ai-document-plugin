@@ -96,7 +96,6 @@ def enqueue_pipeline_job(
     api_url: str | None,
     llm_override: LLMConfigOverride | None,
     config: Config,
-    database: PostgresDB,
 ) -> None:
     """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
     set_pipeline_status(
@@ -125,7 +124,6 @@ def enqueue_pipeline_job(
             api_url,
             llm_override,
             config,
-            database,
         ),
     )
 
@@ -172,9 +170,9 @@ def _run_pipeline_job(
     api_url: str | None,
     llm_override: LLMConfigOverride | None,
     config: Config,
-    database: PostgresDB,
 ) -> None:
     resolved_config = apply_llm_override(config, llm_override)
+    database = PostgresDB(config.database)
     saver = DBSaver(database)
     generation_llm = OpenAIGenerationLLM(config=resolved_config)
     template = database.get_template(template_uuid)

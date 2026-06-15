@@ -22,6 +22,7 @@ class ErrorType(StrEnum):
 
 class PipelineStatus(StrEnum):
     ACCEPTED = 'accepted'
+    QUEUED = 'queued'
     RUNNING = 'running'
     SUCCEEDED = 'succeeded'
     FAILED = 'failed'

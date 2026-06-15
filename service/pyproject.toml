@@ -1,6 +1,6 @@
 [project]
 name = "ai-document-plugin-service"
-version = "0.2.0"
+version = "0.2.1"
 description = "Plugin for DSW to generate documents using AI."
 keywords = ["wizard", "plugin", "ai", "document", "generation", "llm", "fastapi"]
 license = "MIT"

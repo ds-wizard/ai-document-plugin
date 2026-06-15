@@ -20,7 +20,6 @@ from ai_document_plugin_service.api.types import (
     PipelineStatusResponse,
     _model_from_fields,
 )
-from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
 from ai_document_plugin_service.service.pipeline_queue_manager import pipeline_queue_manager
 
 logger = logging.getLogger(__name__)
@@ -108,8 +107,8 @@ def enqueue_pipeline_job(
     user_uuid: str,
     tenant_uuid: str,
     token: str,
-    api_url: str | None,
-    llm_override: LLMConfigOverride | None,
+    api_url: str,
+    llm_config: LLMConfig,
     config: Config,
     database: PostgresDB,
 ) -> None:
@@ -138,7 +137,7 @@ def enqueue_pipeline_job(
             tenant_uuid,
             token,
             api_url,
-            llm_override,
+            llm_config,
             config,
             database,
         ),

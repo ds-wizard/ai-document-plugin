@@ -21,6 +21,7 @@ from ai_document_plugin_service.api.types import (
     _model_from_fields,
 )
 from ai_document_plugin_service.run_pipeline import build_pipeline, run_pipeline
+from ai_document_plugin_service.service.pipeline_queue_manager import pipeline_queue_manager
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,16 @@ def set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
 
 def get_pipeline_status(run_id: str) -> PipelineStatusResponse | None:
     with _pipeline_runs_lock:
-        return _pipeline_runs.get(run_id)
+        status = _pipeline_runs.get(run_id)
+
+    if status is None or status.status != PipelineStatus.QUEUED:
+        return status
+
+    progress_message = pipeline_queue_manager.progress_message(run_id)
+    if progress_message is None:
+        return status
+
+    return status.model_copy(update={'progress_message': progress_message})
 
 
 def build_pipeline_status(
@@ -75,6 +85,51 @@ def build_pipeline_status(
     )
 
 
+def enqueue_pipeline_job(
+    run_id: str,
+    questionnaire_uuid: str,
+    template_uuid: str,
+    template_title: str,
+    user_uuid: str,
+    tenant_uuid: str,
+    token: str,
+    api_url: str | None,
+    llm_override: LLMConfigOverride | None,
+    config: Config,
+    database: PostgresDB,
+) -> None:
+    """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
+    set_pipeline_status(
+        run_id,
+        build_pipeline_status(
+            run_id=run_id,
+            status=PipelineStatus.QUEUED,
+            questionnaire_uuid=questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+        ),
+    )
+
+    pipeline_queue_manager.enqueue(
+        run_id,
+        lambda: _run_pipeline_job(
+            run_id,
+            questionnaire_uuid,
+            template_uuid,
+            template_title,
+            user_uuid,
+            tenant_uuid,
+            token,
+            api_url,
+            llm_override,
+            config,
+            database,
+        ),
+    )
+
+
 def _update_running_progress(
     run_id: str,
     *,
@@ -85,7 +140,8 @@ def _update_running_progress(
     template_title: str,
     progress_message: str,
 ) -> None:
-    current = get_pipeline_status(run_id)
+    with _pipeline_runs_lock:
+        current = _pipeline_runs.get(run_id)
     if current is None:
         return
 
@@ -105,7 +161,7 @@ def _update_running_progress(
     )
 
 
-def run_pipeline_job(
+def _run_pipeline_job(
     run_id: str,
     questionnaire_uuid: str,
     template_uuid: str,
@@ -116,9 +172,9 @@ def run_pipeline_job(
     api_url: str | None,
     llm_override: LLMConfigOverride | None,
     config: Config,
+    database: PostgresDB,
 ) -> None:
     resolved_config = apply_llm_override(config, llm_override)
-    database = PostgresDB(config.database)
     saver = DBSaver(database)
     generation_llm = OpenAIGenerationLLM(config=resolved_config)
     template = database.get_template(template_uuid)
@@ -140,6 +196,20 @@ def run_pipeline_job(
             ),
         )
         return
+
+    set_pipeline_status(
+        run_id,
+        build_pipeline_status(
+            run_id=run_id,
+            status=PipelineStatus.RUNNING,
+            questionnaire_uuid=questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            progress_message='Starting pipeline...',
+        ),
+    )
 
     def on_progress(message: str) -> None:
         _update_running_progress(

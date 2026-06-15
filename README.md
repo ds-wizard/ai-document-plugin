@@ -10,9 +10,7 @@ See the [Plugins](https://guide.ds-wizard.org/en/latest/more/self-hosted-dsw/con
 
 ## Changelog
 
-### 0.1.0
-
-Initial version...
+Please see [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes and updates to this plugin.
 
 ## License
 

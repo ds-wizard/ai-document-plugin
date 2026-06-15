@@ -26,7 +26,18 @@ export function PipelineStatusPoller({
     setEditableResultMarkdown,
 }: PipelineStatusPollerProps) {
     useEffect(() => {
-        const pollStatus = async () => {
+        let cancelled = false
+        let timeoutId: ReturnType<typeof window.setTimeout> | undefined
+
+        const sleep = (ms: number) =>
+            new Promise<void>((resolve) => {
+                timeoutId = window.setTimeout(() => {
+                    timeoutId = undefined
+                    resolve()
+                }, ms)
+            })
+
+        const pollStatus = async (): Promise<boolean> => {
             try {
                 const data = await getPipelineStatus(activeRunId)
 
@@ -37,7 +48,7 @@ export function PipelineStatusPoller({
                             ? progressDetail
                             : `Pipeline is running for the template "${data.templateTitle}".`,
                     )
-                    return
+                    return true
                 }
 
                 setActiveRunId(null)
@@ -52,7 +63,7 @@ export function PipelineStatusPoller({
                         `Pipeline has been completed for the template "${data.templateTitle}".`,
                     )
                     setErrorMessage(null)
-                    return
+                    return false
                 }
 
                 setSuccessMessage(null)
@@ -61,6 +72,7 @@ export function PipelineStatusPoller({
                         ? `Pipeline failed: ${data.error.message}`
                         : `Pipeline failed for the template "${data.templateTitle}".`,
                 )
+                return false
             } catch (error) {
                 setActiveRunId(null)
                 setIsRunningPipeline(false)
@@ -69,16 +81,27 @@ export function PipelineStatusPoller({
                 setErrorMessage(
                     error instanceof Error ? error.message : 'Unable to determine pipeline status.',
                 )
+                return false
             }
         }
 
-        void pollStatus()
-        const intervalId = window.setInterval(() => {
-            void pollStatus()
-        }, 2000)
+        const runPolling = async () => {
+            while (!cancelled) {
+                const shouldContinue = await pollStatus()
+                if (!shouldContinue || cancelled) {
+                    break
+                }
+                await sleep(10_000)
+            }
+        }
+
+        void runPolling()
 
         return () => {
-            window.clearInterval(intervalId)
+            cancelled = true
+            if (timeoutId !== undefined) {
+                window.clearTimeout(timeoutId)
+            }
         }
     }, [
         activeRunId,

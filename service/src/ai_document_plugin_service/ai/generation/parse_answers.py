@@ -181,6 +181,9 @@ def parse_answer(  # noqa: PLR0911
         return answer['value']  # this answer is answered in it's children
     if answer_type == 'ItemSelectReply':
         return _parse_item_select_reply(answer, km, replies, question_path)
+    if answer_type == 'FileReply':
+        logger.info('Skipping unsupported answer type %s', answer_type)
+        return ''
 
     msg = 'Unknown answer type'
     raise RuntimeError(msg, answer_type)

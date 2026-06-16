@@ -1,6 +1,6 @@
 {
     "name": "ai-document-plugin",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Plugin for DSW to generate documents using AI.",
     "license": "MIT",
     "author": "Marek Suchánek <marek.suchanek@ds-wizard.org>",

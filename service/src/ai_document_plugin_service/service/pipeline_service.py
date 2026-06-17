@@ -110,7 +110,6 @@ def enqueue_pipeline_job(
     api_url: str,
     llm_config: LLMConfig,
     config: Config,
-    database: PostgresDB,
 ) -> None:
     """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
     set_pipeline_status(
@@ -139,7 +138,6 @@ def enqueue_pipeline_job(
             api_url,
             llm_config,
             config,
-            database,
         ),
     )
 
@@ -186,8 +184,8 @@ def _run_pipeline_job(
     dsw_api_url: str,
     llm_config: LLMConfig,
     config: Config,
-    database: PostgresDB,
 ) -> None:
+    database = PostgresDB(config.database)
     saver = DBSaver(database)
     llm_client = LLMClient(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
     template = database.get_template(template_uuid)

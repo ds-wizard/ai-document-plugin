@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-16
+
+- Fixed handling of FileReply
+
+## [0.2.1] - 2026-06-15
+
+- Fixed database DI
+
+## [0.2.0] - 2026-06-15
+
+- Fixed limit maximum parallel executions (#103)
+- Fixed tab URL
+- Set to run DB migrations on startup
+- Updated dependencies
+
 ## [0.1.0] - 2026-06-08
 
 - Initial release of the AI Document plugin

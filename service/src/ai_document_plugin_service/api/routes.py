@@ -6,7 +6,6 @@ import fastapi
 from ai_document_plugin_service.ai.common.config import Config, LLMConfig
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.api.auth import AuthenticatedUser, verify_authenticated
-from ai_document_plugin_service.api.dependencies import get_app_config, get_database
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
     PipelineRunRequest,
@@ -25,23 +24,26 @@ public_router = fastapi.APIRouter()
 protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authenticated)])
 
 
+def _load_app_config(request: fastapi.Request) -> Config:
+    return request.app.state.config
+
+
 @public_router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
 
 
 @protected_router.get('/templates')
-def list_templates(
-    database: Annotated[PostgresDB, fastapi.Depends(get_database)],
-) -> list[TemplateListItem]:
+def list_templates(request: fastapi.Request) -> list[TemplateListItem]:
+    config = _load_app_config(request)
+    database = PostgresDB(config.database)
     return [_model_from_fields(TemplateListItem, **item) for item in database.list_templates()]
 
 
 @protected_router.get('/templates/{template_uuid}')
-def get_template(
-    template_uuid: str,
-    database: Annotated[PostgresDB, fastapi.Depends(get_database)],
-) -> TemplateDetail:
+def get_template(template_uuid: str, request: fastapi.Request) -> TemplateDetail:
+    config = _load_app_config(request)
+    database = PostgresDB(config.database)
     template = database.get_template(template_uuid)
 
     if template is None:
@@ -56,10 +58,7 @@ def get_template(
 
 
 @protected_router.post('/templates', status_code=201)
-def create_template(
-    payload: TemplateCreateRequest,
-    database: Annotated[PostgresDB, fastapi.Depends(get_database)],
-) -> TemplateDetail:
+def create_template(payload: TemplateCreateRequest, request: fastapi.Request) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')
@@ -71,6 +70,8 @@ def create_template(
             detail='Template JSON must contain a top-level "sections" array.',
         )
 
+    config = _load_app_config(request)
+    database = PostgresDB(config.database)
     template_uuid = str(uuid4())
 
     try:
@@ -93,10 +94,11 @@ def create_template(
 @protected_router.post('/pipelines/run')
 def start_pipeline(
     payload: PipelineRunRequest,
-    config: Annotated[Config, fastapi.Depends(get_app_config)],
-    database: Annotated[PostgresDB, fastapi.Depends(get_database)],
+    request: fastapi.Request,
     auth: Annotated[AuthenticatedUser, fastapi.Depends(verify_authenticated)],
 ) -> PipelineRunResponse:
+    config = _load_app_config(request)
+    database = PostgresDB(config.database)
     template = database.get_template(payload.template_uuid)
 
     if template is None:
@@ -124,7 +126,6 @@ def start_pipeline(
             parallel_workers=payload.llm_max_workers,
         ),
         config,
-        database,
     )
     return _model_from_fields(
         PipelineRunResponse,
@@ -152,7 +153,7 @@ def get_pipeline_status(
 def save_pipeline_result(
     run_id: str,
     payload: PipelineSaveRequest,
-    database: Annotated[PostgresDB, fastapi.Depends(get_database)],
+    request: fastapi.Request,
 ) -> PipelineStatusResponse:
     status = pipeline.get_pipeline_status(run_id)
     if status is None:
@@ -160,6 +161,9 @@ def save_pipeline_result(
 
     if status.knowledge_model_uuid is None:
         raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
+
+    config = _load_app_config(request)
+    database = PostgresDB(config.database)
 
     database.update_result(
         template_uuid=status.template_uuid,

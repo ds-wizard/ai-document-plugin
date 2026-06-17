@@ -16,12 +16,12 @@ class SectionFormatter:
         self.id_to_sid: dict[str, str] | None = None
         self.sid_to_id: dict[str, str] | None = None
 
-    def create_mappings(
+    async def create_mappings(
         self,
         section_id_generator: SectionIdGenerator,
         stats: AssignmentStats,
     ) -> None:
-        id_to_sid = section_id_generator.generate_leaf_section_ids(
+        id_to_sid = await section_id_generator.generate_leaf_section_ids(
             self.leaf_sections,
             stats,
         )

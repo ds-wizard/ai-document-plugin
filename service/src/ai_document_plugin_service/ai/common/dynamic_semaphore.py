@@ -1,10 +1,17 @@
+import asyncio
 import threading
+from collections import deque
 from types import TracebackType
 from typing import Self
 
 
 class DynamicSemaphore:
-    """A semaphore where the maximum capacity can be changed dynamically at runtime."""
+    """Process-wide async semaphore with a dynamically adjustable limit.
+
+    Waiters on different event loops share one counter. A lightweight thread lock
+    protects shared state; waiting coroutines suspend on loop-local futures instead
+    of blocking threads.
+    """
 
     def __init__(self, initial_limit: int) -> None:
         if initial_limit < 0:
@@ -12,55 +19,66 @@ class DynamicSemaphore:
             raise ValueError(msg)
 
         self.limit = initial_limit
-        self.active_count = 0
-        self.condition = threading.Condition()
+        self._active_count = 0
+        self._lock = threading.Lock()
+        self._waiters: deque[tuple[asyncio.AbstractEventLoop, asyncio.Future[None]]] = deque()
 
     def set_limit(self, new_limit: int) -> None:
-        """Update the maximum number of allowed concurrent threads.
-
-        Raises:
-            ValueError: If ``new_limit`` is negative.
-        """
+        """Update the maximum number of allowed concurrent holders."""
         if new_limit < 0:
             msg = 'Limit must be >= 0'
             raise ValueError(msg)
 
-        with self.condition:
+        with self._lock:
             self.limit = new_limit
-            # Wake up all waiting threads so they can re-evaluate the limit
-            self.condition.notify_all()
+            self._wake_waiters()
 
-    def acquire(self) -> None:
-        """Acquire a semaphore. Blocks indefinitely until a slot is available."""
-        with self.condition:
-            # Wait until the active count is strictly less than the current limit
-            while self.active_count >= self.limit:
-                self.condition.wait()
-            self.active_count += 1
+    async def acquire(self) -> None:
+        loop = asyncio.get_running_loop()
+        with self._lock:
+            if self._active_count < self.limit:
+                self._active_count += 1
+                return
+            future: asyncio.Future[None] = loop.create_future()
+            waiter = (loop, future)
+            self._waiters.append(waiter)
 
-    def release(self) -> None:
-        """Release a semaphore, decrementing the active count.
+        try:
+            await future
+        except asyncio.CancelledError:
+            with self._lock:
+                if waiter in self._waiters:
+                    self._waiters.remove(waiter)
+                elif future.done() and not future.cancelled():
+                    self._active_count -= 1
+                    self._wake_waiters()
+            raise
 
-        Raises:
-            ValueError: If release is called when no slot is held.
-        """
-        with self.condition:
-            if self.active_count <= 0:
+    async def release(self) -> None:
+        with self._lock:
+            if self._active_count <= 0:
                 msg = 'Semaphore released too many times'
                 raise ValueError(msg)
 
-            self.active_count -= 1
-            # Wake up one waiting thread
-            self.condition.notify()
+            self._active_count -= 1
+            self._wake_waiters()
 
-    def __enter__(self) -> Self:
-        self.acquire()
+    def _wake_waiters(self) -> None:
+        while self._waiters and self._active_count < self.limit:
+            loop, future = self._waiters.popleft()
+            self._active_count += 1
+            if future.done():
+                continue
+            loop.call_soon_threadsafe(future.set_result, None)
+
+    async def __aenter__(self) -> Self:
+        await self.acquire()
         return self
 
-    def __exit__(
+    async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self.release()
+        await self.release()

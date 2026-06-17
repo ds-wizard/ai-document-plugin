@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
-from ai_document_plugin_service.ai.common import AssignmentStats, Config, call_with_retry
-from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage
+from ai_document_plugin_service.ai.common import AssignmentStats, Config
+from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage, call_with_retry
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -19,7 +19,7 @@ class SectionPolishingLLM:
     def get_max_workers(self) -> int:
         return self.client.get_max_workers()
 
-    def polish_dmp(
+    async def polish_dmp(
         self,
         markdown: str,
         structure_str: str = '',
@@ -46,12 +46,12 @@ class SectionPolishingLLM:
             user_message,
         ]
 
-        response = call_with_retry(
+        response = await call_with_retry(
             lambda: self.client.completion(
                 messages=messages,
                 temperature=self.config.dmp_polishing.temperature,
                 max_tokens=self.config.dmp_polishing.max_tokens,
             ),
         )
-        add_usage(stats, response)
+        await add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

@@ -4,6 +4,7 @@ Moves content that appears in one section but belongs thematically in another (e
 a topic is mentioned early but has a dedicated chapter later). Does not add new content.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import TypedDict
@@ -27,7 +28,7 @@ class DmpPolisherComponent:
         self.section_polishing_llm = section_polishing_llm
 
     @component.output_types(markdown=str, stats=AssignmentStats)
-    def run(
+    async def run_async(
         self,
         markdown: str,
         template_data: dict | None = None,
@@ -49,15 +50,27 @@ class DmpPolisherComponent:
         if on_progress is not None:
             on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        file = self.section_polishing_llm.polish_dmp(
+        polished = await self.section_polishing_llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,
             stats=stats,
         )
         return {
-            'markdown': file,
+            'markdown': polished,
             'stats': stats,
         }
+
+    @component.output_types(markdown=str, stats=AssignmentStats)
+    def run(
+        self,
+        markdown: str,
+        template_data: dict | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> DmpPolisherComponentResult:
+        """Polish the DMP by moving content to relevant sections and improving structure."""
+        return asyncio.run(
+            self.run_async(markdown, template_data, on_progress),
+        )
 
     @staticmethod
     def _format_template_structure(nodes: list, depth: int = 0) -> list[str]:

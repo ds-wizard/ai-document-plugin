@@ -85,15 +85,14 @@ def _reachable_km_fixture() -> dict:
 class StubGenerationLLM(GenerationLLM):
     """Deterministic LLM stub that records calls."""
 
-    def get_max_workers(self):
-        1
+    def get_max_workers(self) -> int:
+        return 1
 
     def __init__(self, section_response: str = 'Generated section body'):
         self.section_calls: list[str] = []
-        self.polish_calls: list[str] = []
         self._section_response = section_response
 
-    def section_from_qa(
+    async def section_from_qa(
         self,
         prompt: str,
         stats: Optional[AssignmentStats] = None,
@@ -101,15 +100,6 @@ class StubGenerationLLM(GenerationLLM):
     ) -> str:
         self.section_calls.append(prompt)
         return self._section_response
-
-    def polish_dmp(
-        self,
-        markdown: str,
-        structure_str: str = '',
-        stats: Optional[AssignmentStats] = None,
-    ) -> str:
-        self.polish_calls.append(markdown)
-        return markdown
 
 
 def test_heading_depth_zero() -> None:

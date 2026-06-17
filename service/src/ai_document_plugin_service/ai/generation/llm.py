@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-)
+from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     LLMClient,
     add_usage,
@@ -20,13 +18,12 @@ if TYPE_CHECKING:
 
 
 class GenerationLLM(ABC):
-
     @abstractmethod
     def get_max_workers(self) -> int:
         pass
 
     @abstractmethod
-    def section_from_qa(
+    async def section_from_qa(
         self,
         prompt: str,
         stats: AssignmentStats | None = None,
@@ -43,32 +40,34 @@ class SectionGenerationLLM(GenerationLLM):
     def get_max_workers(self) -> int:
         return self.client.get_max_workers()
 
-    def section_from_qa(
+    def _section_from_qa_messages(
         self,
         prompt: str,
-        stats: AssignmentStats | None = None,
-        previously_generated: str = '',
-    ) -> str:
-        _ = previously_generated
-        user_content = prompt
+    ) -> list['ChatCompletionMessageParam']:
         system_message: ChatCompletionSystemMessageParam = {
             'role': 'system',
             'content': self.config.dmp_generation.system_message,
         }
         user_message: ChatCompletionUserMessageParam = {
             'role': 'user',
-            'content': user_content,
+            'content': prompt,
         }
-        messages: list[ChatCompletionMessageParam] = [
-            system_message,
-            user_message,
-        ]
-        response = call_with_retry(
+        return [system_message, user_message]
+
+    async def section_from_qa(
+        self,
+        prompt: str,
+        stats: AssignmentStats | None = None,
+        previously_generated: str = '',
+    ) -> str:
+        _ = previously_generated
+        messages = self._section_from_qa_messages(prompt)
+        response = await call_with_retry(
             lambda: self.client.completion(
                 messages=messages,
                 temperature=self.config.dmp_generation.temperature,
                 max_tokens=self.config.dmp_generation.max_tokens,
             ),
         )
-        add_usage(stats, response)
+        await add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

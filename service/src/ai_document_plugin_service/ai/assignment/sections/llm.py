@@ -15,7 +15,7 @@ from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 class SectionIdGenerator(ABC):
     @abstractmethod
-    def generate_leaf_section_ids(
+    async def generate_leaf_section_ids(
         self,
         leaf_sections: list[LeafSection],
         stats: AssignmentStats,
@@ -33,7 +33,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
         self.client = llm_client
 
     @typing.override
-    def generate_leaf_section_ids(
+    async def generate_leaf_section_ids(
         self,
         leaf_sections: list[LeafSection],
         stats: AssignmentStats,
@@ -56,7 +56,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                 .replace('{section_title}', leaf.title)
                 .replace('{section_content}', content_block)
             )
-            response = call_with_retry(
+            response = await call_with_retry(
                 lambda um=user_msg: self.client.completion(
                     messages=[
                         {'role': 'system', 'content': system_msg},
@@ -67,7 +67,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                     max_tokens=self.config.section_id.max_tokens,
                 ),
             )
-            add_usage(stats, response)
+            await add_usage(stats, response)
             choice = response.choices[0]
             raw = (choice.message.content or '').strip().splitlines()[0].strip()
             sid = _normalize_section_id(raw)
@@ -92,7 +92,7 @@ class LoggingNoopSectionIdGenerator(SectionIdGenerator):
         self.config = config
 
     @typing.override
-    def generate_leaf_section_ids(  # ty: ignore[invalid-method-override]
+    async def generate_leaf_section_ids(  # ty: ignore[invalid-method-override]
         self,
         leaf_sections: list[LeafSection],
         _: AssignmentStats,

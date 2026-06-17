@@ -1,10 +1,14 @@
+# Specify urls which can be used for authenticating the user. The user will send the url in a header 'X-Dsw-Api-Url'
+# Use the base url for dsw api, not the frontend.
+# For example: https://researchers.dsw.elixir-europe.org/wizard-api
 auth:
   allowed_project_urls:
-    - "https://your-dsw-instance.example.com"
+    - "https://your-dsw-instance.example.com/wizard-api"
 
 logging:
   level: "INFO"
 
+# Specify login details for Postgresql database.
 database:
   host: "localhost"
   port: "5432"
@@ -13,5 +17,6 @@ database:
   password: "ai_document_plugin"
   schema: "public"
 
+# Path to prompts config. Path is set as the relative path from this config.
 files:
   prompts_path: "prompts.yaml"

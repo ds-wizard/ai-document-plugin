@@ -13,28 +13,6 @@ Create `config.yaml` with your LLM credentials (see `config.template.yaml`). All
 prompts file, can be configured there. To use a different config file, set `AI_DOCUMENT_PLUGIN_CONFIG_PATH` to its path
 before starting the API or CLI.
 
-Run the full pipeline:
-
-```bash
-uv run ai-document-pipeline \
-  --questionnaire-uuid <QUESTIONNAIRE_UUID> \
-  --token <TOKEN> \
-  --template-uuid <TEMPLATE_UUID>
-```
-
-The CLI reads technical configuration such as DSW API base URL, database connection, model configuration, prompt paths,
-and output file paths from `config.yaml` or from the file referenced by `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The runtime
-inputs `questionnaire_uuid`, `token`, and `template_uuid` are passed explicitly through CLI arguments.
-
-This produces:
-
-| File                       | Description                                      |
-|----------------------------|--------------------------------------------------|
-| `dmp_output_pre_polish.md` | Generated DMP with debug tables before polishing |
-| `dmp_output.md`            | Final polished DMP with token-usage summary      |
-
-Step 1 produces new record in the `assignments` table in the DB, when questions are assigned for the first time.
-
 ## Pipeline steps
 
 `src/ai_document_plugin_service/run_pipeline.py` orchestrates three steps, each backed by a dedicated module:
@@ -57,10 +35,7 @@ consolidating duplicates, and improving flow — without adding new content.
 
 ### `config.yaml`
 
-LLM connection settings (API key, base URL, model name), DSW API base URL, database connection, and all pipeline file
-paths. The API key supports environment variable expansion (e.g. `$OPENAI_API_KEY`). The file itself can be overridden
-globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The config file does not contain its own `config_path`; the active file
-is determined only by runtime startup/defaults.
+The file path can be overridden globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. See `config.template.yaml` for more info.
 
 ### `prompts.yaml`
 

@@ -133,8 +133,7 @@ class AssignmentComponent:
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
-        """Assign KM questions to template sections using the configured matcher."""
-        logger.warning('Running Assignment Component without async!')
-        return asyncio.run(
-            self.run_async(data, template_data, km, on_progress),
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        raise NotImplementedError(
+            f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()',
         )

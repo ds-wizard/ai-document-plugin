@@ -116,16 +116,9 @@ class DmpGeneratorComponent:
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
-        """Generate full DMP markdown from nested assignments tree."""
-        logger.warning('Running Generator Component without async!')
-        return asyncio.run(
-            self.run_async(
-                replies=replies,
-                km=km,
-                new_assignments=new_assignments,
-                db_assignments=db_assignments,
-                on_progress=on_progress,
-            ),
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        raise NotImplementedError(
+            f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()',
         )
 
     @staticmethod

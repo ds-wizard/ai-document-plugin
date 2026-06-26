@@ -4,7 +4,6 @@ Moves content that appears in one section but belongs thematically in another (e
 a topic is mentioned early but has a dedicated chapter later). Does not add new content.
 """
 
-import asyncio
 import logging
 from collections.abc import Callable
 from typing import TypedDict
@@ -67,9 +66,9 @@ class DmpPolisherComponent:
         template_data: dict | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
-        """Polish the DMP by moving content to relevant sections and improving structure."""
-        return asyncio.run(
-            self.run_async(markdown, template_data, on_progress),
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        raise NotImplementedError(
+            f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()',
         )
 
     @staticmethod

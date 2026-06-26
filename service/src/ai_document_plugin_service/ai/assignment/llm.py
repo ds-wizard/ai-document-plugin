@@ -92,7 +92,7 @@ class OpenAILayerMatcher(LayerMatcher):
                 msg = 'Model did not stop generating naturally.'
                 raise ModelDidNotStopError(msg)
             content = (choice.message.content or '').strip()
-            await add_usage(stats, response)
+            add_usage(stats, response)
             try:
                 return self._parse_json_question_to_sections(content)
             except JSONDecodeError as e:

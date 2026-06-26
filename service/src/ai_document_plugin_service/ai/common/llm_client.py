@@ -69,7 +69,7 @@ def extract_usage_tokens(response: object) -> tuple[int, int]:
     raise MissingTokenUsageError(msg)
 
 
-async def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
+def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
     if stats is None:
         return
     input_tokens, output_tokens = extract_usage_tokens(response)

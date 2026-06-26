@@ -67,7 +67,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                     max_tokens=self.config.section_id.max_tokens,
                 ),
             )
-            await add_usage(stats, response)
+            add_usage(stats, response)
             choice = response.choices[0]
             raw = (choice.message.content or '').strip().splitlines()[0].strip()
             sid = _normalize_section_id(raw)

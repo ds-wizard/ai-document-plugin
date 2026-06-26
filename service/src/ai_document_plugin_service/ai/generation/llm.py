@@ -69,5 +69,5 @@ class SectionGenerationLLM(GenerationLLM):
                 max_tokens=self.config.dmp_generation.max_tokens,
             ),
         )
-        await add_usage(stats, response)
+        add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

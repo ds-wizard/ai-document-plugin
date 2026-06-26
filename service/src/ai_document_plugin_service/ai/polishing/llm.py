@@ -53,5 +53,5 @@ class SectionPolishingLLM:
                 max_tokens=self.config.dmp_polishing.max_tokens,
             ),
         )
-        await add_usage(stats, response)
+        add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

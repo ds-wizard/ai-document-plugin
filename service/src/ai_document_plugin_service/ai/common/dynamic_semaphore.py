@@ -24,7 +24,11 @@ class DynamicSemaphore:
         self._waiters: deque[tuple[asyncio.AbstractEventLoop, asyncio.Future[None]]] = deque()
 
     def set_limit(self, new_limit: int) -> None:
-        """Update the maximum number of allowed concurrent holders."""
+        """Update the maximum number of allowed concurrent holders.
+
+        Raises:
+            ValueError: If ``new_limit`` is negative.
+        """
         if new_limit < 0:
             msg = 'Limit must be >= 0'
             raise ValueError(msg)

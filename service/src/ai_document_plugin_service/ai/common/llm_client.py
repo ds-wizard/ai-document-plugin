@@ -18,8 +18,6 @@ logger = logging.getLogger(__name__)
 semaphore = DynamicSemaphore(1)
 
 
-
-
 class MissingTokenUsageError(ValueError):
     """Raised when a model response has no usage token information."""
 

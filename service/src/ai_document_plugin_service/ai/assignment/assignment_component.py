@@ -134,7 +134,7 @@ class AssignmentComponent:
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         """Assign KM questions to template sections using the configured matcher."""
-        logger.warning("Running Assignment Component without async!")
+        logger.warning('Running Assignment Component without async!')
         return asyncio.run(
             self.run_async(data, template_data, km, on_progress),
         )

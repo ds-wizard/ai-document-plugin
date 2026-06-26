@@ -117,7 +117,7 @@ class DmpGeneratorComponent:
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Generate full DMP markdown from nested assignments tree."""
-        logger.warning("Running Generator Component without async!")
+        logger.warning('Running Generator Component without async!')
         return asyncio.run(
             self.run_async(
                 replies=replies,
@@ -687,8 +687,8 @@ class DmpGeneratorComponent:
         table_md = df.to_markdown(index=False)
         return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
 
+    @staticmethod
     async def _execute_leaf_section(
-        self,
         section: _ScheduledSection,
         semaphore: asyncio.Semaphore,
     ) -> None:

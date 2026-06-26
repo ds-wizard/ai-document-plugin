@@ -1,6 +1,6 @@
 from pathlib import Path
 from textwrap import dedent
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 from fastapi.testclient import TestClient
@@ -153,7 +153,7 @@ def test_protected_route_returns_401_when_dsw_rejects_token(
 
 
 @patch('ai_document_plugin_service.api.auth.httpx.get')
-@patch('ai_document_plugin_service.api.routes.PostgresDB')
+@patch('ai_document_plugin_service.app.PostgresDB')
 def test_protected_route_succeeds_when_dsw_validates_user(
     mock_postgres_db: MagicMock,
     mock_httpx_get: MagicMock,
@@ -161,9 +161,10 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     monkeypatch,
 ) -> None:
     mock_httpx_get.return_value = httpx.Response(200, request=httpx.Request('GET', ALLOWED_URL))
-    mock_postgres_db.return_value.list_templates.return_value = [
-        {'uuid': 'template-1', 'title': 'Template 1'},
-    ]
+    mock_postgres_db.return_value.list_templates = AsyncMock(
+        return_value=[{'uuid': 'template-1', 'title': 'Template 1'}],
+    )
+    mock_postgres_db.return_value.dispose = AsyncMock()
 
     config_path = _write_config_files(tmp_path)
     monkeypatch.setenv(CONFIG_PATH_ENV_VAR, str(config_path))

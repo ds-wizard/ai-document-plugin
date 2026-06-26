@@ -6,7 +6,7 @@ class DSWClient:
         self.token = token
         self.api_url = api_url.rstrip('/')
 
-    def get_questionnaire_detail(
+    async def get_questionnaire_detail(
         self,
         questionnaire_uuid: str
     ) -> dict:
@@ -16,6 +16,7 @@ class DSWClient:
         if self.token:
             headers['Authorization'] = f'Bearer {self.token}'
 
-        response = httpx.get(url, headers=headers)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
         response.raise_for_status()
         return response.json()

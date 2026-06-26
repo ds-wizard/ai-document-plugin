@@ -1,6 +1,7 @@
 import logging
 import threading
 from datetime import UTC, datetime
+from typing import Any
 
 from openai import AuthenticationError
 
@@ -191,79 +192,12 @@ async def _run_pipeline_job(
     try:
         template = await database.get_template(template_uuid)
         if template is None:
-            set_pipeline_status(
-                run_id,
-                build_pipeline_status(
-                    run_id=run_id,
-                    status=PipelineStatus.FAILED,
-                    questionnaire_uuid=questionnaire_uuid,
-                    template_uuid=template_uuid,
-                    template_title=template_title,
-                    user_uuid=user_uuid,
-                    tenant_uuid=tenant_uuid,
-                    error=PipelineErrorResponse(
-                        type=ErrorType.TEMPLATE_NOT_FOUND,
-                        message=TEMPLATE_NOT_FOUND_MESSAGE,
-                    ),
-                ),
-            )
+            _fail_template_not_found(questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid,
+                                     user_uuid)
             return
 
-        set_pipeline_status(
-            run_id,
-            build_pipeline_status(
-                run_id=run_id,
-                status=PipelineStatus.RUNNING,
-                questionnaire_uuid=questionnaire_uuid,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                progress_message='Starting pipeline...',
-            ),
-        )
-
-        def on_progress(message: str) -> None:
-            _update_running_progress(
-                run_id,
-                questionnaire_uuid=questionnaire_uuid,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                progress_message=message,
-            )
-
-        pipeline = build_pipeline(database=database, saver=saver, config=config, llm_client=llm_client)
-        knowledge_model_uuid, result = await run_pipeline(
-            questionnaire_uuid=questionnaire_uuid,
-            template_uuid=template_uuid,
-            template_title=template['title'],
-            template_data=template['content'],
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            pipeline=pipeline,
-            database=database,
-            on_progress=on_progress,
-            model_name=llm_client.get_model_name(),
-            dsw_client=DSWClient(token, dsw_api_url)
-        )
-
-        set_pipeline_status(
-            run_id,
-            build_pipeline_status(
-                run_id=run_id,
-                status=PipelineStatus.SUCCEEDED,
-                questionnaire_uuid=questionnaire_uuid,
-                knowledge_model_uuid=knowledge_model_uuid,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                result_format='markdown',
-                result_markdown=result,
-            ),
-        )
+        await _start_pipeline(config, database, dsw_api_url, llm_client, questionnaire_uuid, run_id, saver, template,
+                              template_title, template_uuid, tenant_uuid, token, user_uuid)
     except Exception as error:
         set_pipeline_status(
             run_id,
@@ -281,3 +215,85 @@ async def _run_pipeline_job(
         logger.exception('Pipeline run failed')
     finally:
         await database.dispose()
+
+
+async def _start_pipeline(config: Config, database: PostgresDB, dsw_api_url: str, llm_client: LLMClient,
+                          questionnaire_uuid: str,
+                          run_id: str, saver: DBSaver, template: dict[str, Any], template_title: str,
+                          template_uuid: str,
+                          tenant_uuid: str, token: str, user_uuid: str) -> None:
+    set_pipeline_status(
+        run_id,
+        build_pipeline_status(
+            run_id=run_id,
+            status=PipelineStatus.RUNNING,
+            questionnaire_uuid=questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            progress_message='Starting pipeline...',
+        ),
+    )
+
+    def on_progress(message: str) -> None:
+        _update_running_progress(
+            run_id,
+            questionnaire_uuid=questionnaire_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            progress_message=message,
+        )
+
+    pipeline = build_pipeline(database=database, saver=saver, config=config, llm_client=llm_client)
+    knowledge_model_uuid, result = await run_pipeline(
+        questionnaire_uuid=questionnaire_uuid,
+        template_uuid=template_uuid,
+        template_title=template['title'],
+        template_data=template['content'],
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
+        pipeline=pipeline,
+        database=database,
+        on_progress=on_progress,
+        model_name=llm_client.get_model_name(),
+        dsw_client=DSWClient(token, dsw_api_url)
+    )
+
+    set_pipeline_status(
+        run_id,
+        build_pipeline_status(
+            run_id=run_id,
+            status=PipelineStatus.SUCCEEDED,
+            questionnaire_uuid=questionnaire_uuid,
+            knowledge_model_uuid=knowledge_model_uuid,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            result_format='markdown',
+            result_markdown=result,
+        ),
+    )
+
+
+def _fail_template_not_found(questionnaire_uuid: str, run_id: str, template_title: str, template_uuid: str,
+                             tenant_uuid: str, user_uuid: str) -> None:
+    set_pipeline_status(
+        run_id,
+        build_pipeline_status(
+            run_id=run_id,
+            status=PipelineStatus.FAILED,
+            questionnaire_uuid=questionnaire_uuid,
+            template_uuid=template_uuid,
+            template_title=template_title,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            error=PipelineErrorResponse(
+                type=ErrorType.TEMPLATE_NOT_FOUND,
+                message=TEMPLATE_NOT_FOUND_MESSAGE,
+            ),
+        ),
+    )

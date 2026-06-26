@@ -134,6 +134,7 @@ class AssignmentComponent:
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
         raise NotImplementedError(
-            f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()',
+            msg,
         )

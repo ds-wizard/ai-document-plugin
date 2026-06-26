@@ -17,5 +17,27 @@ services:
       retries: 5
       start_period: 10s
 
+  service:
+    build: .
+    container_name: ai-document-plugin-service
+    ports:
+      - '8010:8010'
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    # Map `localhost` inside the container to the host machine, so the service's
+    # calls to the DSW API at `http://localhost:3000` reach the DSW container
+    # published on the host. The database is reached via the `postgres` service
+    # name over the compose network (see config.docker.yaml).
+    extra_hosts:
+      - 'localhost:host-gateway'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 256m
+
 volumes:
   postgres_data:

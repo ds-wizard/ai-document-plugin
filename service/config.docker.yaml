@@ -1,0 +1,18 @@
+auth:
+  allowed_project_urls:
+    - "https://ai-test.dsw.elixir-europe.org/wizard-api"
+    - "http://localhost:3000/wizard-api"
+
+logging:
+  level: "DEBUG"
+
+database:
+  host: "postgres"
+  port: "5432"
+  name: "ai_document_plugin"
+  user: "ai_document_plugin"
+  password: "ai_document_plugin"
+  schema: "public"
+
+files:
+  prompts_path: "prompts.yaml"

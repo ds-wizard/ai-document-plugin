@@ -11,18 +11,13 @@ from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
+    Config,
     PipelineMetricsCollector,
-    configure_logging,
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-    LLMConfigOverride,
-    apply_llm_override,
-)
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
+from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
@@ -32,13 +27,15 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
 )
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
+from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from haystack.components.routers.conditional_router import Route
 
-    from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+    from ai_document_plugin_service.ai.common.llm_client import LLMClient
+    from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
 
 # Cost per million tokens (USD) - adjust for your model
@@ -53,15 +50,16 @@ ProgressCallback = Callable[[str], None]
 def build_pipeline(
     database: Database,
     saver: DBSaver,
-    generation_llm: OpenAIGenerationLLM,
+    config: Config,
+    llm_client: LLMClient
 ) -> Pipeline:
     pipeline = Pipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
-    assignment_component = AssignmentComponent()
+    assignment_component = AssignmentComponent(llm_client, config)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
-    dmp_generator_component = DmpGeneratorComponent(llm=generation_llm)
-    dmp_polisher_component = DmpPolisherComponent()
+    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config))
+    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config))
     saver_component = SaverComponent(database=database)
 
     # ROUTES
@@ -118,8 +116,6 @@ def build_pipeline(
 
 def run_pipeline(
     questionnaire_uuid: str,
-    token: str,
-    dsw_api_url: str | None,
     template_uuid: str,
     template_title: str,
     template_data: Mapping[str, object],
@@ -127,20 +123,13 @@ def run_pipeline(
     tenant_uuid: str,
     pipeline: Pipeline,
     database: Database,
-    config: Config,
-    llm_override: LLMConfigOverride | None = None,
+    dsw_client: DSWClient,
+    model_name: str,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
     t1 = time.time()
-    resolved_config = apply_llm_override(config, llm_override)
-    configure_logging(resolved_config.log_level)
-    model_name = resolved_config.model
-
-    km_data = get_questionnaire_detail(
-        questionnaire_uuid=questionnaire_uuid,
-        config=config,
-        token=token,
-        api_url=dsw_api_url,
+    km_data = dsw_client.get_questionnaire_detail(
+        questionnaire_uuid=questionnaire_uuid
     )
 
     replies = km_data['replies']
@@ -161,7 +150,6 @@ def run_pipeline(
             'parser_component': {'data': km_data},
             'assignment_component': {
                 'template_data': template_data,
-                'config': resolved_config,
                 'km': km,
                 'on_progress': on_progress,
             },
@@ -176,11 +164,9 @@ def run_pipeline(
             'dmp_generator_component': {
                 'replies': replies,
                 'km': km,
-                'config': resolved_config,
                 'on_progress': on_progress,
             },
             'dmp_polisher_component': {
-                'config': resolved_config,
                 'template_data': template_data,
                 'on_progress': on_progress,
             },

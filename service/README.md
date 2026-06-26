@@ -13,28 +13,6 @@ Create `config.yaml` with your LLM credentials (see `config.template.yaml`). All
 prompts file, can be configured there. To use a different config file, set `AI_DOCUMENT_PLUGIN_CONFIG_PATH` to its path
 before starting the API or CLI.
 
-Run the full pipeline:
-
-```bash
-uv run ai-document-pipeline \
-  --questionnaire-uuid <QUESTIONNAIRE_UUID> \
-  --token <TOKEN> \
-  --template-uuid <TEMPLATE_UUID>
-```
-
-The CLI reads technical configuration such as DSW API base URL, database connection, model configuration, prompt paths,
-and output file paths from `config.yaml` or from the file referenced by `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The runtime
-inputs `questionnaire_uuid`, `token`, and `template_uuid` are passed explicitly through CLI arguments.
-
-This produces:
-
-| File                       | Description                                      |
-|----------------------------|--------------------------------------------------|
-| `dmp_output_pre_polish.md` | Generated DMP with debug tables before polishing |
-| `dmp_output.md`            | Final polished DMP with token-usage summary      |
-
-Step 1 produces new record in the `assignments` table in the DB, when questions are assigned for the first time.
-
 ## Pipeline steps
 
 `src/ai_document_plugin_service/run_pipeline.py` orchestrates three steps, each backed by a dedicated module:
@@ -55,12 +33,12 @@ consolidating duplicates, and improving flow — without adding new content.
 
 ## Configuration
 
+The LLM API information (url, api key, model) must be set in the plugin configuration in the deployed DSW instance
+(Administration tab > Settings > Plugins).
+
 ### `config.yaml`
 
-LLM connection settings (API key, base URL, model name), DSW API base URL, database connection, and all pipeline file
-paths. The API key supports environment variable expansion (e.g. `$OPENAI_API_KEY`). The file itself can be overridden
-globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. The config file does not contain its own `config_path`; the active file
-is determined only by runtime startup/defaults.
+The file path can be overridden globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. See `config.template.yaml` for more info.
 
 ### `prompts.yaml`
 
@@ -79,7 +57,8 @@ The project `Makefile` provides a few shortcuts for common development tasks:
 - `make dev` starts the FastAPI development server with auto-reload on port `8010`
 - `make build` builds the Python package
 - `make db` starts the local PostgreSQL container defined in `docker-compose.yml`
-- `make db-init` starts the local PostgreSQL container, waits for it to become healthy, and applies all Alembic migrations
+- `make db-init` starts the local PostgreSQL container, waits for it to become healthy, and applies all Alembic
+  migrations
 - `make db-migrate` applies all Alembic migrations to the configured database
 - `make db-current` shows the current Alembic revision stored in the database
 - `make db-history` shows available Alembic migration history
@@ -95,13 +74,18 @@ make dev
 ```
 
 `docker compose` creates the PostgreSQL database itself from the `POSTGRES_DB`, `POSTGRES_USER`, and
-`POSTGRES_PASSWORD` values in [docker-compose.yml](/Users/hana/DSW/AI-playground/ai-document-plugin/service/docker-compose.yml:1). On application startup, the service verifies that it can connect to the configured database and runs Alembic migrations to `head`. Alembic creates or updates the schema inside that database; it does not create the PostgreSQL server or database on its own.
+`POSTGRES_PASSWORD` values
+in [docker-compose.yml](/Users/hana/DSW/AI-playground/ai-document-plugin/service/docker-compose.yml:1). On application
+startup, the service verifies that it can connect to the configured database and runs Alembic migrations to `head`.
+Alembic creates or updates the schema inside that database; it does not create the PostgreSQL server or database on its
+own.
 
 `make db-init` and `make db-migrate` remain useful local shortcuts when you want to manage migrations manually, but they
 are not required by deployed service startup.
 
-If the PostgreSQL container already exists with an older Docker volume, the database may be missing even though the server is running. In that case `make db-init` also checks that `ai_document_plugin` exists and creates it before running Alembic migrations.
-
+If the PostgreSQL container already exists with an older Docker volume, the database may be missing even though the
+server is running. In that case `make db-init` also checks that `ai_document_plugin` exists and creates it before
+running Alembic migrations.
 
 ## Tests
 

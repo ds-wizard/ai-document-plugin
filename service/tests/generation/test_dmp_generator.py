@@ -1,13 +1,6 @@
 from typing import Optional
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-    DatabaseConfig,
-    FilePaths,
-    SystemAndUserPrompt,
-    SystemPrompt,
-)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
@@ -17,39 +10,9 @@ from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
-def _component() -> DmpGeneratorComponent:
-    return DmpGeneratorComponent()
-
-
-def _test_config() -> Config:
-    prompt = SystemAndUserPrompt(
-        temperature=0.0,
-        max_tokens=1,
-        system_message='',
-        user_message='',
-    )
-    system_prompt = SystemPrompt(temperature=0.0, max_tokens=1, system_message='')
-    return Config(
-        api_key='',
-        api_url='',
-        dsw_api_url='',
-        allowed_project_urls=(),
-        model='test',
-        log_level='DEBUG',
-        database=DatabaseConfig(
-            host='',
-            port=0,
-            name='',
-            user='',
-            password='',
-            schema='',
-        ),
-        files=FilePaths(prompts_path=''),
-        assignment=prompt,
-        section_id=prompt,
-        dmp_generation=system_prompt,
-        dmp_polishing=prompt,
-        parallel_workers=1,
+def _component(gen_llm: GenerationLLM | None = None) -> DmpGeneratorComponent:
+    return DmpGeneratorComponent(
+        dmp_generator_llm=gen_llm or StubGenerationLLM(),
     )
 
 
@@ -73,6 +36,7 @@ def _km_fixture() -> dict:
             'choices': {},
         },
     }
+
 
 def _reachable_km_fixture() -> dict:
     return {
@@ -120,6 +84,9 @@ def _reachable_km_fixture() -> dict:
 
 class StubGenerationLLM(GenerationLLM):
     """Deterministic LLM stub that records calls."""
+
+    def get_max_workers(self):
+        1
 
     def __init__(self, section_response: str = 'Generated section body'):
         self.section_calls: list[str] = []
@@ -478,6 +445,7 @@ def test_parse_answer_integration_reply_returns_first_raw_and_url() -> None:
         '"Comma-separated Values"} https://fairsharing.org/1398'
     )
 
+
 def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> None:
     km = {
         'entities': {
@@ -507,6 +475,7 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
     assert parsed == (
         '{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value'
     )
+
 
 def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
     parser = ParserComponent()
@@ -550,7 +519,8 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
 
 
 def test_run_renders_parent_and_leaf_sections() -> None:
-    component = _component()
+    stub = StubGenerationLLM()
+    component = _component(stub)
     km = _km_fixture()
     assignments = [
         SectionAssignment(
@@ -576,12 +546,9 @@ def test_run_renders_parent_and_leaf_sections() -> None:
         'ch.listQ.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
     }
 
-    stub = StubGenerationLLM()
     result = component.run(
         replies=replies,
         km=km,
-        config=_test_config(),
-        llm=stub,
         new_assignments=_serialize_assignments(assignments),
     )
     markdown = result['markdown']
@@ -598,18 +565,16 @@ def test_run_renders_parent_and_leaf_sections() -> None:
 
 
 def test_run_handles_empty_section() -> None:
-    component = _component()
+    stub = StubGenerationLLM()
+    component = _component(stub)
     km = _km_fixture()
     assignments = [
         SectionAssignment(id='s0', title='Empty'),
     ]
 
-    stub = StubGenerationLLM()
     result = component.run(
         replies={},
         km=km,
-        config=_test_config(),
-        llm=stub,
         new_assignments=_serialize_assignments(assignments),
     )
     markdown = result['markdown']

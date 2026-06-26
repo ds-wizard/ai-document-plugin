@@ -1,7 +1,6 @@
 import typing
 from abc import ABC, abstractmethod
 
-from openai import OpenAI
 from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import LeafSection
@@ -29,9 +28,9 @@ class SectionIdGenerator(ABC):
 
 
 class OpenAISectionIdGenerator(SectionIdGenerator):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, llm_client: LLMClient, config: Config) -> None:
         self.config = config
-        self.client = LLMClient(config)
+        self.client = llm_client
 
     @typing.override
     def generate_leaf_section_ids(
@@ -59,7 +58,6 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
             )
             response = call_with_retry(
                 lambda um=user_msg: self.client.completion(
-                    model=self.config.model,
                     messages=[
                         {'role': 'system', 'content': system_msg},
                         {'role': 'user', 'content': um},
@@ -92,7 +90,6 @@ def _normalize_section_id(raw: str) -> str:
 class LoggingNoopSectionIdGenerator(SectionIdGenerator):
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.client = OpenAI(api_key=config.api_key, base_url=config.api_url)
 
     @typing.override
     def generate_leaf_section_ids(  # ty: ignore[invalid-method-override]

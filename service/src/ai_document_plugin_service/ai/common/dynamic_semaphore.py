@@ -58,12 +58,12 @@ class DynamicSemaphore:
         self._wake_waiters()
 
     async def acquire(self) -> None:
-        self._bind_loop()
+        loop = self._bind_loop()
         if self._active_count < self.limit:
             self._active_count += 1
             return
 
-        future: asyncio.Future[None] = self._loop.create_future()  # type: ignore[union-attr]
+        future: asyncio.Future[None] = loop.create_future()
         waiter = _Waiter(future)
         self._waiters.append(waiter)
 
@@ -99,13 +99,14 @@ class DynamicSemaphore:
             self._active_count += 1
             waiter.future.set_result(None)
 
-    def _bind_loop(self) -> None:
+    def _bind_loop(self) -> asyncio.AbstractEventLoop:
         loop = asyncio.get_running_loop()
         if self._loop is None:
             self._loop = loop
         elif self._loop is not loop:
             msg = 'DynamicSemaphore is bound to a single event loop'
             raise RuntimeError(msg)
+        return loop
 
     async def __aenter__(self) -> Self:
         await self.acquire()

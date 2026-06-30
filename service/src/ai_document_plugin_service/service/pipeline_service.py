@@ -34,9 +34,7 @@ TEMPLATE_NOT_FOUND_MESSAGE = 'Template not found.'
 
 
 def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
-    if isinstance(error, AuthenticationError) or isinstance(
-        error.__cause__, AuthenticationError
-    ):
+    if isinstance(error, AuthenticationError) or isinstance(error.__cause__, AuthenticationError):
         return PipelineErrorResponse(
             type=ErrorType.AUTHENTICATION_FAILED,
             message=AUTHORIZATION_ERROR_MESSAGE,
@@ -192,12 +190,24 @@ async def _run_pipeline_job(
     try:
         template = await database.get_template(template_uuid)
         if template is None:
-            _fail_template_not_found(questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid,
-                                     user_uuid)
+            _fail_template_not_found(questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid, user_uuid)
             return
 
-        await _start_pipeline(config, database, dsw_api_url, llm_client, questionnaire_uuid, run_id, saver, template,
-                              template_title, template_uuid, tenant_uuid, token, user_uuid)
+        await _start_pipeline(
+            config,
+            database,
+            dsw_api_url,
+            llm_client,
+            questionnaire_uuid,
+            run_id,
+            saver,
+            template,
+            template_title,
+            template_uuid,
+            tenant_uuid,
+            token,
+            user_uuid,
+        )
     except Exception as error:
         set_pipeline_status(
             run_id,
@@ -217,11 +227,21 @@ async def _run_pipeline_job(
         await database.dispose()
 
 
-async def _start_pipeline(config: Config, database: PostgresDB, dsw_api_url: str, llm_client: LLMClient,
-                          questionnaire_uuid: str,
-                          run_id: str, saver: DBSaver, template: dict[str, Any], template_title: str,
-                          template_uuid: str,
-                          tenant_uuid: str, token: str, user_uuid: str) -> None:
+async def _start_pipeline(
+    config: Config,
+    database: PostgresDB,
+    dsw_api_url: str,
+    llm_client: LLMClient,
+    questionnaire_uuid: str,
+    run_id: str,
+    saver: DBSaver,
+    template: dict[str, Any],
+    template_title: str,
+    template_uuid: str,
+    tenant_uuid: str,
+    token: str,
+    user_uuid: str,
+) -> None:
     set_pipeline_status(
         run_id,
         build_pipeline_status(
@@ -259,7 +279,7 @@ async def _start_pipeline(config: Config, database: PostgresDB, dsw_api_url: str
         database=database,
         on_progress=on_progress,
         model_name=llm_client.get_model_name(),
-        dsw_client=DSWClient(token, dsw_api_url)
+        dsw_client=DSWClient(token, dsw_api_url),
     )
 
     set_pipeline_status(
@@ -279,8 +299,9 @@ async def _start_pipeline(config: Config, database: PostgresDB, dsw_api_url: str
     )
 
 
-def _fail_template_not_found(questionnaire_uuid: str, run_id: str, template_title: str, template_uuid: str,
-                             tenant_uuid: str, user_uuid: str) -> None:
+def _fail_template_not_found(
+    questionnaire_uuid: str, run_id: str, template_title: str, template_uuid: str, tenant_uuid: str, user_uuid: str
+) -> None:
     set_pipeline_status(
         run_id,
         build_pipeline_status(

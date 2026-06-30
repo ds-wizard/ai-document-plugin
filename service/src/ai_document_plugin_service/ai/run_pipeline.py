@@ -47,12 +47,7 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
-def build_pipeline(
-    database: Database,
-    saver: DBSaver,
-    config: Config,
-    llm_client: LLMClient
-) -> AsyncPipeline:
+def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_client: LLMClient) -> AsyncPipeline:
     pipeline = AsyncPipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
@@ -128,9 +123,7 @@ async def run_pipeline(
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
     t1 = time.time()
-    km_data = await dsw_client.get_questionnaire_detail(
-        questionnaire_uuid=questionnaire_uuid
-    )
+    km_data = await dsw_client.get_questionnaire_detail(questionnaire_uuid=questionnaire_uuid)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']

@@ -27,7 +27,7 @@ class DmpPolisherComponent:
         self.section_polishing_llm = section_polishing_llm
 
     @component.output_types(markdown=str, stats=AssignmentStats)
-    def run(
+    async def run_async(
         self,
         markdown: str,
         template_data: dict | None = None,
@@ -49,15 +49,28 @@ class DmpPolisherComponent:
         if on_progress is not None:
             on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        file = self.section_polishing_llm.polish_dmp(
+        polished = await self.section_polishing_llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,
             stats=stats,
         )
         return {
-            'markdown': file,
+            'markdown': polished,
             'stats': stats,
         }
+
+    @component.output_types(markdown=str, stats=AssignmentStats)
+    def run(
+        self,
+        markdown: str,
+        template_data: dict | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> DmpPolisherComponentResult:
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        raise NotImplementedError(
+            msg,
+        )
 
     @staticmethod
     def _format_template_structure(nodes: list, depth: int = 0) -> list[str]:

@@ -35,7 +35,7 @@ class UnableToParseResponseError(ValueError):
 
 class LayerMatcher(ABC):
     @abstractmethod
-    def match_questions_to_sections(
+    async def match_questions_to_sections(
         self,
         sections_xml: str,
         question_chunk_xml: str,
@@ -49,12 +49,11 @@ class OpenAILayerMatcher(LayerMatcher):
         self.client = llm_client
         self.config = config
 
-    def match_questions_to_sections(
+    def _assignment_messages(
         self,
         sections_xml: str,
         question_chunk_xml: str,
-        stats: AssignmentStats,
-    ) -> dict[str, list[str]]:
+    ) -> list['ChatCompletionMessageParam']:
         user_message = self.config.assignment.user_message.replace(
             '{question_text}',
             question_chunk_xml,
@@ -67,13 +66,18 @@ class OpenAILayerMatcher(LayerMatcher):
             'role': 'user',
             'content': user_message,
         }
-        messages: list[ChatCompletionMessageParam] = [
-            system_message,
-            user_prompt,
-        ]
+        return [system_message, user_prompt]
 
-        def call_and_parse() -> dict[str, list[str]]:
-            response = self.client.completion(
+    async def match_questions_to_sections(
+        self,
+        sections_xml: str,
+        question_chunk_xml: str,
+        stats: AssignmentStats,
+    ) -> dict[str, list[str]]:
+        messages = self._assignment_messages(sections_xml, question_chunk_xml)
+
+        async def call_and_parse() -> dict[str, list[str]]:
+            response = await self.client.completion(
                 messages=messages,
                 temperature=self.config.assignment.temperature,
                 max_tokens=self.config.assignment.max_tokens,
@@ -90,15 +94,12 @@ class OpenAILayerMatcher(LayerMatcher):
             content = (choice.message.content or '').strip()
             add_usage(stats, response)
             try:
-                question_to_sections = self._parse_json_question_to_sections(
-                    content,
-                )
+                return self._parse_json_question_to_sections(content)
             except JSONDecodeError as e:
                 msg = 'Unable to parse: ' + content
                 raise UnableToParseResponseError(msg) from e
-            return question_to_sections
 
-        return call_with_retry(call_and_parse)
+        return await call_with_retry(call_and_parse)
 
     @staticmethod
     def _parse_json_question_to_sections(content: str) -> dict[str, list[str]]:
@@ -130,7 +131,7 @@ class LoggingNoopLayerMatcher(LayerMatcher):
     def __init__(self, log_path: str | pathlib.Path) -> None:
         self._log_path = pathlib.Path(log_path)
 
-    def match_questions_to_sections(
+    async def match_questions_to_sections(
         self,
         sections_xml: str,
         question_chunk_xml: str,

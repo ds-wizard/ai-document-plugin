@@ -1,10 +1,10 @@
+import asyncio
 import itertools
 import logging
 from collections.abc import Callable
 from typing import Any, TypedDict
 
 from haystack import component
-from tqdm.contrib.concurrent import thread_map
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
@@ -65,27 +65,14 @@ class AssignmentComponent:
                 continue
             result_mapping[question_path] = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
 
-    def _match_single_chunk(
-        self,
-        sections_xml: str,
-        question_chunk: str,
-        stats: AssignmentStats,
-    ) -> dict[str, list[str]]:
-        return self.section_matcher.match_questions_to_sections(
-            sections_xml,
-            question_chunk,
-            stats,
-        )
-
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
-    def run(
+    async def run_async(
         self,
         data: list[QuestionData],
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
-        """Assign KM questions to template sections using the configured matcher."""
         logger.debug('Step 1: Assigning questions to sections...')
 
         sections = build_section_records(template_data)
@@ -93,19 +80,22 @@ class AssignmentComponent:
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
-        section_formatter.create_mappings(self.section_id_generator, stats)
+        await section_formatter.create_mappings(self.section_id_generator, stats)
         sections_xml = section_formatter.get_sections_as_xml()
 
-        result_mapping = {}
+        result_mapping: dict[str, list[str]] = {}
         total_chunks = len(question_chunks)
         completed_counter = itertools.count(1)
+        worker_count = self.llm_client.get_max_workers()
+        chunk_semaphore = asyncio.Semaphore(worker_count)
 
-        def match_chunk(question_chunk: str) -> dict[str, list[str]]:
-            result = self._match_single_chunk(
-                sections_xml=sections_xml,
-                question_chunk=question_chunk,
-                stats=stats,
-            )
+        async def match_chunk(question_chunk: str) -> dict[str, list[str]]:
+            async with chunk_semaphore:
+                result = await self.section_matcher.match_questions_to_sections(
+                    sections_xml,
+                    question_chunk,
+                    stats,
+                )
             if on_progress is not None:
                 chunk_index = next(completed_counter)
                 on_progress(
@@ -113,12 +103,10 @@ class AssignmentComponent:
                 )
             return result
 
-        for question_to_section_ids in thread_map(
-            match_chunk,
-            question_chunks,
-            max_workers=self.llm_client.get_max_workers(),
-            desc=f'Assigning questions to sections ({self.llm_client.get_max_workers()} workers)',
-        ):
+        chunk_results = await asyncio.gather(
+            *[match_chunk(chunk) for chunk in question_chunks],
+        )
+        for question_to_section_ids in chunk_results:
             self._add_chunk_mapping_to_result(
                 result_mapping=result_mapping,
                 question_to_section_ids=question_to_section_ids,
@@ -136,3 +124,17 @@ class AssignmentComponent:
             'assignments': assignments,
             'stats': stats,
         }
+
+    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    def run(
+        self,
+        data: list[QuestionData],
+        template_data: dict[str, Any],
+        km: dict[str, Any],
+        on_progress: Callable[[str], None] | None = None,
+    ) -> AssignmentComponentResult:
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        raise NotImplementedError(
+            msg,
+        )

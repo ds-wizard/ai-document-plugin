@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from haystack import Pipeline
+from haystack import AsyncPipeline
 from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
@@ -52,8 +52,8 @@ def build_pipeline(
     saver: DBSaver,
     config: Config,
     llm_client: LLMClient
-) -> Pipeline:
-    pipeline = Pipeline()
+) -> AsyncPipeline:
+    pipeline = AsyncPipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent(llm_client, config)
@@ -121,7 +121,7 @@ def run_pipeline(
     template_data: Mapping[str, object],
     user_uuid: str,
     tenant_uuid: str,
-    pipeline: Pipeline,
+    pipeline: AsyncPipeline,
     database: Database,
     dsw_client: DSWClient,
     model_name: str,

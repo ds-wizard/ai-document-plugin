@@ -146,8 +146,9 @@ class PipelineService:
             lambda: self._run_pipeline_job(run, auth, llm_config, config),
         )
 
-    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest,
-                                     auth: AuthenticatedUser) -> PipelineStatusResponse:
+    async def update_pipeline_result(
+        self, run_id: str, save_request: PipelineSaveRequest, auth: AuthenticatedUser
+    ) -> PipelineStatusResponse:
         pipeline_status = self.get_pipeline_status(run_id)
         if pipeline_status is None:
             raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')

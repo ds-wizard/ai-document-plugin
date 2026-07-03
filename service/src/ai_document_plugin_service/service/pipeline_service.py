@@ -1,6 +1,7 @@
 import logging
 import threading
 from datetime import UTC, datetime
+from uuid import UUID
 
 import fastapi
 from openai import AuthenticationError
@@ -57,10 +58,10 @@ class LlmClientTenantStore:
 
     def __init__(self) -> None:
         # tenant id -> llm client
-        self._clients: dict[str, LLMClient] = {}
+        self._clients: dict[UUID, LLMClient] = {}
         self._lock = threading.Lock()
 
-    def get_llm_client(self, tenant_uuid: str) -> LLMClient:
+    def get_llm_client(self, tenant_uuid: UUID) -> LLMClient:
         """
         Returns LLM client, creates a new one if it currently doesn't exist
         :param tenant_uuid: Tenant to get the LLM client for.
@@ -229,8 +230,8 @@ class PipelineService:
         knowledge_model_uuid, result = await run_pipeline(
             questionnaire_uuid=run.questionnaire_uuid,
             template_uuid=run.template_uuid,
-            template_title=template['title'],
-            template_data=template['content'],
+            template_title=template.title,
+            template_data=template.content,
             user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
             pipeline=pipeline,

@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import fastapi
 
@@ -31,18 +31,13 @@ async def list_templates(database: DatabaseDI) -> list[TemplateListItem]:
 
 
 @protected_router.get('/templates/{template_uuid}')
-async def get_template(template_uuid: str, database: DatabaseDI) -> TemplateDetail:
+async def get_template(template_uuid: UUID, database: DatabaseDI) -> TemplateDetail:
     template = await database.get_template(template_uuid)
 
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
 
-    return _model_from_fields(
-        TemplateDetail,
-        uuid=template['uuid'],
-        title=template['title'],
-        content=template['content'],
-    )
+    return template
 
 
 @protected_router.post('/templates', status_code=201)
@@ -94,7 +89,7 @@ async def start_pipeline(
     pipeline.enqueue_pipeline_job(
         run_id,
         payload,
-        template['title'],
+        template.title,
         auth,
         config,
     )
@@ -106,7 +101,7 @@ async def start_pipeline(
         user_uuid=auth.user_uuid,
         tenant_uuid=auth.tenant_uuid,
         template_uuid=payload.template_uuid,
-        template_title=template['title'],
+        template_title=template.title,
     )
 
 

@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import Connection, inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
+from ai_document_plugin_service.api.types import TemplateDetail
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ class Database(ABC):
         """List available templates from a database backend."""
 
     @abstractmethod
-    async def get_template(self, template_uuid: str) -> dict[str, Any] | None:
+    async def get_template(self, template_uuid: UUID) -> TemplateDetail | None:
         """Get a template record from a database backend."""
 
     @abstractmethod
@@ -81,10 +83,10 @@ class Database(ABC):
     @abstractmethod
     async def save_stats(
         self,
-        template_uuid: str,
-        knowledge_model_uuid: str,
-        user_uuid: str,
-        tenant_uuid: str,
+        template_uuid: UUID,
+        knowledge_model_uuid: UUID,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
         stats: JsonValue,
     ) -> None:
         """Persist a stats result in a database backend."""
@@ -92,10 +94,10 @@ class Database(ABC):
     @abstractmethod
     async def update_result(
         self,
-        template_uuid: str,
-        knowledge_model_uuid: str,
-        user_uuid: str,
-        tenant_uuid: str,
+        template_uuid: UUID,
+        knowledge_model_uuid: UUID,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
         markdown: str,
     ) -> None:
         """Persist a markdown result in a database backend."""
@@ -294,7 +296,7 @@ class PostgresDB(Database):
             for row in rows
         ]
 
-    async def get_template(self, template_uuid: str) -> dict[str, Any] | None:
+    async def get_template(self, template_uuid: UUID) -> TemplateDetail | None:
         await self._ensure_schema()
         statement = self.template_table.select().where(self.template_table.c.uuid == template_uuid)
 
@@ -309,12 +311,11 @@ class PostgresDB(Database):
                 self.schema_name,
             )
             return None
-
-        return {
-            'uuid': str(row.uuid),
-            'title': row.title,
-            'content': row.content,
-        }
+        return TemplateDetail(
+            uuid=row.uuid,
+            title=row.title,
+            content=row.content,
+        )
 
     async def save_result(
         self,
@@ -359,10 +360,10 @@ class PostgresDB(Database):
 
     async def save_stats(
         self,
-        template_uuid: str,
-        knowledge_model_uuid: str,
-        user_uuid: str,
-        tenant_uuid: str,
+        template_uuid: UUID,
+        knowledge_model_uuid: UUID,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
         stats: JsonValue,
     ) -> None:
         await self._ensure_schema()
@@ -394,10 +395,10 @@ class PostgresDB(Database):
 
     async def update_result(
         self,
-        template_uuid: str,
-        knowledge_model_uuid: str,
-        user_uuid: str,
-        tenant_uuid: str,
+        template_uuid: UUID,
+        knowledge_model_uuid: UUID,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
         markdown: str,
     ) -> None:
         await self._ensure_schema()

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class InvalidLLMConfigError(ValueError):
-    def __init__(self, var_name: str, tenant: str) -> None:
+    def __init__(self, var_name: str, tenant: uuid.UUID) -> None:
         super().__init__(
             f"LLM '{var_name}' for tenant {tenant} is None, did you call `update_config` before using the client?"
         )
@@ -90,7 +90,7 @@ class LLMClient:
     This is because LLM client handles throttling to avoid spamming the LLM API.
     """
 
-    def __init__(self, tenant_uuid: str) -> None:
+    def __init__(self, tenant_uuid: uuid.UUID) -> None:
         """
         Initializes the client with empty config. Call update_config before using it.
         """

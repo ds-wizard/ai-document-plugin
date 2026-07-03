@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import httpx
 
 
@@ -6,7 +8,7 @@ class DSWClient:
         self.token = token
         self.api_url = api_url.rstrip('/')
 
-    async def get_questionnaire_detail(self, questionnaire_uuid: str) -> dict:
+    async def get_questionnaire_detail(self, questionnaire_uuid: str | UUID) -> dict:
         url = f'{self.api_url}/projects/{questionnaire_uuid}/questionnaire'
 
         headers: dict[str, str] = {}

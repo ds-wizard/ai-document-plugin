@@ -50,6 +50,27 @@ def _now() -> str:
     return datetime.now(tz=UTC).isoformat()
 
 
+class LlmClientTenantStore:
+    """
+    Manages LLM Clients for different tenants. Each tenant has its own LLM client with its own config and limits
+    """
+
+    def __init__(self) -> None:
+        # tenant id -> llm client
+        self._clients: dict[str, LLMClient] = {}
+        self._lock = threading.Lock()
+
+    def get_llm_client(self, tenant_uuid: str) -> LLMClient:
+        """
+        Returns LLM client, creates a new one if it currently doesn't exist
+        :param tenant_uuid: Tenant to get the LLM client for.
+        """
+        with self._lock:
+            if tenant_uuid not in self._clients:
+                self._clients[tenant_uuid] = LLMClient(tenant_uuid)
+            return self._clients[tenant_uuid]
+
+
 class PipelineRunStore:
     """Thread-safe in-memory store of pipeline run statuses."""
 
@@ -81,6 +102,7 @@ class PipelineService:
         self.pipeline_queue_manager = pipeline_queue_manager
         self.database = database
         self._runs = PipelineRunStore()
+        self._llm_clients = LlmClientTenantStore()
 
     def get_pipeline_status(self, run_id: str) -> PipelineStatusResponse | None:
         status = self._runs.get(run_id)
@@ -98,8 +120,6 @@ class PipelineService:
         run_id: str,
         payload: PipelineRunRequest,
         template_title: str,
-        user_uuid: str,
-        tenant_uuid: str,
         auth: AuthenticatedUser,
         config: Config,
     ) -> None:
@@ -109,8 +129,6 @@ class PipelineService:
             run_id=run_id,
             status=PipelineStatus.QUEUED,
             questionnaire_uuid=payload.questionnaire_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
             template_uuid=payload.template_uuid,
             template_title=template_title,
             updated_at=_now(),
@@ -125,10 +143,11 @@ class PipelineService:
         )
         self.pipeline_queue_manager.enqueue(
             run_id,
-            lambda: self._run_pipeline_job(run, auth.token, auth.api_url, llm_config, config),
+            lambda: self._run_pipeline_job(run, auth, llm_config, config),
         )
 
-    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest) -> PipelineStatusResponse:
+    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest,
+                                     auth: AuthenticatedUser) -> PipelineStatusResponse:
         pipeline_status = self.get_pipeline_status(run_id)
         if pipeline_status is None:
             raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
@@ -139,8 +158,8 @@ class PipelineService:
         await self.database.update_result(
             template_uuid=pipeline_status.template_uuid,
             knowledge_model_uuid=pipeline_status.knowledge_model_uuid,
-            user_uuid=pipeline_status.user_uuid,
-            tenant_uuid=pipeline_status.tenant_uuid,
+            user_uuid=auth.user_uuid,
+            tenant_uuid=auth.tenant_uuid,
             markdown=save_request.result_markdown,
         )
 
@@ -157,13 +176,12 @@ class PipelineService:
     async def _run_pipeline_job(
         self,
         run: PipelineStatusResponse,
-        token: str,
-        dsw_api_url: str,
+        auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
     ) -> None:
         try:
-            await self._run_pipeline(run, token, dsw_api_url, llm_config, config)
+            await self._run_pipeline(run, auth, llm_config, config)
         except Exception as error:
             logger.exception('Pipeline run failed')
             self._runs.update(
@@ -176,8 +194,7 @@ class PipelineService:
     async def _run_pipeline(
         self,
         run: PipelineStatusResponse,
-        token: str,
-        dsw_api_url: str,
+        auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
     ) -> None:
@@ -196,7 +213,8 @@ class PipelineService:
 
         self._runs.update(run_id, status=PipelineStatus.RUNNING, progress_message='Starting pipeline...')
 
-        llm_client = LLMClient(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
+        llm_client = self._llm_clients.get_llm_client(auth.tenant_uuid)
+        llm_client.update_config(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
         pipeline = build_pipeline(
             database=self.database,
             saver=DBSaver(self.database),
@@ -212,13 +230,13 @@ class PipelineService:
             template_uuid=run.template_uuid,
             template_title=template['title'],
             template_data=template['content'],
-            user_uuid=run.user_uuid,
-            tenant_uuid=run.tenant_uuid,
+            user_uuid=auth.user_uuid,
+            tenant_uuid=auth.tenant_uuid,
             pipeline=pipeline,
             database=self.database,
             on_progress=on_progress,
             model_name=llm_client.get_model_name(),
-            dsw_client=DSWClient(token, dsw_api_url),
+            dsw_client=DSWClient(auth.token, auth.api_url),
         )
 
         self._runs.update(

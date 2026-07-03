@@ -15,8 +15,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-semaphore = DynamicSemaphore(1)
-
 
 class MissingTokenUsageError(ValueError):
     """Raised when a model response has no usage token information."""
@@ -77,13 +75,56 @@ def add_usage(stats: 'AssignmentStats | None', response: object) -> None:
 
 
 class LLMClient:
-    def __init__(self, model: str, api_key: str, api_url: str, parallel_workers: int | None) -> None:
+    """
+    LLM Client for calling llm server using the OpenAI API standard.
+    It is able to update its config on the run.
+
+    There should always be at most one instance of llm client per tenant!
+    This is because LLM client handles throttling to avoid spamming the LLM API.
+    """
+
+    def __init__(self, tenant_uuid: str) -> None:
+        """
+        Initializes the client with empty config. Call update_config before using it.
+        """
+        self.tenant_uuid = tenant_uuid
+        self.model = None
+        self.max_workers = None
+        self.semaphore = DynamicSemaphore(1)
+        self.api_key = None
+        self.api_url = None
+        self.client = None
+
+    def update_config(self, model: str, api_key: str, api_url: str, parallel_workers: int | None) -> None:
+        """
+        Changes LLMClient config. Can be called even while this class is being used in parallel by asyncio elsewhere.
+        If all inputs are the same as they were, nothing updates.
+        :param model: updated model name (or the previous)
+        :param api_key: updated api_key
+        :param api_url: updated api_url
+        :param parallel_workers: updated parallel workers. If worker count is being reduced, it may take a while before
+            the llm client reaches the reduced state. This is because when going for example from 8 to 5 workers,
+            LLMClient does not kill any requests, instead, it stops queueing new requests until the 3 extra requests
+            finish running.
+        :return:
+        """
+        if (
+            self.model == model
+            and self.api_key == api_key
+            and self.api_url == api_url
+            and self.max_workers == parallel_workers
+        ):
+            # nothing has changed, we can return
+            return
         self.model = model
-        self.max_workers = parallel_workers or 1
-        semaphore.set_limit(max(1, self.max_workers))
+        self.api_key = api_key
+        self.api_url = api_url
+        self.max_workers = max(1, parallel_workers or 1)
+        self.semaphore.set_limit(self.max_workers)
         self.client = AsyncOpenAI(api_key=api_key, base_url=api_url, max_retries=0)
         logger.debug(
-            'Initializing LLM client, setting semaphore limit to %s',
+            '[llm] tenant=%s: Updated LLM client config, setting semaphore limit to %s',
+            self.tenant_uuid,
             self.max_workers,
         )
 
@@ -101,13 +142,13 @@ class LLMClient:
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()
         logger.debug('[llm] req=%s model=%s queueing', req_id, self.model)
-        async with semaphore:
+        async with self.semaphore:
             wait_s = time.perf_counter() - wait_start
             logger.debug(
                 '[llm] req=%s acquired semaphore after %.3fs (limit=%s)',
                 req_id,
                 wait_s,
-                semaphore.limit,
+                self.semaphore.limit,
             )
             call_start = time.perf_counter()
             result = await self.client.chat.completions.create(*args, model=self.model, **kwargs)

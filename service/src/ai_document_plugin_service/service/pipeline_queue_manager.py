@@ -21,7 +21,8 @@ def format_queue_progress(jobs_ahead: int) -> str:
 class PipelineQueueManager:
     """FIFO pipeline job queue running coroutines on a dedicated event loop.
 
-    Jobs are coroutines scheduled onto a single background event loop and gated by an
+    Jobs are coroutines scheduled onto a single background event loop and gated by a
+    semaphore so at most ``max_concurrent_jobs`` run at once.
     """
 
     def __init__(self, max_concurrent_jobs: int) -> None:
@@ -56,10 +57,8 @@ class PipelineQueueManager:
 
     def remove(self, run_id: str) -> None:
         with self._order_lock:
-            try:
+            if run_id in self._order:
                 self._order.remove(run_id)
-            except ValueError:
-                return
 
     def _jobs_waiting_ahead(self, run_id: str) -> int | None:
         with self._order_lock:

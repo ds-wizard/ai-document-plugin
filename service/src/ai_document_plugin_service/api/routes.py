@@ -2,7 +2,6 @@ from uuid import uuid4
 
 import fastapi
 
-from ai_document_plugin_service.ai.common.config import LLMConfig
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
@@ -100,19 +99,11 @@ async def start_pipeline(
     run_id = str(uuid4())
     pipeline.enqueue_pipeline_job(
         run_id,
-        payload.questionnaire_uuid,
-        payload.template_uuid,
+        payload,
         template['title'],
         user_uuid,
         tenant_uuid,
-        auth.token,
-        auth.api_url,
-        LLMConfig(
-            model=payload.llm_model,
-            api_key=payload.llm_api_key,
-            api_url=payload.llm_api_url,
-            parallel_workers=payload.llm_max_workers,
-        ),
+        auth,
         config,
     )
     return _model_from_fields(
@@ -139,5 +130,4 @@ def get_pipeline_status(run_id: str, pipeline: PipelineServiceDI) -> PipelineSta
 async def save_pipeline_result(
     run_id: str, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI
 ) -> PipelineStatusResponse:
-
     return await pipeline.update_pipeline_result(run_id, save_request)

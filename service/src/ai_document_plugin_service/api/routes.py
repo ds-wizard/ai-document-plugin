@@ -16,8 +16,7 @@ from ai_document_plugin_service.api.types import (
     TemplateListItem,
     _model_from_fields,
 )
-from ai_document_plugin_service.di import AuthenticatedDI, \
-    ConfigDI, DatabaseDI, PipelineServiceDI
+from ai_document_plugin_service.di import AuthenticatedDI, ConfigDI, DatabaseDI, PipelineServiceDI
 
 public_router = fastapi.APIRouter()
 protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authenticated)])
@@ -86,7 +85,7 @@ async def start_pipeline(
     auth: AuthenticatedDI,
     config: ConfigDI,
     database: DatabaseDI,
-    pipeline: PipelineServiceDI
+    pipeline: PipelineServiceDI,
 ) -> PipelineRunResponse:
     template = await database.get_template(payload.template_uuid)
 
@@ -129,10 +128,7 @@ async def start_pipeline(
 
 
 @protected_router.get('/pipelines/status/{run_id}')
-def get_pipeline_status(
-    run_id: str,
-    pipeline: PipelineServiceDI
-) -> PipelineStatusResponse:
+def get_pipeline_status(run_id: str, pipeline: PipelineServiceDI) -> PipelineStatusResponse:
     status = pipeline.get_pipeline_status(run_id)
     if status is None:
         raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
@@ -141,9 +137,7 @@ def get_pipeline_status(
 
 @protected_router.post('/pipelines/status/{run_id}/save')
 async def save_pipeline_result(
-    run_id: str,
-    save_request: PipelineSaveRequest,
-    pipeline: PipelineServiceDI
+    run_id: str, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI
 ) -> PipelineStatusResponse:
 
     return await pipeline.update_pipeline_result(run_id, save_request)

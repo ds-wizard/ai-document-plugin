@@ -18,9 +18,10 @@ from ai_document_plugin_service.ai.run_pipeline import build_pipeline, run_pipel
 from ai_document_plugin_service.api.types import (
     ErrorType,
     PipelineErrorResponse,
+    PipelineSaveRequest,
     PipelineStatus,
     PipelineStatusResponse,
-    _model_from_fields, PipelineSaveRequest,
+    _model_from_fields,
 )
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
@@ -44,20 +45,21 @@ def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
     )
 
 
-def _build_pipeline_status(*,
-                           run_id: str,
-                           status: PipelineStatus,
-                           questionnaire_uuid: str,
-                           user_uuid: str,
-                           tenant_uuid: str,
-                           template_uuid: str,
-                           template_title: str,
-                           knowledge_model_uuid: str | None = None,
-                           error: PipelineErrorResponse | None = None,
-                           result_format: str | None = None,
-                           result_markdown: str | None = None,
-                           progress_message: str | None = None,
-                           ) -> PipelineStatusResponse:
+def _build_pipeline_status(
+    *,
+    run_id: str,
+    status: PipelineStatus,
+    questionnaire_uuid: str,
+    user_uuid: str,
+    tenant_uuid: str,
+    template_uuid: str,
+    template_title: str,
+    knowledge_model_uuid: str | None = None,
+    error: PipelineErrorResponse | None = None,
+    result_format: str | None = None,
+    result_markdown: str | None = None,
+    progress_message: str | None = None,
+) -> PipelineStatusResponse:
     return _model_from_fields(
         PipelineStatusResponse,
         run_id=run_id,
@@ -143,7 +145,7 @@ class PipelineService:
             ),
         )
 
-    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest)->PipelineStatusResponse:
+    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest) -> PipelineStatusResponse:
         pipeline_status = self.get_pipeline_status(run_id)
         if pipeline_status is None:
             raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
@@ -174,7 +176,6 @@ class PipelineService:
         )
         self.set_pipeline_status(run_id, updated_status)
         return updated_status
-
 
     def _update_running_progress(
         self,
@@ -225,8 +226,9 @@ class PipelineService:
         try:
             template = await self.database.get_template(template_uuid)
             if template is None:
-                self._fail_template_not_found(questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid,
-                                              user_uuid)
+                self._fail_template_not_found(
+                    questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid, user_uuid
+                )
                 return
 
             await self._run_pipeline(
@@ -331,8 +333,13 @@ class PipelineService:
         )
 
     def _fail_template_not_found(
-        self, questionnaire_uuid: str, run_id: str, template_title: str, template_uuid: str, tenant_uuid: str,
-        user_uuid: str
+        self,
+        questionnaire_uuid: str,
+        run_id: str,
+        template_title: str,
+        template_uuid: str,
+        tenant_uuid: str,
+        user_uuid: str,
     ) -> None:
         self.set_pipeline_status(
             run_id,

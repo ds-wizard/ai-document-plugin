@@ -1,8 +1,8 @@
 import logging
 import threading
 from datetime import UTC, datetime
-from typing import Any
 
+import fastapi
 from openai import AuthenticationError
 
 from ai_document_plugin_service.ai.common.config import (
@@ -12,21 +12,21 @@ from ai_document_plugin_service.ai.common.config import (
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
-from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.ai.persistence.database import Database
 from ai_document_plugin_service.ai.run_pipeline import build_pipeline, run_pipeline
+from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
     ErrorType,
     PipelineErrorResponse,
+    PipelineRunRequest,
+    PipelineSaveRequest,
     PipelineStatus,
     PipelineStatusResponse,
     _model_from_fields,
 )
-from ai_document_plugin_service.service.pipeline_queue_manager import pipeline_queue_manager
+from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
-
-_pipeline_runs: dict[str, PipelineStatusResponse] = {}
-_pipeline_runs_lock = threading.Lock()
 
 AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
 SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
@@ -46,275 +46,186 @@ def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
     )
 
 
-def set_pipeline_status(run_id: str, status: PipelineStatusResponse) -> None:
-    with _pipeline_runs_lock:
-        _pipeline_runs[run_id] = status
+def _now() -> str:
+    return datetime.now(tz=UTC).isoformat()
 
 
-def get_pipeline_status(run_id: str) -> PipelineStatusResponse | None:
-    with _pipeline_runs_lock:
-        status = _pipeline_runs.get(run_id)
+class PipelineRunStore:
+    """Thread-safe in-memory store of pipeline run statuses."""
 
-    if status is None or status.status != PipelineStatus.QUEUED:
-        return status
+    def __init__(self) -> None:
+        self._runs: dict[str, PipelineStatusResponse] = {}
+        self._lock = threading.Lock()
 
-    progress_message = pipeline_queue_manager.progress_message(run_id)
-    if progress_message is None:
-        return status
+    def get(self, run_id: str) -> PipelineStatusResponse | None:
+        with self._lock:
+            return self._runs.get(run_id)
 
-    return status.model_copy(update={'progress_message': progress_message})
+    def set(self, run_id: str, status: PipelineStatusResponse) -> None:
+        with self._lock:
+            self._runs[run_id] = status
 
-
-def build_pipeline_status(
-    *,
-    run_id: str,
-    status: PipelineStatus,
-    questionnaire_uuid: str,
-    user_uuid: str,
-    tenant_uuid: str,
-    template_uuid: str,
-    template_title: str,
-    knowledge_model_uuid: str | None = None,
-    error: PipelineErrorResponse | None = None,
-    result_format: str | None = None,
-    result_markdown: str | None = None,
-    progress_message: str | None = None,
-) -> PipelineStatusResponse:
-    return _model_from_fields(
-        PipelineStatusResponse,
-        run_id=run_id,
-        status=status,
-        questionnaire_uuid=questionnaire_uuid,
-        knowledge_model_uuid=knowledge_model_uuid,
-        user_uuid=user_uuid,
-        tenant_uuid=tenant_uuid,
-        template_uuid=template_uuid,
-        template_title=template_title,
-        error=error,
-        result_format=result_format,
-        result_markdown=result_markdown,
-        progress_message=progress_message,
-        updated_at=datetime.now(tz=UTC).isoformat(),
-    )
+    def update(self, run_id: str, **updates: object) -> PipelineStatusResponse | None:
+        """Store a copy of the current status with ``updates`` applied and a fresh ``updated_at``."""
+        with self._lock:
+            current = self._runs.get(run_id)
+            if current is None:
+                return None
+            status = current.model_copy(update={**updates, 'updated_at': _now()})
+            self._runs[run_id] = status
+            return status
 
 
-def enqueue_pipeline_job(
-    run_id: str,
-    questionnaire_uuid: str,
-    template_uuid: str,
-    template_title: str,
-    user_uuid: str,
-    tenant_uuid: str,
-    token: str,
-    api_url: str,
-    llm_config: LLMConfig,
-    config: Config,
-) -> None:
-    """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
-    set_pipeline_status(
-        run_id,
-        build_pipeline_status(
+class PipelineService:
+    def __init__(self, pipeline_queue_manager: PipelineQueueManager, database: Database) -> None:
+        self.pipeline_queue_manager = pipeline_queue_manager
+        self.database = database
+        self._runs = PipelineRunStore()
+
+    def get_pipeline_status(self, run_id: str) -> PipelineStatusResponse | None:
+        status = self._runs.get(run_id)
+        if status is None or status.status != PipelineStatus.QUEUED:
+            return status
+
+        progress_message = self.pipeline_queue_manager.progress_message(run_id)
+        if progress_message is None:
+            return status
+
+        return status.model_copy(update={'progress_message': progress_message})
+
+    def enqueue_pipeline_job(
+        self,
+        run_id: str,
+        payload: PipelineRunRequest,
+        template_title: str,
+        user_uuid: str,
+        tenant_uuid: str,
+        auth: AuthenticatedUser,
+        config: Config,
+    ) -> None:
+        """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
+        run = _model_from_fields(
+            PipelineStatusResponse,
             run_id=run_id,
             status=PipelineStatus.QUEUED,
-            questionnaire_uuid=questionnaire_uuid,
+            questionnaire_uuid=payload.questionnaire_uuid,
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
-            template_uuid=template_uuid,
+            template_uuid=payload.template_uuid,
             template_title=template_title,
-        ),
-    )
+            updated_at=_now(),
+        )
+        self._runs.set(run_id, run)
 
-    pipeline_queue_manager.enqueue(
-        run_id,
-        lambda: _run_pipeline_job(
+        llm_config = LLMConfig(
+            model=payload.llm_model,
+            api_key=payload.llm_api_key,
+            api_url=payload.llm_api_url,
+            parallel_workers=payload.llm_max_workers,
+        )
+        self.pipeline_queue_manager.enqueue(
             run_id,
-            questionnaire_uuid,
-            template_uuid,
-            template_title,
-            user_uuid,
-            tenant_uuid,
-            token,
-            api_url,
-            llm_config,
-            config,
-        ),
-    )
+            lambda: self._run_pipeline_job(run, auth.token, auth.api_url, llm_config, config),
+        )
 
+    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest) -> PipelineStatusResponse:
+        pipeline_status = self.get_pipeline_status(run_id)
+        if pipeline_status is None:
+            raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
 
-def _update_running_progress(
-    run_id: str,
-    *,
-    questionnaire_uuid: str,
-    user_uuid: str,
-    tenant_uuid: str,
-    template_uuid: str,
-    template_title: str,
-    progress_message: str,
-) -> None:
-    with _pipeline_runs_lock:
-        current = _pipeline_runs.get(run_id)
-    if current is None:
-        return
+        if pipeline_status.knowledge_model_uuid is None:
+            raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
 
-    set_pipeline_status(
-        run_id,
-        build_pipeline_status(
-            run_id=run_id,
-            status=PipelineStatus.RUNNING,
-            questionnaire_uuid=questionnaire_uuid,
-            knowledge_model_uuid=current.knowledge_model_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            template_uuid=template_uuid,
-            template_title=template_title,
-            progress_message=progress_message,
-        ),
-    )
+        await self.database.update_result(
+            template_uuid=pipeline_status.template_uuid,
+            knowledge_model_uuid=pipeline_status.knowledge_model_uuid,
+            user_uuid=pipeline_status.user_uuid,
+            tenant_uuid=pipeline_status.tenant_uuid,
+            markdown=save_request.result_markdown,
+        )
 
+        updated_status = self._runs.update(
+            run_id,
+            result_format='markdown',
+            result_markdown=save_request.result_markdown,
+            progress_message=None,
+        )
+        if updated_status is None:
+            raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
+        return updated_status
 
-async def _run_pipeline_job(
-    run_id: str,
-    questionnaire_uuid: str,
-    template_uuid: str,
-    template_title: str,
-    user_uuid: str,
-    tenant_uuid: str,
-    token: str,
-    dsw_api_url: str,
-    llm_config: LLMConfig,
-    config: Config,
-) -> None:
-    database = PostgresDB(config.database)
-    saver = DBSaver(database)
-    llm_client = LLMClient(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
-    try:
-        template = await database.get_template(template_uuid)
+    async def _run_pipeline_job(
+        self,
+        run: PipelineStatusResponse,
+        token: str,
+        dsw_api_url: str,
+        llm_config: LLMConfig,
+        config: Config,
+    ) -> None:
+        try:
+            await self._run_pipeline(run, token, dsw_api_url, llm_config, config)
+        except Exception as error:
+            logger.exception('Pipeline run failed')
+            self._runs.update(
+                run.run_id,
+                status=PipelineStatus.FAILED,
+                error=_pipeline_error_from_exception(error),
+                progress_message=None,
+            )
+
+    async def _run_pipeline(
+        self,
+        run: PipelineStatusResponse,
+        token: str,
+        dsw_api_url: str,
+        llm_config: LLMConfig,
+        config: Config,
+    ) -> None:
+        run_id = run.run_id
+        template = await self.database.get_template(run.template_uuid)
         if template is None:
-            _fail_template_not_found(questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid, user_uuid)
+            self._runs.update(
+                run_id,
+                status=PipelineStatus.FAILED,
+                error=PipelineErrorResponse(
+                    type=ErrorType.TEMPLATE_NOT_FOUND,
+                    message=TEMPLATE_NOT_FOUND_MESSAGE,
+                ),
+            )
             return
 
-        await _start_pipeline(
-            config,
-            database,
-            dsw_api_url,
-            llm_client,
-            questionnaire_uuid,
-            run_id,
-            saver,
-            template,
-            template_title,
-            template_uuid,
-            tenant_uuid,
-            token,
-            user_uuid,
-        )
-    except Exception as error:
-        set_pipeline_status(
-            run_id,
-            build_pipeline_status(
-                run_id=run_id,
-                status=PipelineStatus.FAILED,
-                questionnaire_uuid=questionnaire_uuid,
-                template_uuid=template_uuid,
-                template_title=template_title,
-                user_uuid=user_uuid,
-                tenant_uuid=tenant_uuid,
-                error=_pipeline_error_from_exception(error),
-            ),
-        )
-        logger.exception('Pipeline run failed')
-    finally:
-        await database.dispose()
+        self._runs.update(run_id, status=PipelineStatus.RUNNING, progress_message='Starting pipeline...')
 
-
-async def _start_pipeline(
-    config: Config,
-    database: PostgresDB,
-    dsw_api_url: str,
-    llm_client: LLMClient,
-    questionnaire_uuid: str,
-    run_id: str,
-    saver: DBSaver,
-    template: dict[str, Any],
-    template_title: str,
-    template_uuid: str,
-    tenant_uuid: str,
-    token: str,
-    user_uuid: str,
-) -> None:
-    set_pipeline_status(
-        run_id,
-        build_pipeline_status(
-            run_id=run_id,
-            status=PipelineStatus.RUNNING,
-            questionnaire_uuid=questionnaire_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            template_uuid=template_uuid,
-            template_title=template_title,
-            progress_message='Starting pipeline...',
-        ),
-    )
-
-    def on_progress(message: str) -> None:
-        _update_running_progress(
-            run_id,
-            questionnaire_uuid=questionnaire_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            template_uuid=template_uuid,
-            template_title=template_title,
-            progress_message=message,
+        llm_client = LLMClient(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
+        pipeline = build_pipeline(
+            database=self.database,
+            saver=DBSaver(self.database),
+            config=config,
+            llm_client=llm_client,
         )
 
-    pipeline = build_pipeline(database=database, saver=saver, config=config, llm_client=llm_client)
-    knowledge_model_uuid, result = await run_pipeline(
-        questionnaire_uuid=questionnaire_uuid,
-        template_uuid=template_uuid,
-        template_title=template['title'],
-        template_data=template['content'],
-        user_uuid=user_uuid,
-        tenant_uuid=tenant_uuid,
-        pipeline=pipeline,
-        database=database,
-        on_progress=on_progress,
-        model_name=llm_client.get_model_name(),
-        dsw_client=DSWClient(token, dsw_api_url),
-    )
+        def on_progress(message: str) -> None:
+            self._runs.update(run_id, progress_message=message)
 
-    set_pipeline_status(
-        run_id,
-        build_pipeline_status(
-            run_id=run_id,
+        knowledge_model_uuid, result = await run_pipeline(
+            questionnaire_uuid=run.questionnaire_uuid,
+            template_uuid=run.template_uuid,
+            template_title=template['title'],
+            template_data=template['content'],
+            user_uuid=run.user_uuid,
+            tenant_uuid=run.tenant_uuid,
+            pipeline=pipeline,
+            database=self.database,
+            on_progress=on_progress,
+            model_name=llm_client.get_model_name(),
+            dsw_client=DSWClient(token, dsw_api_url),
+        )
+
+        self._runs.update(
+            run_id,
             status=PipelineStatus.SUCCEEDED,
-            questionnaire_uuid=questionnaire_uuid,
             knowledge_model_uuid=knowledge_model_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            template_uuid=template_uuid,
-            template_title=template_title,
             result_format='markdown',
             result_markdown=result,
-        ),
-    )
-
-
-def _fail_template_not_found(
-    questionnaire_uuid: str, run_id: str, template_title: str, template_uuid: str, tenant_uuid: str, user_uuid: str
-) -> None:
-    set_pipeline_status(
-        run_id,
-        build_pipeline_status(
-            run_id=run_id,
-            status=PipelineStatus.FAILED,
-            questionnaire_uuid=questionnaire_uuid,
-            template_uuid=template_uuid,
-            template_title=template_title,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            error=PipelineErrorResponse(
-                type=ErrorType.TEMPLATE_NOT_FOUND,
-                message=TEMPLATE_NOT_FOUND_MESSAGE,
-            ),
-        ),
-    )
+            progress_message=None,
+        )

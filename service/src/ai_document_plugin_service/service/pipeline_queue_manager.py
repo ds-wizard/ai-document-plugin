@@ -7,8 +7,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-MAX_CONCURRENT_PIPELINE_JOBS = 2
-
 JobFactory = Callable[[], Coroutine[Any, Any, None]]
 
 
@@ -23,10 +21,11 @@ def format_queue_progress(jobs_ahead: int) -> str:
 class PipelineQueueManager:
     """FIFO pipeline job queue running coroutines on a dedicated event loop.
 
-    Jobs are coroutines scheduled onto a single background event loop and gated by an
+    Jobs are coroutines scheduled onto a single background event loop and gated by a
+    semaphore so at most ``max_concurrent_jobs`` run at once.
     """
 
-    def __init__(self, max_concurrent_jobs: int = MAX_CONCURRENT_PIPELINE_JOBS) -> None:
+    def __init__(self, max_concurrent_jobs: int) -> None:
         self._max_concurrent_jobs = max_concurrent_jobs
         self._order: list[str] = []
         self._order_lock = threading.Lock()
@@ -58,10 +57,8 @@ class PipelineQueueManager:
 
     def remove(self, run_id: str) -> None:
         with self._order_lock:
-            try:
+            if run_id in self._order:
                 self._order.remove(run_id)
-            except ValueError:
-                return
 
     def _jobs_waiting_ahead(self, run_id: str) -> int | None:
         with self._order_lock:
@@ -85,6 +82,3 @@ class PipelineQueueManager:
         error = future.exception()
         if error is not None:
             logger.error('Pipeline job crashed without handling its error', exc_info=error)
-
-
-pipeline_queue_manager = PipelineQueueManager()

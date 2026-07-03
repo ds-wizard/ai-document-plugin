@@ -6,6 +6,7 @@ from ai_document_plugin_service.ai.common.config import load_config, resolve_con
 from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.migrations import run_startup_migrations
 from ai_document_plugin_service.api.routes import protected_router, public_router
+from ai_document_plugin_service.di import setup_app_state
 
 
 def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
@@ -17,8 +18,7 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
         run_startup_migrations(config, config_path)
 
     app = fastapi.FastAPI(title='Plugin Service', version='1.0.0')
-    app.state.config = config
-    app.state.config_path = config_path
+    setup_app_state(app, config)
     app.state.database = PostgresDB(config.database)
 
     app.add_middleware(

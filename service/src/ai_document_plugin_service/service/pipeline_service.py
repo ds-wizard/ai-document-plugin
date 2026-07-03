@@ -203,6 +203,10 @@ class PipelineService:
             config=config,
             llm_client=llm_client,
         )
+
+        def on_progress(message: str) -> None:
+            self._runs.update(run_id, progress_message=message)
+
         knowledge_model_uuid, result = await run_pipeline(
             questionnaire_uuid=run.questionnaire_uuid,
             template_uuid=run.template_uuid,
@@ -212,7 +216,7 @@ class PipelineService:
             tenant_uuid=run.tenant_uuid,
             pipeline=pipeline,
             database=self.database,
-            on_progress=lambda message: self._runs.update(run_id, progress_message=message),
+            on_progress=on_progress,
             model_name=llm_client.get_model_name(),
             dsw_client=DSWClient(token, dsw_api_url),
         )

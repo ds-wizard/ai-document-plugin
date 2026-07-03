@@ -93,7 +93,7 @@ class LLMClient:
         self.semaphore = DynamicSemaphore(1)
         self.api_key = None
         self.api_url = None
-        self.client = None
+        self.client: AsyncOpenAI | None = None
 
     def update_config(self, model: str, api_key: str, api_url: str, parallel_workers: int | None) -> None:
         """
@@ -129,9 +129,13 @@ class LLMClient:
         )
 
     def get_max_workers(self) -> int:
+        if self.max_workers is None:
+            raise RuntimeError('max_workers is None for tenant %s. `get_max_workers` was accessed before calling update_config', self.tenant_uuid)
         return self.max_workers
 
     def get_model_name(self) -> str:
+        if self.model is None:
+            raise RuntimeError('model is None for tenant %s. `get_model_name` was accessed before calling update_config', self.tenant_uuid)
         return self.model
 
     async def completion(
@@ -139,6 +143,25 @@ class LLMClient:
         *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
     ) -> ChatCompletion:
+        if self.model is None:
+            raise ValueError(
+                "LLM 'model' for tenant % is None, did you call `update_config` before using the client?",
+                self.tenant_uuid)
+        if self.max_workers is None:
+            raise ValueError(
+                "LLM 'max_workers' for tenant % is None, did you call `update_config` before using the client?",
+                self.tenant_uuid)
+        if self.api_url is None:
+            raise ValueError(
+                "LLM .api_url' for tenant % is None, did you call `update_config` before using the client?",
+                self.tenant_uuid)
+        if self.api_key is None:
+            raise ValueError(
+                "LLM 'api_key' for tenant % is None, did you call `update_config` before using the client?",
+                self.tenant_uuid)
+        if self.client is None:
+            raise RuntimeError('LLM internal client is null but api_key and api_url is set for tenant %s.',
+                               self.tenant_uuid)
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()
         logger.debug('[llm] req=%s model=%s queueing', req_id, self.model)

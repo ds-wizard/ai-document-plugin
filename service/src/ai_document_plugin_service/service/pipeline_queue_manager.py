@@ -7,8 +7,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-MAX_CONCURRENT_PIPELINE_JOBS = 2
-
 JobFactory = Callable[[], Coroutine[Any, Any, None]]
 
 
@@ -26,7 +24,7 @@ class PipelineQueueManager:
     Jobs are coroutines scheduled onto a single background event loop and gated by an
     """
 
-    def __init__(self, max_concurrent_jobs: int = MAX_CONCURRENT_PIPELINE_JOBS) -> None:
+    def __init__(self, max_concurrent_jobs: int) -> None:
         self._max_concurrent_jobs = max_concurrent_jobs
         self._order: list[str] = []
         self._order_lock = threading.Lock()
@@ -85,6 +83,3 @@ class PipelineQueueManager:
         error = future.exception()
         if error is not None:
             logger.error('Pipeline job crashed without handling its error', exc_info=error)
-
-
-pipeline_queue_manager = PipelineQueueManager()

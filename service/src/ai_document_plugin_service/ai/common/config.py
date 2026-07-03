@@ -49,6 +49,7 @@ class Config:
     section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
     dmp_polishing: SystemAndUserPrompt
+    max_parallel_executions: int
 
 
 @dataclass(frozen=True)
@@ -217,4 +218,5 @@ def load_config(config_path: str | None = None) -> Config:
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
+        max_parallel_executions=int(_get(config, 'max_parallel_executions'))
     )

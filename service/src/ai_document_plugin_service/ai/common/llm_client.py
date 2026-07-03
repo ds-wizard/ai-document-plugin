@@ -16,6 +16,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class InvalidLLMConfigError(ValueError):
+    def __init__(self, var_name: str, tenant: str) -> None:
+        super().__init__(
+            f"LLM '{var_name}' for tenant {tenant} is None, did you call `update_config` before using the client?"
+        )
+
+
 class MissingTokenUsageError(ValueError):
     """Raised when a model response has no usage token information."""
 
@@ -130,12 +137,14 @@ class LLMClient:
 
     def get_max_workers(self) -> int:
         if self.max_workers is None:
-            raise RuntimeError('max_workers is None for tenant %s. `get_max_workers` was accessed before calling update_config', self.tenant_uuid)
+            msg = 'max_workers is None for tenant %s. `get_max_workers` was accessed before calling update_config'
+            raise RuntimeError(msg, self.tenant_uuid)
         return self.max_workers
 
     def get_model_name(self) -> str:
         if self.model is None:
-            raise RuntimeError('model is None for tenant %s. `get_model_name` was accessed before calling update_config', self.tenant_uuid)
+            msg = 'model is None for tenant %s. `get_model_name` was accessed before calling update_config'
+            raise RuntimeError(msg, self.tenant_uuid)
         return self.model
 
     async def completion(
@@ -144,24 +153,16 @@ class LLMClient:
         **kwargs: Any,  # noqa: ANN401
     ) -> ChatCompletion:
         if self.model is None:
-            raise ValueError(
-                "LLM 'model' for tenant % is None, did you call `update_config` before using the client?",
-                self.tenant_uuid)
+            raise InvalidLLMConfigError('model', self.tenant_uuid)  # noqa: EM101
         if self.max_workers is None:
-            raise ValueError(
-                "LLM 'max_workers' for tenant % is None, did you call `update_config` before using the client?",
-                self.tenant_uuid)
+            raise InvalidLLMConfigError('max_workers', self.tenant_uuid)  # noqa: EM101
         if self.api_url is None:
-            raise ValueError(
-                "LLM .api_url' for tenant % is None, did you call `update_config` before using the client?",
-                self.tenant_uuid)
+            raise InvalidLLMConfigError('api_url', self.tenant_uuid)  # noqa: EM101
         if self.api_key is None:
-            raise ValueError(
-                "LLM 'api_key' for tenant % is None, did you call `update_config` before using the client?",
-                self.tenant_uuid)
+            raise InvalidLLMConfigError('api_key', self.tenant_uuid)  # noqa: EM101
         if self.client is None:
-            raise RuntimeError('LLM internal client is null but api_key and api_url is set for tenant %s.',
-                               self.tenant_uuid)
+            msg = f'LLM internal client is null but api_key and api_url is set for tenant {self.tenant_uuid}.'
+            raise RuntimeError(msg)
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()
         logger.debug('[llm] req=%s model=%s queueing', req_id, self.model)

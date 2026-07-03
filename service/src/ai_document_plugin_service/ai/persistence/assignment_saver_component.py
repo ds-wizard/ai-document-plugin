@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import pathlib
@@ -37,9 +38,8 @@ class AssignmentSaverComponent:
     def __init__(self, saver: Saver) -> None:
         self.saver = saver
 
-    @typing.override
     @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
-    def run(
+    async def run_async(
         self,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
@@ -54,7 +54,7 @@ class AssignmentSaverComponent:
         serializable = [assignment.to_dict() for assignment in assignments]
         stats_payload = _serialize_stats(stats)
 
-        self.saver.save(
+        await self.saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
@@ -71,10 +71,29 @@ class AssignmentSaverComponent:
             'stats': stats,
         }
 
+    @typing.override
+    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
+    def run(
+        self,
+        knowledge_model_uuid: str,
+        knowledge_model_name: str,
+        knowledge_model_version: str,
+        template_uuid: str,
+        template_title: str,
+        template_data: JsonValue,
+        assignments: list[SectionAssignment],
+        stats: AssignmentStats | None = None,
+    ) -> AssignmentSaverComponentResult:
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        raise NotImplementedError(
+            msg,
+        )
+
 
 class Saver(ABC):
     @abstractmethod
-    def save(
+    async def save(
         self,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
@@ -90,7 +109,7 @@ class Saver(ABC):
 
 
 class FileSaver(Saver):
-    def save(
+    async def save(
         self,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
@@ -112,12 +131,14 @@ class FileSaver(Saver):
         output_path = pathlib.Path(f'{output_name}.json')
         output_path_stats = pathlib.Path(f'{output_name}.stats.json')
 
-        output_path.write_text(
+        await asyncio.to_thread(
+            output_path.write_text,
             json.dumps(assignments, indent=2, ensure_ascii=False),
             encoding='utf-8',
         )
         if stats is not None:
-            output_path_stats.write_text(
+            await asyncio.to_thread(
+                output_path_stats.write_text,
                 json.dumps(stats, indent=2, ensure_ascii=False),
                 encoding='utf-8',
             )
@@ -145,7 +166,7 @@ class DBSaver(Saver):
     def __init__(self, database: Database) -> None:
         self.database = database
 
-    def save(
+    async def save(
         self,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
@@ -157,12 +178,12 @@ class DBSaver(Saver):
         template_data: JsonValue,
         created_at: datetime | None = None,
     ) -> None:
-        self.database.save_template(
+        await self.database.save_template(
             uuid=template_uuid,
             title=template_title,
             content=template_data,
         )
-        self.database.save_assignments(
+        await self.database.save_assignments(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,

@@ -82,8 +82,7 @@ class DmpGeneratorComponent:
         total_sections = len(leaf_sections)
         section_semaphore = asyncio.Semaphore(max_workers)
         tasks = [
-            asyncio.create_task(self._execute_leaf_section(section, section_semaphore))
-            for section in leaf_sections
+            asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
         ]
         progress_bar = tqdm(
             total=total_sections,

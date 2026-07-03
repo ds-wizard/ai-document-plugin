@@ -29,7 +29,7 @@ dependencies = [
     "pandas",
     "psycopg[binary]",
     "pyyaml",
-    "sqlalchemy",
+    "sqlalchemy[asyncio]",
     "tabulate",
     "tiktoken",
     "tqdm",

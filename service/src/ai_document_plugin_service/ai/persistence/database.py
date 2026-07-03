@@ -4,10 +4,11 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import Connection, inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
@@ -19,7 +20,7 @@ JsonValue = Mapping[str, Any] | Sequence[Any]
 
 class Database(ABC):
     @abstractmethod
-    def create_template(
+    async def create_template(
         self,
         uuid: str,
         title: str,
@@ -28,7 +29,7 @@ class Database(ABC):
         """Create a new template in a database backend."""
 
     @abstractmethod
-    def save_assignments(
+    async def save_assignments(
         self,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
@@ -41,7 +42,7 @@ class Database(ABC):
         """Persist assignments in a database backend."""
 
     @abstractmethod
-    def save_template(
+    async def save_template(
         self,
         uuid: str,
         title: str,
@@ -50,7 +51,7 @@ class Database(ABC):
         """Persist a template in a database backend."""
 
     @abstractmethod
-    def get_assignments(
+    async def get_assignments(
         self,
         knowledge_model_uuid: str,
         template_uuid: str,
@@ -58,15 +59,15 @@ class Database(ABC):
         """Get assignments from a database backend."""
 
     @abstractmethod
-    def list_templates(self) -> list[dict[str, str]]:
+    async def list_templates(self) -> list[dict[str, str]]:
         """List available templates from a database backend."""
 
     @abstractmethod
-    def get_template(self, template_uuid: str) -> dict[str, Any] | None:
+    async def get_template(self, template_uuid: str) -> dict[str, Any] | None:
         """Get a template record from a database backend."""
 
     @abstractmethod
-    def save_result(
+    async def save_result(
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
@@ -78,7 +79,7 @@ class Database(ABC):
         """Persist a markdown result in a database backend."""
 
     @abstractmethod
-    def save_stats(
+    async def save_stats(
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
@@ -89,7 +90,7 @@ class Database(ABC):
         """Persist a stats result in a database backend."""
 
     @abstractmethod
-    def update_result(
+    async def update_result(
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
@@ -114,7 +115,7 @@ class PostgresDB(Database):
             database=config.name,
         )
         self.schema_name = _validate_identifier(config.schema)
-        self.engine = create_engine(self.dsn)
+        self.engine = create_async_engine(self.dsn)
         schema = create_persistence_schema(self.schema_name)
         self.metadata = schema.metadata
         self.assignment_table = schema.assignment_table
@@ -122,13 +123,21 @@ class PostgresDB(Database):
         self.result_table = schema.result_table
         self._database_verified = False
 
-    def _ensure_schema(self) -> None:
+    async def dispose(self) -> None:
+        """Close the engine's connection pool. Call on shutdown / when done with this instance."""
+        await self.engine.dispose()
+
+    def _list_existing_tables(self, connection: Connection) -> set[str]:
+        return set(inspect(connection).get_table_names(schema=self.schema_name))
+
+    async def _ensure_schema(self) -> None:
         if self._database_verified:
             return
 
-        inspector = inspect(self.engine)
+        async with self.engine.connect() as connection:
+            existing_tables = await connection.run_sync(self._list_existing_tables)
+
         required_tables = {'alembic_version', 'template', 'assignment', 'result'}
-        existing_tables = set(inspector.get_table_names(schema=self.schema_name))
         missing_tables = sorted(required_tables - existing_tables)
 
         if missing_tables:
@@ -141,7 +150,7 @@ class PostgresDB(Database):
 
         self._database_verified = True
 
-    def save_assignments(
+    async def save_assignments(
         self,
         knowledge_model_uuid: str,
         knowledge_model_name: str,
@@ -151,7 +160,7 @@ class PostgresDB(Database):
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        self._ensure_schema()
+        await self._ensure_schema()
         created_at_value = created_at or datetime.now(tz=UTC)
         statement = postgresql_insert(self.assignment_table).values(
             knowledge_model_uuid=knowledge_model_uuid,
@@ -173,8 +182,8 @@ class PostgresDB(Database):
             },
         )
 
-        with self.engine.begin() as connection:
-            connection.execute(upsert_statement)
+        async with self.engine.begin() as connection:
+            await connection.execute(upsert_statement)
 
         logger.debug(
             'Saved assignments for KM package id=%s to %s.assignments',
@@ -182,13 +191,13 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def create_template(
+    async def create_template(
         self,
         uuid: str,
         title: str,
         content: JsonValue,
     ) -> None:
-        self._ensure_schema()
+        await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=uuid,
             title=title,
@@ -196,8 +205,8 @@ class PostgresDB(Database):
         )
 
         try:
-            with self.engine.begin() as connection:
-                connection.execute(statement)
+            async with self.engine.begin() as connection:
+                await connection.execute(statement)
         except IntegrityError as exc:
             msg = f'Template with title "{title}" already exists.'
             raise ValueError(msg) from exc
@@ -208,13 +217,13 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def save_template(
+    async def save_template(
         self,
         uuid: str,
         title: str,
         content: JsonValue,
     ) -> None:
-        self._ensure_schema()
+        await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=uuid,
             title=title,
@@ -228,8 +237,8 @@ class PostgresDB(Database):
             },
         )
 
-        with self.engine.begin() as connection:
-            connection.execute(upsert_statement)
+        async with self.engine.begin() as connection:
+            await connection.execute(upsert_statement)
 
         logger.debug(
             'Saved template uuid=%s to %s.template',
@@ -237,20 +246,20 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def get_assignments(
+    async def get_assignments(
         self,
         knowledge_model_uuid: str,
         template_uuid: str,
     ) -> JsonValue | None:
-        self._ensure_schema()
+        await self._ensure_schema()
 
         statement = self.assignment_table.select().where(
             (self.assignment_table.c.knowledge_model_uuid == knowledge_model_uuid)
             & (self.assignment_table.c.template_uuid == template_uuid),
         )
 
-        with self.engine.begin() as connection:
-            result = connection.execute(statement)
+        async with self.engine.begin() as connection:
+            result = await connection.execute(statement)
             row = result.fetchone()
 
         if row is None:
@@ -269,12 +278,12 @@ class PostgresDB(Database):
 
         return row.assignments
 
-    def list_templates(self) -> list[dict[str, str]]:
-        self._ensure_schema()
+    async def list_templates(self) -> list[dict[str, str]]:
+        await self._ensure_schema()
         statement = self.template_table.select().order_by(self.template_table.c.title.asc())
 
-        with self.engine.begin() as connection:
-            result = connection.execute(statement)
+        async with self.engine.begin() as connection:
+            result = await connection.execute(statement)
             rows = result.fetchall()
 
         return [
@@ -285,12 +294,12 @@ class PostgresDB(Database):
             for row in rows
         ]
 
-    def get_template(self, template_uuid: str) -> dict[str, Any] | None:
-        self._ensure_schema()
+    async def get_template(self, template_uuid: str) -> dict[str, Any] | None:
+        await self._ensure_schema()
         statement = self.template_table.select().where(self.template_table.c.uuid == template_uuid)
 
-        with self.engine.begin() as connection:
-            result = connection.execute(statement)
+        async with self.engine.begin() as connection:
+            result = await connection.execute(statement)
             row = result.fetchone()
 
         if row is None:
@@ -307,7 +316,7 @@ class PostgresDB(Database):
             'content': row.content,
         }
 
-    def save_result(
+    async def save_result(
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
@@ -316,7 +325,7 @@ class PostgresDB(Database):
         prepolished_markdown: str,
         markdown: str,
     ) -> None:
-        self._ensure_schema()
+        await self._ensure_schema()
         now = datetime.now(tz=UTC)
 
         statement = postgresql_insert(self.result_table).values(
@@ -339,8 +348,8 @@ class PostgresDB(Database):
             },
         )
 
-        with self.engine.begin() as connection:
-            connection.execute(upsert_statement)
+        async with self.engine.begin() as connection:
+            await connection.execute(upsert_statement)
 
         logger.debug(
             'Saved result for KM package id=%s to %s.result',
@@ -348,7 +357,7 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def save_stats(
+    async def save_stats(
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
@@ -356,7 +365,7 @@ class PostgresDB(Database):
         tenant_uuid: str,
         stats: JsonValue,
     ) -> None:
-        self._ensure_schema()
+        await self._ensure_schema()
         now = datetime.now(tz=UTC)
 
         statement = (
@@ -370,8 +379,8 @@ class PostgresDB(Database):
             .values(stats=stats, updated_at=now)
         )
 
-        with self.engine.begin() as connection:
-            result = connection.execute(statement)
+        async with self.engine.begin() as connection:
+            result = await connection.execute(statement)
 
         if result.rowcount == 0:
             msg = 'Cannot save stats because result row does not exist yet. Save dmp and dmp_pre_polished first.'
@@ -383,7 +392,7 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-    def update_result(
+    async def update_result(
         self,
         template_uuid: str,
         knowledge_model_uuid: str,
@@ -391,7 +400,7 @@ class PostgresDB(Database):
         tenant_uuid: str,
         markdown: str,
     ) -> None:
-        self._ensure_schema()
+        await self._ensure_schema()
         now = datetime.now(tz=UTC)
 
         statement = (
@@ -408,8 +417,8 @@ class PostgresDB(Database):
             )
         )
 
-        with self.engine.begin() as connection:
-            result = connection.execute(statement)
+        async with self.engine.begin() as connection:
+            result = await connection.execute(statement)
 
         if result.rowcount == 0:
             msg = 'Cannot save result because result row does not exist yet. Create the row first before updating dmp.'

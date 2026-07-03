@@ -47,12 +47,7 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
-def build_pipeline(
-    database: Database,
-    saver: DBSaver,
-    config: Config,
-    llm_client: LLMClient
-) -> AsyncPipeline:
+def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_client: LLMClient) -> AsyncPipeline:
     pipeline = AsyncPipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
@@ -114,7 +109,7 @@ def build_pipeline(
     return pipeline
 
 
-def run_pipeline(
+async def run_pipeline(
     questionnaire_uuid: str,
     template_uuid: str,
     template_title: str,
@@ -128,9 +123,7 @@ def run_pipeline(
     on_progress: ProgressCallback | None = None,
 ) -> tuple[str, str]:
     t1 = time.time()
-    km_data = dsw_client.get_questionnaire_detail(
-        questionnaire_uuid=questionnaire_uuid
-    )
+    km_data = await dsw_client.get_questionnaire_detail(questionnaire_uuid=questionnaire_uuid)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -141,7 +134,7 @@ def run_pipeline(
     if on_progress is not None:
         on_progress('Preparing document template')
 
-    result = pipeline.run(
+    result = await pipeline.run_async(
         data={
             'loader_component': {
                 'knowledge_model_uuid': knowledge_model_uuid,
@@ -190,7 +183,7 @@ def run_pipeline(
         msg = 'Missing markdown output from saver_component'
         raise RuntimeError(msg)
 
-    write_metrics(
+    await write_metrics(
         database,
         template_uuid,
         knowledge_model_uuid,
@@ -203,7 +196,7 @@ def run_pipeline(
     return knowledge_model_uuid, result_markdown
 
 
-def write_metrics(
+async def write_metrics(
     database: Database,
     template_uuid: str,
     knowledge_model_uuid: str,
@@ -234,7 +227,7 @@ def write_metrics(
     t2 = time.time()
 
     stats = metrics.get_stats(elapsed_seconds=t2 - t1)
-    database.save_stats(
+    await database.save_stats(
         template_uuid=template_uuid,
         knowledge_model_uuid=knowledge_model_uuid,
         user_uuid=user_uuid,

@@ -4,7 +4,7 @@ from uuid import uuid4
 import fastapi
 
 from ai_document_plugin_service.ai.common.config import Config, LLMConfig
-from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.ai.persistence.database import Database
 from ai_document_plugin_service.api.auth import AuthenticatedUser, verify_authenticated
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
@@ -28,23 +28,25 @@ def _load_app_config(request: fastapi.Request) -> Config:
     return request.app.state.config
 
 
+def _load_database(request: fastapi.Request) -> Database:
+    return request.app.state.database
+
+
 @public_router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
 
 
 @protected_router.get('/templates')
-def list_templates(request: fastapi.Request) -> list[TemplateListItem]:
-    config = _load_app_config(request)
-    database = PostgresDB(config.database)
-    return [_model_from_fields(TemplateListItem, **item) for item in database.list_templates()]
+async def list_templates(request: fastapi.Request) -> list[TemplateListItem]:
+    database = _load_database(request)
+    return [_model_from_fields(TemplateListItem, **item) for item in await database.list_templates()]
 
 
 @protected_router.get('/templates/{template_uuid}')
-def get_template(template_uuid: str, request: fastapi.Request) -> TemplateDetail:
-    config = _load_app_config(request)
-    database = PostgresDB(config.database)
-    template = database.get_template(template_uuid)
+async def get_template(template_uuid: str, request: fastapi.Request) -> TemplateDetail:
+    database = _load_database(request)
+    template = await database.get_template(template_uuid)
 
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
@@ -58,7 +60,7 @@ def get_template(template_uuid: str, request: fastapi.Request) -> TemplateDetail
 
 
 @protected_router.post('/templates', status_code=201)
-def create_template(payload: TemplateCreateRequest, request: fastapi.Request) -> TemplateDetail:
+async def create_template(payload: TemplateCreateRequest, request: fastapi.Request) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')
@@ -70,12 +72,11 @@ def create_template(payload: TemplateCreateRequest, request: fastapi.Request) ->
             detail='Template JSON must contain a top-level "sections" array.',
         )
 
-    config = _load_app_config(request)
-    database = PostgresDB(config.database)
+    database = _load_database(request)
     template_uuid = str(uuid4())
 
     try:
-        database.create_template(
+        await database.create_template(
             uuid=template_uuid,
             title=trimmed_title,
             content=payload.content,
@@ -92,14 +93,14 @@ def create_template(payload: TemplateCreateRequest, request: fastapi.Request) ->
 
 
 @protected_router.post('/pipelines/run')
-def start_pipeline(
+async def start_pipeline(
     payload: PipelineRunRequest,
     request: fastapi.Request,
     auth: Annotated[AuthenticatedUser, fastapi.Depends(verify_authenticated)],
 ) -> PipelineRunResponse:
     config = _load_app_config(request)
-    database = PostgresDB(config.database)
-    template = database.get_template(payload.template_uuid)
+    database = _load_database(request)
+    template = await database.get_template(payload.template_uuid)
 
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
@@ -150,7 +151,7 @@ def get_pipeline_status(
 
 
 @protected_router.post('/pipelines/status/{run_id}/save')
-def save_pipeline_result(
+async def save_pipeline_result(
     run_id: str,
     payload: PipelineSaveRequest,
     request: fastapi.Request,
@@ -162,10 +163,9 @@ def save_pipeline_result(
     if status.knowledge_model_uuid is None:
         raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
 
-    config = _load_app_config(request)
-    database = PostgresDB(config.database)
+    database = _load_database(request)
 
-    database.update_result(
+    await database.update_result(
         template_uuid=status.template_uuid,
         knowledge_model_uuid=status.knowledge_model_uuid,
         user_uuid=status.user_uuid,

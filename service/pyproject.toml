@@ -21,9 +21,9 @@ requires-python = ">=3.13, <4"
 dependencies = [
     "alembic",
     "httpx",
-    "fastapi>=0.136.1,<1.0",
+    "fastapi>=0.139.0,<1.0",
     "genson",
-    "haystack-ai>=2.30.1",
+    "haystack-ai>=2.30.2",
     "json-repair",
     "openai",
     "pandas",

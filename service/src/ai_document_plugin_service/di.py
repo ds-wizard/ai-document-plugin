@@ -13,7 +13,7 @@ def setup_app_state(app: fastapi.FastAPI, config: Config) -> None:
     app.state.config = config
     app.state.database = PostgresDB(config.database)
     app.state.pipeline_queue_manager = PipelineQueueManager(config.max_parallel_executions)
-    app.state.pipeline_service = PipelineService(app.state.pipeline_queue_manager)
+    app.state.pipeline_service = PipelineService(app.state.pipeline_queue_manager, app.state.database)
 
 
 AuthenticatedDI = Annotated[AuthenticatedUser, fastapi.Depends(verify_authenticated)]

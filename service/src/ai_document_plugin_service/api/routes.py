@@ -142,37 +142,8 @@ def get_pipeline_status(
 @protected_router.post('/pipelines/status/{run_id}/save')
 async def save_pipeline_result(
     run_id: str,
-    payload: PipelineSaveRequest,
-    database: DatabaseDI,
+    save_request: PipelineSaveRequest,
     pipeline: PipelineServiceDI
 ) -> PipelineStatusResponse:
-    status = pipeline.get_pipeline_status(run_id)
-    if status is None:
-        raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
 
-    if status.knowledge_model_uuid is None:
-        raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
-
-    await database.update_result(
-        template_uuid=status.template_uuid,
-        knowledge_model_uuid=status.knowledge_model_uuid,
-        user_uuid=status.user_uuid,
-        tenant_uuid=status.tenant_uuid,
-        markdown=payload.result_markdown,
-    )
-
-    updated_status = pipeline._build_pipeline_status(
-        run_id=status.run_id,
-        status=status.status,
-        questionnaire_uuid=status.questionnaire_uuid,
-        knowledge_model_uuid=status.knowledge_model_uuid,
-        user_uuid=status.user_uuid,
-        tenant_uuid=status.tenant_uuid,
-        template_uuid=status.template_uuid,
-        template_title=status.template_title,
-        error=status.error,
-        result_format='markdown',
-        result_markdown=payload.result_markdown,
-    )
-    pipeline.set_pipeline_status(run_id, updated_status)
-    return updated_status
+    return await pipeline.update_pipeline_result(run_id, save_request)

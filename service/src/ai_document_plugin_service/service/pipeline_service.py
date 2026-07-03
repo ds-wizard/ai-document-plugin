@@ -3,6 +3,7 @@ import threading
 from datetime import UTC, datetime
 from typing import Any
 
+import fastapi
 from openai import AuthenticationError
 
 from ai_document_plugin_service.ai.common.config import (
@@ -12,14 +13,14 @@ from ai_document_plugin_service.ai.common.config import (
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
-from ai_document_plugin_service.ai.persistence.database import PostgresDB
+from ai_document_plugin_service.ai.persistence.database import Database
 from ai_document_plugin_service.ai.run_pipeline import build_pipeline, run_pipeline
 from ai_document_plugin_service.api.types import (
     ErrorType,
     PipelineErrorResponse,
     PipelineStatus,
     PipelineStatusResponse,
-    _model_from_fields,
+    _model_from_fields, PipelineSaveRequest,
 )
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
@@ -76,8 +77,9 @@ def _build_pipeline_status(*,
 
 
 class PipelineService:
-    def __init__(self, pipeline_queue_manager: PipelineQueueManager) -> None:
+    def __init__(self, pipeline_queue_manager: PipelineQueueManager, database: Database) -> None:
         self.pipeline_queue_manager = pipeline_queue_manager
+        self.database = database
         self._pipeline_runs: dict[str, PipelineStatusResponse] = {}
         self._pipeline_runs_lock = threading.Lock()
 
@@ -141,6 +143,39 @@ class PipelineService:
             ),
         )
 
+    async def update_pipeline_result(self, run_id: str, save_request: PipelineSaveRequest)->PipelineStatusResponse:
+        pipeline_status = self.get_pipeline_status(run_id)
+        if pipeline_status is None:
+            raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
+
+        if pipeline_status.knowledge_model_uuid is None:
+            raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
+
+        await self.database.update_result(
+            template_uuid=pipeline_status.template_uuid,
+            knowledge_model_uuid=pipeline_status.knowledge_model_uuid,
+            user_uuid=pipeline_status.user_uuid,
+            tenant_uuid=pipeline_status.tenant_uuid,
+            markdown=save_request.result_markdown,
+        )
+
+        updated_status = _build_pipeline_status(
+            run_id=pipeline_status.run_id,
+            status=pipeline_status.status,
+            questionnaire_uuid=pipeline_status.questionnaire_uuid,
+            knowledge_model_uuid=pipeline_status.knowledge_model_uuid,
+            user_uuid=pipeline_status.user_uuid,
+            tenant_uuid=pipeline_status.tenant_uuid,
+            template_uuid=pipeline_status.template_uuid,
+            template_title=pipeline_status.template_title,
+            error=pipeline_status.error,
+            result_format='markdown',
+            result_markdown=save_request.result_markdown,
+        )
+        self.set_pipeline_status(run_id, updated_status)
+        return updated_status
+
+
     def _update_running_progress(
         self,
         run_id: str,
@@ -185,11 +220,10 @@ class PipelineService:
         llm_config: LLMConfig,
         config: Config,
     ) -> None:
-        database = PostgresDB(config.database)
-        saver = DBSaver(database)
+        saver = DBSaver(self.database)
         llm_client = LLMClient(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
         try:
-            template = await database.get_template(template_uuid)
+            template = await self.database.get_template(template_uuid)
             if template is None:
                 self._fail_template_not_found(questionnaire_uuid, run_id, template_title, template_uuid, tenant_uuid,
                                               user_uuid)
@@ -197,7 +231,6 @@ class PipelineService:
 
             await self._run_pipeline(
                 config,
-                database,
                 dsw_api_url,
                 llm_client,
                 questionnaire_uuid,
@@ -225,13 +258,10 @@ class PipelineService:
                 ),
             )
             logger.exception('Pipeline run failed')
-        finally:
-            await database.dispose()
 
     async def _run_pipeline(
         self,
         config: Config,
-        database: PostgresDB,
         dsw_api_url: str,
         llm_client: LLMClient,
         questionnaire_uuid: str,
@@ -269,7 +299,7 @@ class PipelineService:
                 progress_message=message,
             )
 
-        pipeline = build_pipeline(database=database, saver=saver, config=config, llm_client=llm_client)
+        pipeline = build_pipeline(database=self.database, saver=saver, config=config, llm_client=llm_client)
         knowledge_model_uuid, result = await run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
@@ -278,7 +308,7 @@ class PipelineService:
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
             pipeline=pipeline,
-            database=database,
+            database=self.database,
             on_progress=on_progress,
             model_name=llm_client.get_model_name(),
             dsw_client=DSWClient(token, dsw_api_url),

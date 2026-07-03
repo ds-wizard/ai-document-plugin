@@ -165,11 +165,12 @@ class LLMClient:
             raise RuntimeError(msg)
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()
-        logger.debug('[llm] req=%s model=%s queueing', req_id, self.model)
+        logger.debug('[llm] tenant=%s req=%s model=%s queueing', self.tenant_uuid, req_id, self.model)
         async with self.semaphore:
             wait_s = time.perf_counter() - wait_start
             logger.debug(
-                '[llm] req=%s acquired semaphore after %.3fs (limit=%s)',
+                '[llm] tenant=%s req=%s acquired semaphore after %.3fs (limit=%s)',
+                self.tenant_uuid,
                 req_id,
                 wait_s,
                 self.semaphore.limit,
@@ -177,7 +178,8 @@ class LLMClient:
             call_start = time.perf_counter()
             result = await self.client.chat.completions.create(*args, model=self.model, **kwargs)
             logger.debug(
-                '[llm] req=%s completed in %.3fs (releasing semaphore)',
+                '[llm] tenant=%s req=%s completed in %.3fs (releasing semaphore)',
+                self.tenant_uuid,
                 req_id,
                 time.perf_counter() - call_start,
             )

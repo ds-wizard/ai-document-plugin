@@ -5,6 +5,7 @@ import fastapi
 import httpx
 
 from ai_document_plugin_service.ai.common.config import Config, normalize_project_url
+from ai_document_plugin_service.api.jwt import extract_identity_from_token
 
 DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
 DSW_USER_VALIDATION_TIMEOUT_SECONDS = 10.0
@@ -15,6 +16,8 @@ DSW_USER_VALIDATION_SUCCESS_STATUS = 200
 class AuthenticatedUser:
     token: str
     api_url: str
+    user_uuid: str
+    tenant_uuid: str
 
 
 def is_allowed_project_url(api_url: str, allowed_project_urls: tuple[str, ...]) -> bool:
@@ -67,4 +70,9 @@ def verify_authenticated(
     if not _validate_dsw_user(normalized_api_url, token):
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
-    return AuthenticatedUser(token=token, api_url=normalized_api_url)
+    try:
+        user_uuid, tenant_uuid = extract_identity_from_token(token)
+    except ValueError as error:
+        raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
+
+    return AuthenticatedUser(token=token, api_url=normalized_api_url, user_uuid=user_uuid, tenant_uuid=tenant_uuid)

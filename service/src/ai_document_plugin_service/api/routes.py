@@ -3,7 +3,6 @@ from uuid import uuid4
 import fastapi
 
 from ai_document_plugin_service.api.auth import verify_authenticated
-from ai_document_plugin_service.api.jwt import extract_identity_from_token
 from ai_document_plugin_service.api.types import (
     PipelineRunRequest,
     PipelineRunResponse,
@@ -91,18 +90,11 @@ async def start_pipeline(
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
 
-    try:
-        user_uuid, tenant_uuid = extract_identity_from_token(auth.token)
-    except ValueError as error:
-        raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
-
     run_id = str(uuid4())
     pipeline.enqueue_pipeline_job(
         run_id,
         payload,
         template['title'],
-        user_uuid,
-        tenant_uuid,
         auth,
         config,
     )
@@ -111,8 +103,8 @@ async def start_pipeline(
         status=PipelineStatus.ACCEPTED,
         run_id=run_id,
         questionnaire_uuid=payload.questionnaire_uuid,
-        user_uuid=user_uuid,
-        tenant_uuid=tenant_uuid,
+        user_uuid=auth.user_uuid,
+        tenant_uuid=auth.tenant_uuid,
         template_uuid=payload.template_uuid,
         template_title=template['title'],
     )
@@ -128,6 +120,6 @@ def get_pipeline_status(run_id: str, pipeline: PipelineServiceDI) -> PipelineSta
 
 @protected_router.post('/pipelines/status/{run_id}/save')
 async def save_pipeline_result(
-    run_id: str, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI
+    run_id: str, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
 ) -> PipelineStatusResponse:
-    return await pipeline.update_pipeline_result(run_id, save_request)
+    return await pipeline.update_pipeline_result(run_id, save_request, auth)

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import Connection, inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -24,12 +24,11 @@ class Database(ABC):
     @abstractmethod
     async def create_template(
         self,
-        uuid: UUID,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
-    ) -> None:
-        """Create a new template in a database backend."""
+    ) -> UUID:
+        """Create a new template in a database backend. Return created template UUID"""
 
     @abstractmethod
     async def save_assignments(
@@ -197,14 +196,14 @@ class PostgresDB(Database):
 
     async def create_template(
         self,
-        uuid: UUID,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
     ) -> None:
+        template_uuid = uuid4()
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
-            uuid=uuid,
+            uuid=template_uuid,
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
@@ -219,9 +218,10 @@ class PostgresDB(Database):
 
         logger.debug(
             'Created template uuid=%s in %s.template',
-            uuid,
+            template_uuid,
             self.schema_name,
         )
+        return template_uuid
 
     async def save_template(
         self,

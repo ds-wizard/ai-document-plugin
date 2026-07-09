@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
+
 # UUID must be imported outside TYPE_CHECKING block for haystack to work
 from uuid import UUID  # noqa: TC003
 

@@ -56,12 +56,9 @@ async def create_template(
             status_code=400,
             detail='Template JSON must contain a top-level "sections" array.',
         )
-    # TODO: this should not be created here but inside database
-    template_uuid = uuid4()
 
     try:
-        await database.create_template(
-            uuid=template_uuid,
+        template_uuid = await database.create_template(
             title=trimmed_title,
             content=payload.content,
             tenant_uuid=auth.tenant_uuid,

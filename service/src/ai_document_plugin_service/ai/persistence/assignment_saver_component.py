@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
+from uuid import UUID
 
 from haystack import component
 
@@ -20,8 +21,6 @@ from ai_document_plugin_service.ai.assignment.types import (
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from ai_document_plugin_service.ai.persistence.database import Database
 
 logger = logging.getLogger(__name__)

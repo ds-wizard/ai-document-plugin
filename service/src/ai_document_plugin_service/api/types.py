@@ -57,7 +57,7 @@ class PipelineRunRequest(ApiModel):
 class PipelineRunResponse(ApiModel):
     status: PipelineStatus
     run_id: str = Field(alias='runId')
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
+    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
     template_uuid: UUID = Field(alias='templateUuid')
     template_title: str = Field(alias='templateTitle')
 

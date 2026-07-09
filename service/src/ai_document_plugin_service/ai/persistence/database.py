@@ -232,7 +232,7 @@ class PostgresDB(Database):
     ) -> None:
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
-            uuid=UUID,
+            uuid=uuid,
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,

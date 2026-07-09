@@ -27,9 +27,7 @@ def health_check() -> dict[str, str]:
 
 @protected_router.get('/templates')
 async def list_templates(database: DatabaseDI, auth: AuthenticatedDI) -> list[TemplateListItem]:
-    return [
-        _model_from_fields(TemplateListItem, **item) for item in await database.list_templates(auth.tenant_uuid)
-    ]
+    return [_model_from_fields(TemplateListItem, **item) for item in await database.list_templates(auth.tenant_uuid)]
 
 
 @protected_router.get('/templates/{template_uuid}')

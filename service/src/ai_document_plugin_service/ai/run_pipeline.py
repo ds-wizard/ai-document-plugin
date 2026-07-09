@@ -154,6 +154,7 @@ async def run_pipeline(
                 'template_uuid': template_uuid,
                 'template_title': template_title,
                 'template_data': template_data,
+                'tenant_uuid': tenant_uuid,
             },
             'dmp_generator_component': {
                 'replies': replies,

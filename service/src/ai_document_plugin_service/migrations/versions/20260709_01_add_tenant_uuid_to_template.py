@@ -49,7 +49,19 @@ def upgrade() -> None:
         schema=schema,
     )
 
+    op.drop_constraint('uq_template_title', 'template', schema=schema, type_='unique')
+    op.create_unique_constraint(
+        'uq_template_title_tenant_uuid',
+        'template',
+        ['title', 'tenant_uuid'],
+        schema=schema,
+    )
+
 
 def downgrade() -> None:
     schema = context.get_context().version_table_schema
+
+    op.drop_constraint('uq_template_title_tenant_uuid', 'template', schema=schema, type_='unique')
+    op.create_unique_constraint('uq_template_title', 'template', ['title'], schema=schema)
+
     op.drop_column('template', 'tenant_uuid', schema=schema)

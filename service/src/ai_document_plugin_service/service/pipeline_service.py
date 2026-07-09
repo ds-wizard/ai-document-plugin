@@ -201,7 +201,7 @@ class PipelineService:
         config: Config,
     ) -> None:
         run_id = run.run_id
-        template = await self.database.get_template(run.template_uuid)
+        template = await self.database.get_template(run.template_uuid, auth.tenant_uuid)
         if template is None:
             self._runs.update(
                 run_id,

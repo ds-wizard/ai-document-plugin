@@ -27,6 +27,7 @@ class Database(ABC):
         uuid: str,
         title: str,
         content: JsonValue,
+        tenant_uuid: UUID,
     ) -> None:
         """Create a new template in a database backend."""
 
@@ -49,6 +50,7 @@ class Database(ABC):
         uuid: str,
         title: str,
         content: JsonValue,
+        tenant_uuid: UUID,
     ) -> None:
         """Persist a template in a database backend."""
 
@@ -61,11 +63,11 @@ class Database(ABC):
         """Get assignments from a database backend."""
 
     @abstractmethod
-    async def list_templates(self) -> list[dict[str, str]]:
+    async def list_templates(self, tenant_uuid: UUID) -> list[dict[str, str]]:
         """List available templates from a database backend."""
 
     @abstractmethod
-    async def get_template(self, template_uuid: UUID) -> TemplateDetail | None:
+    async def get_template(self, template_uuid: UUID, tenant_uuid: UUID) -> TemplateDetail | None:
         """Get a template record from a database backend."""
 
     @abstractmethod
@@ -74,7 +76,7 @@ class Database(ABC):
         template_uuid: str,
         knowledge_model_uuid: str,
         user_uuid: str,
-        tenant_uuid: str,
+        tenant_uuid: UUID,
         prepolished_markdown: str,
         markdown: str,
     ) -> None:
@@ -198,12 +200,14 @@ class PostgresDB(Database):
         uuid: str,
         title: str,
         content: JsonValue,
+        tenant_uuid: UUID,
     ) -> None:
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=uuid,
             title=title,
             content=content,
+            tenant_uuid=tenant_uuid,
         )
 
         try:
@@ -224,12 +228,14 @@ class PostgresDB(Database):
         uuid: str,
         title: str,
         content: JsonValue,
+        tenant_uuid: UUID,
     ) -> None:
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=uuid,
             title=title,
             content=content,
+            tenant_uuid=tenant_uuid,
         )
         upsert_statement = statement.on_conflict_do_update(
             index_elements=[self.template_table.c.uuid],
@@ -280,9 +286,13 @@ class PostgresDB(Database):
 
         return row.assignments
 
-    async def list_templates(self) -> list[dict[str, str]]:
+    async def list_templates(self, tenant_uuid: UUID) -> list[dict[str, str]]:
         await self._ensure_schema()
-        statement = self.template_table.select().order_by(self.template_table.c.title.asc())
+        statement = (
+            self.template_table.select()
+            .where(self.template_table.c.tenant_uuid == tenant_uuid)
+            .order_by(self.template_table.c.title.asc())
+        )
 
         async with self.engine.begin() as connection:
             result = await connection.execute(statement)
@@ -296,9 +306,11 @@ class PostgresDB(Database):
             for row in rows
         ]
 
-    async def get_template(self, template_uuid: UUID) -> TemplateDetail | None:
+    async def get_template(self, template_uuid: UUID, tenant_uuid: UUID) -> TemplateDetail | None:
         await self._ensure_schema()
-        statement = self.template_table.select().where(self.template_table.c.uuid == template_uuid)
+        statement = self.template_table.select().where(
+            (self.template_table.c.uuid == template_uuid) & (self.template_table.c.tenant_uuid == tenant_uuid),
+        )
 
         async with self.engine.begin() as connection:
             result = await connection.execute(statement)
@@ -306,8 +318,9 @@ class PostgresDB(Database):
 
         if row is None:
             logger.debug(
-                'No template found for uuid=%s in %s.template',
+                'No template found for uuid=%s tenant_uuid=%s in %s.template',
                 template_uuid,
+                tenant_uuid,
                 self.schema_name,
             )
             return None
@@ -322,7 +335,7 @@ class PostgresDB(Database):
         template_uuid: str,
         knowledge_model_uuid: str,
         user_uuid: str,
-        tenant_uuid: str,
+        tenant_uuid: UUID,
         prepolished_markdown: str,
         markdown: str,
     ) -> None:

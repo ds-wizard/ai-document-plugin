@@ -46,7 +46,7 @@ class Database(ABC):
     @abstractmethod
     async def save_template(
         self,
-        uuid: str,
+        uuid: UUID,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
@@ -159,7 +159,7 @@ class PostgresDB(Database):
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        template_uuid: str,
+        template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
@@ -199,7 +199,7 @@ class PostgresDB(Database):
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
-    ) -> None:
+    ) -> UUID:
         template_uuid = uuid4()
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
@@ -225,7 +225,7 @@ class PostgresDB(Database):
 
     async def save_template(
         self,
-        uuid: str,
+        uuid: UUID,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,

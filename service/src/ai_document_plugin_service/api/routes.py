@@ -43,7 +43,9 @@ async def get_template(template_uuid: UUID, database: DatabaseDI, auth: Authenti
 
 
 @protected_router.post('/templates', status_code=201)
-async def create_template(payload: TemplateCreateRequest, database: DatabaseDI, auth: AuthenticatedDI) -> TemplateDetail:
+async def create_template(
+    payload: TemplateCreateRequest, database: DatabaseDI, auth: AuthenticatedDI
+) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')

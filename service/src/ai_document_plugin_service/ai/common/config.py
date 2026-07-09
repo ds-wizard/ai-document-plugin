@@ -1,12 +1,17 @@
+import logging
 import os
 import pathlib
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_CONFIG_PATH = 'config.yaml'
 CONFIG_PATH_ENV_VAR = 'AI_DOCUMENT_PLUGIN_CONFIG_PATH'
+WILDCARD = '*'
 
 
 @dataclass(frozen=True)
@@ -30,6 +35,12 @@ class FilePaths:
 
 
 @dataclass(frozen=True)
+class AllowedApi:
+    url: str
+    tenant_uuid: str
+
+
+@dataclass(frozen=True)
 class DatabaseConfig:
     host: str
     port: int
@@ -41,7 +52,7 @@ class DatabaseConfig:
 
 @dataclass(frozen=True)
 class Config:
-    allowed_project_urls: tuple[str, ...]
+    allowed_apis: tuple[AllowedApi, ...]
     log_level: str
     database: DatabaseConfig
     files: FilePaths
@@ -114,20 +125,49 @@ def normalize_project_url(url: str) -> str:
     return url.strip().rstrip('/')
 
 
-def _get_allowed_project_urls(config: dict[str, Any]) -> tuple[str, ...]:
-    raw_urls = _get(config, 'auth', 'allowed_project_urls')
-    if not isinstance(raw_urls, list) or not raw_urls:
-        msg = "Invalid config value: 'auth.allowed_project_urls' must be a non-empty list"
-        raise ValueError(msg)
+def _get_allowed_apis(config: dict[str, Any]) -> tuple[AllowedApi, ...]:
+    raw_apis = _get(config, 'auth', 'allowed_apis')
+    if not isinstance(raw_apis, list) or not raw_apis:
+        msg = "Invalid config value: 'auth.allowed_apis' must be a non-empty list"
+        raise TypeError(msg)
 
-    normalized: list[str] = []
-    for index, entry in enumerate(raw_urls):
-        if not isinstance(entry, str) or not entry.strip():
-            msg = f"Invalid config value: 'auth.allowed_project_urls[{index}]' must be a non-empty string"
+    allowed_apis: list[AllowedApi] = []
+    for index, entry in enumerate(raw_apis):
+        if not isinstance(entry, dict):
+            msg = f"Invalid config value: 'auth.allowed_apis[{index}]' must be a mapping"
+            raise TypeError(msg)
+
+        raw_url = entry.get('url')
+        raw_tenant_uuid = entry.get('tenant_uuid')
+        if not isinstance(raw_url, str) or not raw_url.strip():
+            msg = f"Invalid config value: 'auth.allowed_apis[{index}].url' must be a non-empty string"
             raise ValueError(msg)
-        normalized.append(normalize_project_url(entry))
+        if not isinstance(raw_tenant_uuid, str) or not raw_tenant_uuid.strip():
+            msg = f"Invalid config value: 'auth.allowed_apis[{index}].tenant_uuid' must be a non-empty string"
+            raise ValueError(msg)
 
-    return tuple(normalized)
+        url = raw_url.strip()
+        tenant_uuid = raw_tenant_uuid.strip()
+        normalized_url = url if url == WILDCARD else normalize_project_url(url)
+        if tenant_uuid != WILDCARD:
+            try:
+                tenant_uuid = str(UUID(tenant_uuid))
+            except ValueError as error:
+                msg = f"Invalid config value: 'auth.allowed_apis[{index}].tenant_uuid' must be a UUID or '*'"
+                raise ValueError(msg) from error
+
+        if WILDCARD in {normalized_url, tenant_uuid}:
+            logger.warning(
+                "Do not use in production! Config 'auth.allowed_apis[%d]' uses a wildcard (url=%s, tenant_uuid=%s) "
+                'which allows anyone to use this API.',
+                index,
+                normalized_url,
+                tenant_uuid,
+            )
+
+        allowed_apis.append(AllowedApi(url=normalized_url, tenant_uuid=tenant_uuid))
+
+    return tuple(allowed_apis)
 
 
 def _resolve_existing_path(path: str, *, base_dir: pathlib.Path | None = None) -> str:
@@ -182,7 +222,7 @@ def load_config(config_path: str | None = None) -> Config:
         raise TypeError(msg)
 
     return Config(
-        allowed_project_urls=_get_allowed_project_urls(config),
+        allowed_apis=_get_allowed_apis(config),
         log_level=_get_log_level(config),
         database=DatabaseConfig(
             host=_expand_env_vars(_get(config, 'database', 'host')),

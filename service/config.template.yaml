@@ -1,9 +1,14 @@
-# Specify urls which can be used for authenticating the user. The user will send the url in a header 'X-Dsw-Api-Url'
+# Specify urls and tenant ids which can be used for authenticating the user. The user will send the url in a header 'X-Dsw-Api-Url'
 # Use the base url for dsw api, not the frontend.
 # For example: https://researchers.dsw.elixir-europe.org/wizard-api
+# Get the tenant UUID from the JWT token
+# For debugging purposes, you can set url or tenant_uuid to * to allow all urls or tenant uuids.
 auth:
-  allowed_project_urls:
-    - "https://your-dsw-instance.example.com/wizard-api"
+  allowed_apis:
+    - url: "https://your-dsw-instance.example.com/wizard-api"
+      tenant_uuid: "123e4567-e89b-12d3-a456-426614174000"
+    - url: "*"
+      tenant_uuid: "*"
 
 logging:
   level: "INFO"

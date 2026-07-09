@@ -5,7 +5,7 @@ from uuid import UUID
 import fastapi
 import httpx
 
-from ai_document_plugin_service.ai.common.config import Config, normalize_project_url
+from ai_document_plugin_service.ai.common.config import WILDCARD, AllowedApi, Config, normalize_project_url
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 
 DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
@@ -21,8 +21,17 @@ class AuthenticatedUser:
     tenant_uuid: UUID
 
 
-def is_allowed_project_url(api_url: str, allowed_project_urls: tuple[str, ...]) -> bool:
-    return normalize_project_url(api_url) in allowed_project_urls
+def is_allowed_request(api_url: str, tenant_uuid: UUID, allowed_apis: tuple[AllowedApi, ...]) -> bool:
+    normalized_api_url = normalize_project_url(api_url)
+    tenant_uuid_str = str(tenant_uuid)
+
+    for entry in allowed_apis:
+        url_matches = entry.url in {WILDCARD, normalized_api_url}
+        tenant_matches = entry.tenant_uuid in {WILDCARD, tenant_uuid_str}
+        if not (url_matches and tenant_matches):
+            continue
+        return True
+    return False
 
 
 def _parse_bearer_token(authorization: str | None) -> str | None:
@@ -65,15 +74,15 @@ def verify_authenticated(
     config: Config = request.app.state.config
     normalized_api_url = normalize_project_url(dsw_api_url)
 
-    if not is_allowed_project_url(normalized_api_url, config.allowed_project_urls):
-        raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
-
-    if not _validate_dsw_user(normalized_api_url, token):
-        raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
-
     try:
         user_uuid, tenant_uuid = extract_identity_from_token(token)
     except ValueError as error:
         raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
+
+    if not is_allowed_request(normalized_api_url, tenant_uuid, config.allowed_apis):
+        raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
+
+    if not _validate_dsw_user(normalized_api_url, token):
+        raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
     return AuthenticatedUser(token=token, api_url=normalized_api_url, user_uuid=user_uuid, tenant_uuid=tenant_uuid)

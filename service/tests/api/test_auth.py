@@ -1,13 +1,21 @@
+import base64
+import json
 from pathlib import Path
 from textwrap import dedent
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import httpx
 from fastapi.testclient import TestClient
 
-from ai_document_plugin_service.ai.common.config import CONFIG_PATH_ENV_VAR, normalize_project_url
-from ai_document_plugin_service.api.auth import DSW_API_URL_HEADER, is_allowed_project_url
+from ai_document_plugin_service.ai.common.config import CONFIG_PATH_ENV_VAR, AllowedApi, normalize_project_url
+from ai_document_plugin_service.api.auth import DSW_API_URL_HEADER, is_allowed_request
 from ai_document_plugin_service.app import create_app
+
+
+def _make_token(*, user_uuid: str, tenant_uuid: str) -> str:
+    payload = base64.urlsafe_b64encode(json.dumps({'user_uuid': user_uuid, 'tenant_uuid': tenant_uuid}).encode()).decode()
+    return f'header.{payload}'
 
 
 def _write_config_files(base_dir: Path) -> Path:
@@ -52,8 +60,9 @@ def _write_config_files(base_dir: Path) -> Path:
             dsw:
               api_url: "{ALLOWED_URL}"
             auth:
-              allowed_project_urls:
-                - "{ALLOWED_URL}"
+              allowed_apis:
+                - url: "{ALLOWED_URL}"
+                  tenant_uuid: "{ALLOWED_TENANT_UUID}"
             logging:
               level: "INFO"
             database:
@@ -73,7 +82,9 @@ def _write_config_files(base_dir: Path) -> Path:
     return config_path
 
 ALLOWED_URL = 'https://dsw.example.com'
-TEST_TOKEN = 'test-token'
+ALLOWED_TENANT_UUID = '123e4567-e89b-12d3-a456-426614174000'
+OTHER_TENANT_UUID = '00000000-0000-0000-0000-000000000000'
+TEST_TOKEN = _make_token(user_uuid=ALLOWED_TENANT_UUID, tenant_uuid=ALLOWED_TENANT_UUID)
 
 
 def _auth_headers(*, api_url: str = ALLOWED_URL, token: str = TEST_TOKEN) -> dict[str, str]:
@@ -87,10 +98,19 @@ def test_normalize_project_url_strips_trailing_slash() -> None:
     assert normalize_project_url('https://dsw.example.com/') == ALLOWED_URL
 
 
-def test_is_allowed_project_url_matches_normalized_entries() -> None:
-    allowed = (ALLOWED_URL,)
-    assert is_allowed_project_url(f'{ALLOWED_URL}/', allowed)
-    assert not is_allowed_project_url('https://other.example.com', allowed)
+def test_is_allowed_request_matches_normalized_url_and_tenant() -> None:
+    allowed = (AllowedApi(url=ALLOWED_URL, tenant_uuid=ALLOWED_TENANT_UUID),)
+    assert is_allowed_request(f'{ALLOWED_URL}/', UUID(ALLOWED_TENANT_UUID), allowed)
+    assert not is_allowed_request('https://other.example.com', UUID(ALLOWED_TENANT_UUID), allowed)
+    assert not is_allowed_request(ALLOWED_URL, UUID(OTHER_TENANT_UUID), allowed)
+
+
+def test_is_allowed_request_allows_wildcard_url_or_tenant() -> None:
+    wildcard_url = (AllowedApi(url='*', tenant_uuid=ALLOWED_TENANT_UUID),)
+    wildcard_tenant = (AllowedApi(url=ALLOWED_URL, tenant_uuid='*'),)
+
+    assert is_allowed_request('https://anything.example.com', UUID(ALLOWED_TENANT_UUID), wildcard_url)
+    assert is_allowed_request(ALLOWED_URL, UUID(OTHER_TENANT_UUID), wildcard_tenant)
 
 
 def test_health_check_does_not_require_auth(tmp_path: Path, monkeypatch) -> None:

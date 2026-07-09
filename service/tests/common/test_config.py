@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from ai_document_plugin_service.ai.common.config import (
     CONFIG_PATH_ENV_VAR,
+    AllowedApi,
     load_config,
 )
 from ai_document_plugin_service.app import create_app
@@ -17,6 +18,10 @@ def _write_config_files(
     config_name: str = 'config.yaml',
     prompts_name: str = 'prompts.yaml',
     model: str = 'test-model',
+    allowed_apis_yaml: str = (
+        '                - url: "https://dsw.example.com"\n'
+        '                  tenant_uuid: "123e4567-e89b-12d3-a456-426614174000"'
+    ),
 ) -> Path:
     prompts_path = base_dir / prompts_name
     prompts_path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,8 +66,8 @@ def _write_config_files(
             dsw:
               api_url: "https://dsw.example.com"
             auth:
-              allowed_project_urls:
-                - "https://dsw.example.com"
+              allowed_apis:
+{allowed_apis_yaml}
             logging:
               level: "INFO"
             database:
@@ -98,8 +103,28 @@ def test_load_config_uses_env_config_path_and_resolves_prompts_relative_to_it(
 
     config = load_config()
 
-    assert config.allowed_project_urls == ('https://dsw.example.com',)
+    assert config.allowed_apis == (AllowedApi(url='https://dsw.example.com', tenant_uuid='123e4567-e89b-12d3-a456-426614174000'),)
     assert config.files.prompts_path == str(config_path.parent / 'nested/prompts.custom.yaml')
+
+
+def test_load_config_warns_on_wildcard_allowed_apis_entry(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    config_path = _write_config_files(
+        tmp_path,
+        allowed_apis_yaml='                - url: "*"\n                  tenant_uuid: "*"',
+    )
+    monkeypatch.setenv(CONFIG_PATH_ENV_VAR, str(config_path))
+    monkeypatch.setenv('TEST_API_KEY', 'secret-from-env')
+    monkeypatch.chdir(tmp_path)
+
+    with caplog.at_level('WARNING'):
+        config = load_config()
+
+    assert config.allowed_apis == (AllowedApi(url='*', tenant_uuid='*'),)
+    assert any('wildcard' in record.message for record in caplog.records)
 
 
 def test_load_config_falls_back_to_default_path_when_env_is_missing(
@@ -160,8 +185,9 @@ def test_load_config_rejects_absolute_prompts_path_in_config(
             dsw:
               api_url: "https://dsw.example.com"
             auth:
-              allowed_project_urls:
-                - "https://dsw.example.com"
+              allowed_apis:
+                - url: "https://dsw.example.com"
+                  tenant_uuid: "123e4567-e89b-12d3-a456-426614174000"
             logging:
               level: "INFO"
             database:

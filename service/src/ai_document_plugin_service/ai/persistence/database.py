@@ -24,7 +24,7 @@ class Database(ABC):
     @abstractmethod
     async def create_template(
         self,
-        uuid: str,
+        uuid: UUID,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
@@ -38,7 +38,7 @@ class Database(ABC):
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
-        template_uuid: str,
+        template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
@@ -58,7 +58,7 @@ class Database(ABC):
     async def get_assignments(
         self,
         knowledge_model_uuid: str,
-        template_uuid: str,
+        template_uuid: UUID,
     ) -> JsonValue | None:
         """Get assignments from a database backend."""
 
@@ -73,7 +73,7 @@ class Database(ABC):
     @abstractmethod
     async def save_result(
         self,
-        template_uuid: str,
+        template_uuid: UUID,
         knowledge_model_uuid: str,
         user_uuid: UUID,
         tenant_uuid: UUID,
@@ -197,7 +197,7 @@ class PostgresDB(Database):
 
     async def create_template(
         self,
-        uuid: str,
+        uuid: UUID,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
@@ -232,7 +232,7 @@ class PostgresDB(Database):
     ) -> None:
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
-            uuid=uuid,
+            uuid=UUID,
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
@@ -257,7 +257,7 @@ class PostgresDB(Database):
     async def get_assignments(
         self,
         knowledge_model_uuid: str,
-        template_uuid: str,
+        template_uuid: UUID,
     ) -> JsonValue | None:
         await self._ensure_schema()
 
@@ -332,7 +332,7 @@ class PostgresDB(Database):
 
     async def save_result(
         self,
-        template_uuid: str,
+        template_uuid: UUID,
         knowledge_model_uuid: str,
         user_uuid: UUID,
         tenant_uuid: UUID,

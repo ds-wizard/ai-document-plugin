@@ -19,7 +19,7 @@ class SaverComponent:
     @component.output_types(markdown=str)
     async def run_async(
         self,
-        template_uuid: str,
+        template_uuid: UUID,
         knowledge_model_uuid: str,
         user_uuid: UUID,
         tenant_uuid: UUID,
@@ -43,7 +43,7 @@ class SaverComponent:
     @component.output_types(markdown=str)
     def run(
         self,
-        template_uuid: str,
+        template_uuid: UUID,
         knowledge_model_uuid: str,
         user_uuid: UUID,
         tenant_uuid: UUID,

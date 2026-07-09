@@ -56,8 +56,8 @@ async def create_template(
             status_code=400,
             detail='Template JSON must contain a top-level "sections" array.',
         )
-
-    template_uuid = str(uuid4())
+    # TODO: this should not be created here but inside database
+    template_uuid = uuid4()
 
     try:
         await database.create_template(

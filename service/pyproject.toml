@@ -44,7 +44,12 @@ dev = [
     "ruff",
     "ty",
     "pytest",
+    "pytest-asyncio"
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [build-system]
 requires = ["uv_build>=0.11.23,<0.12.0"]

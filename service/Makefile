@@ -10,6 +10,10 @@ lint:
 typecheck:
 	uv run ty check
 
+.PHONY: test
+test:
+	uv run pytest
+
 .PHONY: format
 format:
 	uv run ruff format

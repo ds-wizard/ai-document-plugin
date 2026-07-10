@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Annotated
+from uuid import UUID
 
 import fastapi
 import httpx
@@ -16,8 +17,8 @@ DSW_USER_VALIDATION_SUCCESS_STATUS = 200
 class AuthenticatedUser:
     token: str
     api_url: str
-    user_uuid: str
-    tenant_uuid: str
+    user_uuid: UUID
+    tenant_uuid: UUID
 
 
 def is_allowed_project_url(api_url: str, allowed_project_urls: tuple[str, ...]) -> bool:

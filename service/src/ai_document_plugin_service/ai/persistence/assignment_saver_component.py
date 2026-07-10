@@ -11,6 +11,9 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
+# UUID must be imported outside TYPE_CHECKING block for haystack to work
+from uuid import UUID  # noqa: TC003
+
 from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import (
@@ -44,9 +47,10 @@ class AssignmentSaverComponent:
         knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        template_uuid: str,
+        template_uuid: UUID,
         template_title: str,
         template_data: JsonValue,
+        tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
     ) -> AssignmentSaverComponentResult:
@@ -63,6 +67,7 @@ class AssignmentSaverComponent:
             template_uuid=template_uuid,
             template_title=template_title,
             template_data=template_data,
+            tenant_uuid=tenant_uuid,
             created_at=datetime.now(tz=UTC),
         )
 
@@ -78,9 +83,10 @@ class AssignmentSaverComponent:
         knowledge_model_uuid: str,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        template_uuid: str,
+        template_uuid: UUID,
         template_title: str,
         template_data: JsonValue,
+        tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
     ) -> AssignmentSaverComponentResult:
@@ -100,9 +106,10 @@ class Saver(ABC):
         knowledge_model_version: str,
         assignments: JsonValue,
         stats: StatsJson | None,
-        template_uuid: str,
+        template_uuid: UUID,
         template_title: str,
         template_data: JsonValue,
+        tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
         """Persist assignments and their template."""
@@ -116,12 +123,13 @@ class FileSaver(Saver):
         knowledge_model_version: str,
         assignments: JsonValue,
         stats: StatsJson | None,
-        template_uuid: str,
+        template_uuid: UUID,
         template_title: str,
         template_data: JsonValue,
+        tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
-        _ = (template_uuid, template_title, template_data)
+        _ = (template_uuid, template_title, template_data, tenant_uuid)
         output_name = self._build_filename(
             knowledge_model_uuid,
             knowledge_model_name,
@@ -173,15 +181,17 @@ class DBSaver(Saver):
         knowledge_model_version: str,
         assignments: JsonValue,
         stats: StatsJson | None,
-        template_uuid: str,
+        template_uuid: UUID,
         template_title: str,
         template_data: JsonValue,
+        tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
         await self.database.save_template(
             uuid=template_uuid,
             title=template_title,
             content=template_data,
+            tenant_uuid=tenant_uuid,
         )
         await self.database.save_assignments(
             knowledge_model_uuid=knowledge_model_uuid,

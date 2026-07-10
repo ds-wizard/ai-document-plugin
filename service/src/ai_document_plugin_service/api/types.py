@@ -1,4 +1,5 @@
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -34,7 +35,7 @@ class TemplateListItem(ApiModel):
 
 
 class TemplateDetail(ApiModel):
-    uuid: str
+    uuid: UUID
     title: str
     content: dict
 
@@ -45,8 +46,8 @@ class TemplateCreateRequest(ApiModel):
 
 
 class PipelineRunRequest(ApiModel):
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
-    template_uuid: str = Field(alias='templateUuid')
+    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
+    template_uuid: UUID = Field(alias='templateUuid')
     llm_model: str = Field(alias='llmModel')
     llm_api_key: str = Field(alias='llmApiKey')
     llm_api_url: str = Field(alias='llmApiUrl')
@@ -56,8 +57,8 @@ class PipelineRunRequest(ApiModel):
 class PipelineRunResponse(ApiModel):
     status: PipelineStatus
     run_id: str = Field(alias='runId')
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
-    template_uuid: str = Field(alias='templateUuid')
+    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
+    template_uuid: UUID = Field(alias='templateUuid')
     template_title: str = Field(alias='templateTitle')
 
 
@@ -73,9 +74,9 @@ class PipelineErrorResponse(ApiModel):
 class PipelineStatusResponse(ApiModel):
     run_id: str = Field(alias='runId')
     status: PipelineStatus
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
-    knowledge_model_uuid: str | None = Field(default=None, alias='knowledgeModelUuid')
-    template_uuid: str = Field(alias='templateUuid')
+    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
+    knowledge_model_uuid: UUID | None = Field(default=None, alias='knowledgeModelUuid')
+    template_uuid: UUID = Field(alias='templateUuid')
     template_title: str = Field(alias='templateTitle')
     error: PipelineErrorResponse | None = None
     result_format: str | None = Field(default=None, alias='resultFormat')

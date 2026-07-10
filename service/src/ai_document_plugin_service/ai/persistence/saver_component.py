@@ -1,5 +1,6 @@
 import typing
 from typing import TypedDict
+from uuid import UUID
 
 from haystack import component
 
@@ -18,10 +19,10 @@ class SaverComponent:
     @component.output_types(markdown=str)
     async def run_async(
         self,
-        template_uuid: str,
+        template_uuid: UUID,
         knowledge_model_uuid: str,
-        user_uuid: str,
-        tenant_uuid: str,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
         debug_markdown: str,
         markdown: str,
     ) -> FileSaverComponentResult:
@@ -42,10 +43,10 @@ class SaverComponent:
     @component.output_types(markdown=str)
     def run(
         self,
-        template_uuid: str,
+        template_uuid: UUID,
         knowledge_model_uuid: str,
-        user_uuid: str,
-        tenant_uuid: str,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
         debug_markdown: str,
         markdown: str,
     ) -> FileSaverComponentResult:

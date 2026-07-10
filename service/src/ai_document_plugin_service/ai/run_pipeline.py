@@ -31,6 +31,7 @@ from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from uuid import UUID
 
     from haystack.components.routers.conditional_router import Route
 
@@ -110,12 +111,12 @@ def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_clien
 
 
 async def run_pipeline(
-    questionnaire_uuid: str,
-    template_uuid: str,
+    questionnaire_uuid: UUID,
+    template_uuid: UUID,
     template_title: str,
     template_data: Mapping[str, object],
-    user_uuid: str,
-    tenant_uuid: str,
+    user_uuid: UUID,
+    tenant_uuid: UUID,
     pipeline: AsyncPipeline,
     database: Database,
     dsw_client: DSWClient,
@@ -153,6 +154,7 @@ async def run_pipeline(
                 'template_uuid': template_uuid,
                 'template_title': template_title,
                 'template_data': template_data,
+                'tenant_uuid': tenant_uuid,
             },
             'dmp_generator_component': {
                 'replies': replies,
@@ -198,10 +200,10 @@ async def run_pipeline(
 
 async def write_metrics(
     database: Database,
-    template_uuid: str,
-    knowledge_model_uuid: str,
-    user_uuid: str,
-    tenant_uuid: str,
+    template_uuid: UUID,
+    knowledge_model_uuid: UUID,
+    user_uuid: UUID,
+    tenant_uuid: UUID,
     result: Mapping[str, object],
     model_name: str,
     t1: float,

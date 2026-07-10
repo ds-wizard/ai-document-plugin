@@ -32,7 +32,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('uuid', UUID(as_uuid=True), primary_key=True),
         Column('title', Text, nullable=False),
         Column('content', JSON, nullable=False),
-        UniqueConstraint('title', name='uq_template_title'),
+        Column('tenant_uuid', UUID(as_uuid=True), nullable=False),
+        UniqueConstraint('title', 'tenant_uuid', name='uq_template_title_tenant_uuid'),
     )
 
     assignment_table = Table(

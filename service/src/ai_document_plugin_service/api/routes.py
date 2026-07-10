@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import fastapi
 
@@ -26,27 +26,24 @@ def health_check() -> dict[str, str]:
 
 
 @protected_router.get('/templates')
-async def list_templates(database: DatabaseDI) -> list[TemplateListItem]:
-    return [_model_from_fields(TemplateListItem, **item) for item in await database.list_templates()]
+async def list_templates(database: DatabaseDI, auth: AuthenticatedDI) -> list[TemplateListItem]:
+    return [_model_from_fields(TemplateListItem, **item) for item in await database.list_templates(auth.tenant_uuid)]
 
 
 @protected_router.get('/templates/{template_uuid}')
-async def get_template(template_uuid: str, database: DatabaseDI) -> TemplateDetail:
-    template = await database.get_template(template_uuid)
+async def get_template(template_uuid: UUID, database: DatabaseDI, auth: AuthenticatedDI) -> TemplateDetail:
+    template = await database.get_template(template_uuid, auth.tenant_uuid)
 
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
 
-    return _model_from_fields(
-        TemplateDetail,
-        uuid=template['uuid'],
-        title=template['title'],
-        content=template['content'],
-    )
+    return template
 
 
 @protected_router.post('/templates', status_code=201)
-async def create_template(payload: TemplateCreateRequest, database: DatabaseDI) -> TemplateDetail:
+async def create_template(
+    payload: TemplateCreateRequest, database: DatabaseDI, auth: AuthenticatedDI
+) -> TemplateDetail:
     trimmed_title = payload.title.strip()
     if not trimmed_title:
         raise fastapi.HTTPException(status_code=400, detail='Template title is required')
@@ -58,13 +55,11 @@ async def create_template(payload: TemplateCreateRequest, database: DatabaseDI) 
             detail='Template JSON must contain a top-level "sections" array.',
         )
 
-    template_uuid = str(uuid4())
-
     try:
-        await database.create_template(
-            uuid=template_uuid,
+        template_uuid = await database.create_template(
             title=trimmed_title,
             content=payload.content,
+            tenant_uuid=auth.tenant_uuid,
         )
     except ValueError as error:
         raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
@@ -85,7 +80,7 @@ async def start_pipeline(
     database: DatabaseDI,
     pipeline: PipelineServiceDI,
 ) -> PipelineRunResponse:
-    template = await database.get_template(payload.template_uuid)
+    template = await database.get_template(payload.template_uuid, auth.tenant_uuid)
 
     if template is None:
         raise fastapi.HTTPException(status_code=404, detail='Template not found')
@@ -94,7 +89,7 @@ async def start_pipeline(
     pipeline.enqueue_pipeline_job(
         run_id,
         payload,
-        template['title'],
+        template.title,
         auth,
         config,
     )
@@ -106,7 +101,7 @@ async def start_pipeline(
         user_uuid=auth.user_uuid,
         tenant_uuid=auth.tenant_uuid,
         template_uuid=payload.template_uuid,
-        template_title=template['title'],
+        template_title=template.title,
     )
 
 

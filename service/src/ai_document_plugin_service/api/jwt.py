@@ -1,5 +1,6 @@
 import base64
 import json
+import uuid
 from uuid import UUID
 
 JWT_PART_COUNT = 2
@@ -42,8 +43,8 @@ def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> str:
     raise ValueError(msg)
 
 
-def extract_identity_from_token(token: str) -> tuple[str, str]:
+def extract_identity_from_token(token: str) -> tuple[UUID, UUID]:
     payload = decode_jwt_payload(token)
     user_uuid = _get_required_uuid_claim(payload, 'user_uuid', 'userUuid')
     tenant_uuid = _get_required_uuid_claim(payload, 'tenant_uuid', 'tenantUuid')
-    return user_uuid, tenant_uuid
+    return uuid.UUID(user_uuid), uuid.UUID(tenant_uuid)

@@ -29,18 +29,31 @@ class PipelineStatus(StrEnum):
     FAILED = 'failed'
 
 
+class TemplateScope(StrEnum):
+    PERSONAL = 'personal'
+    TENANT = 'tenant'
+
+
 class TemplateListItem(ApiModel):
     uuid: str
     title: str
+    scope: TemplateScope
 
 
 class TemplateDetail(ApiModel):
     uuid: UUID
     title: str
     content: dict
+    scope: TemplateScope
 
 
 class TemplateCreateRequest(ApiModel):
+    title: str
+    content: dict
+    scope: TemplateScope = TemplateScope.PERSONAL
+
+
+class TemplateUpdateRequest(ApiModel):
     title: str
     content: dict
 

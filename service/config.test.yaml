@@ -1,0 +1,20 @@
+auth:
+  allowed_apis:
+    - url: "https://your-dsw-instance.example.com/wizard-api"
+      tenant_uuid: "123e4567-e89b-12d3-a456-426614174000"
+
+logging:
+  level: "INFO"
+
+database:
+  host: "localhost"
+  port: "5432"
+  name: "ai_document_plugin"
+  user: "ai_document_plugin"
+  password: "ai_document_plugin"
+  schema: "public"
+
+files:
+  prompts_path: "prompts.yaml"
+
+max_parallel_executions: 2

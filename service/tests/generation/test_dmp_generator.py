@@ -508,7 +508,7 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
     )
 
 
-def test_run_renders_parent_and_leaf_sections() -> None:
+async def test_run_renders_parent_and_leaf_sections() -> None:
     stub = StubGenerationLLM()
     component = _component(stub)
     km = _km_fixture()
@@ -536,7 +536,7 @@ def test_run_renders_parent_and_leaf_sections() -> None:
         'ch.listQ.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
     }
 
-    result = component.run(
+    result = await component.run_async(
         replies=replies,
         km=km,
         new_assignments=_serialize_assignments(assignments),
@@ -554,7 +554,7 @@ def test_run_renders_parent_and_leaf_sections() -> None:
     assert stats is not None
 
 
-def test_run_handles_empty_section() -> None:
+async def test_run_handles_empty_section() -> None:
     stub = StubGenerationLLM()
     component = _component(stub)
     km = _km_fixture()
@@ -562,7 +562,7 @@ def test_run_handles_empty_section() -> None:
         SectionAssignment(id='s0', title='Empty'),
     ]
 
-    result = component.run(
+    result = await component.run_async(
         replies={},
         km=km,
         new_assignments=_serialize_assignments(assignments),

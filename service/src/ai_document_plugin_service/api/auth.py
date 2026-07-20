@@ -11,6 +11,7 @@ from ai_document_plugin_service.api.jwt import extract_identity_from_token
 DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
 DSW_USER_VALIDATION_TIMEOUT_SECONDS = 10.0
 DSW_USER_VALIDATION_SUCCESS_STATUS = 200
+DSW_ADMIN_ROLE = 'admin'
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,11 @@ class AuthenticatedUser:
     api_url: str
     user_uuid: UUID
     tenant_uuid: UUID
+    role: str
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role.strip().lower() == DSW_ADMIN_ROLE
 
 
 def is_allowed_request(api_url: str, tenant_uuid: UUID, allowed_apis: tuple[AllowedApi, ...]) -> bool:
@@ -45,7 +51,8 @@ def _parse_bearer_token(authorization: str | None) -> str | None:
     return credentials.strip()
 
 
-def _validate_dsw_user(api_url: str, token: str) -> bool:
+def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
+    """Validate the token against DSW and return the current user, or None if rejected."""
     url = f'{normalize_project_url(api_url)}/users/current'
     try:
         response = httpx.get(
@@ -54,9 +61,28 @@ def _validate_dsw_user(api_url: str, token: str) -> bool:
             timeout=DSW_USER_VALIDATION_TIMEOUT_SECONDS,
         )
     except httpx.HTTPError:
-        return False
+        return None
 
-    return response.status_code == DSW_USER_VALIDATION_SUCCESS_STATUS
+    if response.status_code != DSW_USER_VALIDATION_SUCCESS_STATUS:
+        return None
+
+    try:
+        user = response.json()
+    except ValueError:
+        return None
+
+    if not isinstance(user, dict):
+        return None
+
+    return user
+
+
+def _extract_role(user: dict[str, object]) -> str:
+    role = user.get('role')
+    if not isinstance(role, str) or not role.strip():
+        msg = f'Unexpected DSW user - it did not include a role. User obj: {user}'
+        raise ValueError(msg)
+    return role
 
 
 def verify_authenticated(
@@ -82,7 +108,15 @@ def verify_authenticated(
     if not is_allowed_request(normalized_api_url, tenant_uuid, config.allowed_apis):
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
-    if not _validate_dsw_user(normalized_api_url, token):
+    user = _fetch_dsw_user(normalized_api_url, token)
+    if user is None:
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
-    return AuthenticatedUser(token=token, api_url=normalized_api_url, user_uuid=user_uuid, tenant_uuid=tenant_uuid)
+    role = _extract_role(user)
+    return AuthenticatedUser(
+        token=token,
+        api_url=normalized_api_url,
+        user_uuid=user_uuid,
+        tenant_uuid=tenant_uuid,
+        role=role,
+    )

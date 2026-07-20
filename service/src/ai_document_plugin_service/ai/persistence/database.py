@@ -1,23 +1,40 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Connection, inspect
+from sqlalchemy import ColumnElement, Connection, and_, inspect, or_
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
+from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
-from ai_document_plugin_service.api.types import TemplateDetail
+from ai_document_plugin_service.api.types import TemplateScope
 
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, Any] | Sequence[Any]
+
+
+@dataclass(frozen=True)
+class TemplateRecord:
+    """A raw template row. Carries the owner so callers can apply access rules."""
+
+    uuid: UUID
+    title: str
+    content: dict
+    tenant_uuid: UUID
+    user_uuid: UUID | None
+
+    @property
+    def scope(self) -> TemplateScope:
+        return TemplateScope.PERSONAL if self.user_uuid is not None else TemplateScope.TENANT
 
 
 class Database(ABC):
@@ -27,8 +44,31 @@ class Database(ABC):
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
+        user_uuid: UUID | None,
     ) -> UUID:
-        """Create a new template in a database backend. Return created template UUID"""
+        """Create a new template in a database backend. Return created template UUID.
+
+        A NULL user_uuid creates a tenant-wide template; a set user_uuid creates a
+        personal template owned by that user.
+        """
+
+    @abstractmethod
+    async def update_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+        title: str,
+        content: JsonValue,
+    ) -> bool:
+        """Update an existing template's title and content. Return whether a row was updated."""
+
+    @abstractmethod
+    async def delete_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+    ) -> bool:
+        """Delete a template (and its assignments/results). Return whether a row was deleted."""
 
     @abstractmethod
     async def save_assignments(
@@ -62,12 +102,16 @@ class Database(ABC):
         """Get assignments from a database backend."""
 
     @abstractmethod
-    async def list_templates(self, tenant_uuid: UUID) -> list[dict[str, str]]:
-        """List available templates from a database backend."""
+    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[dict[str, str]]:
+        """List common templates plus the given user's personal templates."""
 
     @abstractmethod
-    async def get_template(self, template_uuid: UUID, tenant_uuid: UUID) -> TemplateDetail | None:
-        """Get a template record from a database backend."""
+    async def get_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+    ) -> TemplateRecord | None:
+        """Get a raw template row by uuid and tenant, without visibility filtering."""
 
     @abstractmethod
     async def save_result(
@@ -199,6 +243,7 @@ class PostgresDB(Database):
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
+        user_uuid: UUID | None,
     ) -> UUID:
         template_uuid = uuid4()
         await self._ensure_schema()
@@ -207,14 +252,14 @@ class PostgresDB(Database):
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
+            user_uuid=user_uuid,
         )
 
         try:
             async with self.engine.begin() as connection:
                 await connection.execute(statement)
         except IntegrityError as exc:
-            msg = f'Template with title "{title}" already exists.'
-            raise ValueError(msg) from exc
+            raise TemplateTitleConflictError(title) from exc
 
         logger.debug(
             'Created template uuid=%s in %s.template',
@@ -222,6 +267,58 @@ class PostgresDB(Database):
             self.schema_name,
         )
         return template_uuid
+
+    async def update_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+        title: str,
+        content: JsonValue,
+    ) -> bool:
+        await self._ensure_schema()
+        statement = (
+            self.template_table.update()
+            .where(
+                (self.template_table.c.uuid == template_uuid)
+                & (self.template_table.c.tenant_uuid == tenant_uuid),
+            )
+            .values(title=title, content=content)
+        )
+
+        try:
+            async with self.engine.begin() as connection:
+                result = await connection.execute(statement)
+        except IntegrityError as exc:
+            raise TemplateTitleConflictError(title) from exc
+
+        logger.debug('Updated template uuid=%s in %s.template', template_uuid, self.schema_name)
+        return result.rowcount > 0
+
+    async def delete_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+    ) -> bool:
+        await self._ensure_schema()
+
+        async with self.engine.begin() as connection:
+            # result and assignment reference template.uuid, so remove them first.
+            # todo: do we want to remove all attached results?
+            await connection.execute(
+                self.result_table.delete().where(self.result_table.c.template_uuid == template_uuid),
+            )
+            await connection.execute(
+                self.assignment_table.delete().where(self.assignment_table.c.template_uuid == template_uuid),
+            )
+            result = await connection.execute(
+                self.template_table.delete().where(
+                    (self.template_table.c.uuid == template_uuid)
+                    & (self.template_table.c.tenant_uuid == tenant_uuid),
+                ),
+            )
+
+        logger.debug('Deleted template uuid=%s from %s.template', template_uuid, self.schema_name)
+        return result.rowcount > 0
 
     async def save_template(
         self,
@@ -286,11 +383,21 @@ class PostgresDB(Database):
 
         return row.assignments
 
-    async def list_templates(self, tenant_uuid: UUID) -> list[dict[str, str]]:
+    def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
+        """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""
+        return and_(
+            self.template_table.c.tenant_uuid == tenant_uuid,
+            or_(
+                self.template_table.c.user_uuid.is_(None),
+                self.template_table.c.user_uuid == user_uuid,
+            ),
+        )
+
+    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[dict[str, str]]:
         await self._ensure_schema()
         statement = (
             self.template_table.select()
-            .where(self.template_table.c.tenant_uuid == tenant_uuid)
+            .where(self._template_visible_to_user(tenant_uuid, user_uuid))
             .order_by(self.template_table.c.title.asc())
         )
 
@@ -302,14 +409,22 @@ class PostgresDB(Database):
             {
                 'uuid': str(row.uuid),
                 'title': row.title,
+                'scope': _scope_for(row.user_uuid),
             }
             for row in rows
         ]
 
-    async def get_template(self, template_uuid: UUID, tenant_uuid: UUID) -> TemplateDetail | None:
+    async def get_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+    ) -> TemplateRecord | None:
         await self._ensure_schema()
         statement = self.template_table.select().where(
-            (self.template_table.c.uuid == template_uuid) & (self.template_table.c.tenant_uuid == tenant_uuid),
+            and_(
+                self.template_table.c.uuid == template_uuid,
+                self.template_table.c.tenant_uuid == tenant_uuid,
+            )
         )
 
         async with self.engine.begin() as connection:
@@ -324,10 +439,12 @@ class PostgresDB(Database):
                 self.schema_name,
             )
             return None
-        return TemplateDetail(
+        return TemplateRecord(
             uuid=row.uuid,
             title=row.title,
             content=row.content,
+            tenant_uuid=row.tenant_uuid,
+            user_uuid=row.user_uuid,
         )
 
     async def save_result(
@@ -443,6 +560,10 @@ class PostgresDB(Database):
             knowledge_model_uuid,
             self.schema_name,
         )
+
+
+def _scope_for(user_uuid: UUID | None) -> TemplateScope:
+    return TemplateScope.PERSONAL if user_uuid is not None else TemplateScope.TENANT
 
 
 def _validate_identifier(value: str) -> str:

@@ -6,11 +6,12 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     MetaData,
     Table,
     Text,
-    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -33,7 +34,25 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('title', Text, nullable=False),
         Column('content', JSON, nullable=False),
         Column('tenant_uuid', UUID(as_uuid=True), nullable=False),
-        UniqueConstraint('title', 'tenant_uuid', name='uq_template_title_tenant_uuid'),
+        # NULL user_uuid marks a tenant-wide template shared with the whole tenant;
+        # a set user_uuid marks a personal template owned by that user.
+        Column('user_uuid', UUID(as_uuid=True), nullable=True),
+        Index(
+            'uq_template_title_tenant_wide',
+            'title',
+            'tenant_uuid',
+            unique=True,
+            postgresql_where=text('user_uuid IS NULL'),
+        ),
+        # ... and unique per user among that user's personal templates.
+        Index(
+            'uq_template_title_tenant_user',
+            'title',
+            'tenant_uuid',
+            'user_uuid',
+            unique=True,
+            postgresql_where=text('user_uuid IS NOT NULL'),
+        ),
     )
 
     assignment_table = Table(

@@ -103,15 +103,19 @@ def test_protected_route_returns_401_when_dsw_rejects_token(
 
 
 @patch('ai_document_plugin_service.api.auth.httpx.get')
-@patch('ai_document_plugin_service.app.PostgresDB')
+@patch('ai_document_plugin_service.di.PostgresDB')
 def test_protected_route_succeeds_when_dsw_validates_user(
     mock_postgres_db: MagicMock,
     mock_httpx_get: MagicMock,
     monkeypatch,
 ) -> None:
-    mock_httpx_get.return_value = httpx.Response(200, request=httpx.Request('GET', ALLOWED_URL))
+    mock_httpx_get.return_value = httpx.Response(
+        200,
+        request=httpx.Request('GET', ALLOWED_URL),
+        json={'role': 'researcher'},
+    )
     mock_postgres_db.return_value.list_templates = AsyncMock(
-        return_value=[{'uuid': 'template-1', 'title': 'Template 1'}],
+        return_value=[{'uuid': 'template-1', 'title': 'Template 1', 'scope': 'tenant'}],
     )
     mock_postgres_db.return_value.dispose = AsyncMock()
 
@@ -121,5 +125,5 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200
-    assert response.json() == [{'uuid': 'template-1', 'title': 'Template 1'}]
+    assert response.json() == [{'uuid': 'template-1', 'title': 'Template 1', 'scope': 'tenant'}]
     mock_httpx_get.assert_called_once()

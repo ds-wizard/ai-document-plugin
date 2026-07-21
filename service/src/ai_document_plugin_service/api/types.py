@@ -33,6 +33,11 @@ class TemplateScope(StrEnum):
     PERSONAL = 'personal'
     TENANT = 'tenant'
 
+    @staticmethod
+    def for_user(user_uuid: UUID | None) -> 'TemplateScope':
+        """A row with an owner is personal; without one it is tenant-wide."""
+        return TemplateScope.PERSONAL if user_uuid is not None else TemplateScope.TENANT
+
 
 class TemplateListItem(ApiModel):
     uuid: str

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import ColumnElement, Connection, and_, inspect, or_
+from sqlalchemy import ColumnElement, Connection, Row, and_, inspect, or_
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
@@ -34,7 +34,17 @@ class TemplateRecord:
 
     @property
     def scope(self) -> TemplateScope:
-        return TemplateScope.PERSONAL if self.user_uuid is not None else TemplateScope.TENANT
+        return TemplateScope.for_user(self.user_uuid)
+
+    @classmethod
+    def from_row(cls, row: Row) -> 'TemplateRecord':
+        return cls(
+            uuid=row.uuid,
+            title=row.title,
+            content=row.content,
+            tenant_uuid=row.tenant_uuid,
+            user_uuid=row.user_uuid,
+        )
 
 
 class Database(ABC):
@@ -102,7 +112,7 @@ class Database(ABC):
         """Get assignments from a database backend."""
 
     @abstractmethod
-    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[dict[str, str]]:
+    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
         """List common templates plus the given user's personal templates."""
 
     @abstractmethod
@@ -405,14 +415,7 @@ class PostgresDB(Database):
             result = await connection.execute(statement)
             rows = result.fetchall()
 
-        return [
-            {
-                'uuid': str(row.uuid),
-                'title': row.title,
-                'scope': _scope_for(row.user_uuid),
-            }
-            for row in rows
-        ]
+        return [TemplateRecord.from_row(row) for row in rows]
 
     async def get_template(
         self,
@@ -439,13 +442,7 @@ class PostgresDB(Database):
                 self.schema_name,
             )
             return None
-        return TemplateRecord(
-            uuid=row.uuid,
-            title=row.title,
-            content=row.content,
-            tenant_uuid=row.tenant_uuid,
-            user_uuid=row.user_uuid,
-        )
+        return TemplateRecord.from_row(row)
 
     async def save_result(
         self,
@@ -560,10 +557,6 @@ class PostgresDB(Database):
             knowledge_model_uuid,
             self.schema_name,
         )
-
-
-def _scope_for(user_uuid: UUID | None) -> TemplateScope:
-    return TemplateScope.PERSONAL if user_uuid is not None else TemplateScope.TENANT
 
 
 def _validate_identifier(value: str) -> str:

@@ -30,8 +30,8 @@ class TemplateService:
         self._database = database
 
     async def list(self, auth: AuthenticatedUser) -> list[TemplateListItem]:
-        rows = await self._database.list_templates(auth.tenant_uuid, auth.user_uuid)
-        return [_model_from_fields(TemplateListItem, **row) for row in rows]
+        records = await self._database.list_templates(auth.tenant_uuid, auth.user_uuid)
+        return [self._to_list_item(record) for record in records]
 
     async def get(self, auth: AuthenticatedUser, template_uuid: UUID) -> TemplateDetail:
         record = await self._database.get_template(template_uuid, auth.tenant_uuid)
@@ -40,10 +40,11 @@ class TemplateService:
         return self._to_detail(record)
 
     async def create(self, auth: AuthenticatedUser, payload: TemplateCreateRequest) -> TemplateDetail:
-        trimmed_title = self._validate_payload(payload.title, payload.content)
         owner_uuid = None if payload.scope is TemplateScope.TENANT else auth.user_uuid
         if not self._can_mutate(auth, payload.scope, owner_uuid):
             raise AccessDeniedError(self.TENANT_CREATE_MESSAGE)
+
+        trimmed_title = self._validate_payload(payload.title, payload.content)
 
         try:
             template_uuid = await self._database.create_template(
@@ -70,7 +71,6 @@ class TemplateService:
         payload: TemplateUpdateRequest,
     ) -> TemplateDetail:
         # todo: this needs to be handled in a single transaction!
-        trimmed_title = self._validate_payload(payload.title, payload.content)
         record = await self._database.get_template(template_uuid, auth.tenant_uuid)
         if record is None:
             raise NotFoundError(self.NOT_FOUND_MESSAGE)
@@ -78,6 +78,8 @@ class TemplateService:
             if record.scope is TemplateScope.TENANT:
                 raise AccessDeniedError(self.TENANT_MUTATION_MESSAGE)
             raise NotFoundError(self.NOT_FOUND_MESSAGE)
+
+        trimmed_title = self._validate_payload(payload.title, payload.content)
 
         try:
             await self._database.update_template(
@@ -116,6 +118,15 @@ class TemplateService:
         if scope is TemplateScope.TENANT:
             return auth.is_admin
         return owner_uuid == auth.user_uuid
+
+    @staticmethod
+    def _to_list_item(record: TemplateRecord) -> TemplateListItem:
+        return _model_from_fields(
+            TemplateListItem,
+            uuid=str(record.uuid),
+            title=record.title,
+            scope=record.scope,
+        )
 
     @staticmethod
     def _to_detail(record: TemplateRecord) -> TemplateDetail:

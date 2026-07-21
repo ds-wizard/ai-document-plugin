@@ -77,10 +77,14 @@ def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
     return user
 
 
-def _extract_role(user: dict[str, object]) -> str:
+def _extract_role(user: dict[str, object], api_url: str) -> str:
     role = user.get('role')
     if not isinstance(role, str) or not role.strip():
-        msg = f'Unexpected DSW user - it did not include a role. User obj: {user}'
+        msg = (
+            f'Unexpected response from DSW at {api_url}: the /users/current payload '
+            f'did not include a valid string "role" (got {role!r}). '
+            f'The tenant may be running an incompatible DSW version. Received payload: {user}'
+        )
         raise ValueError(msg)
     return role
 
@@ -112,7 +116,7 @@ def verify_authenticated(
     if user is None:
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
-    role = _extract_role(user)
+    role = _extract_role(user, normalized_api_url)
     return AuthenticatedUser(
         token=token,
         api_url=normalized_api_url,

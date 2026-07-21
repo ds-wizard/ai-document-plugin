@@ -1,6 +1,8 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -10,7 +12,7 @@ from sqlalchemy import ColumnElement, Connection, Row, and_, inspect, or_
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
@@ -20,6 +22,11 @@ from ai_document_plugin_service.api.types import TemplateScope
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, Any] | Sequence[Any]
+
+# Holds the connection of the transaction currently active on this asyncio task, if any.
+# Set by PostgresDB.transaction(); read by every operation so it can join that transaction
+# instead of opening its own. ContextVar is per-task, so concurrent requests stay isolated.
+_active_connection: ContextVar[AsyncConnection | None] = ContextVar('active_connection', default=None)
 
 
 @dataclass(frozen=True)
@@ -48,6 +55,19 @@ class TemplateRecord:
 
 
 class Database(ABC):
+    @abstractmethod
+    def transaction(self) -> AbstractAsyncContextManager[None]:
+        """Run several operations as one atomic transaction.
+
+        Usage:
+        async with database.transaction():
+                record = await database.get_template(uuid, tenant, for_update=True)
+                ...
+                await database.update_template(...)
+
+        Nesting is safe: an inner ``transaction()`` joins the outer one.
+        """
+
     @abstractmethod
     async def create_template(
         self,
@@ -120,8 +140,13 @@ class Database(ABC):
         self,
         template_uuid: UUID,
         tenant_uuid: UUID,
+        for_update: bool = False,
     ) -> TemplateRecord | None:
-        """Get a raw template row by uuid and tenant, without visibility filtering."""
+        """Get a raw template row by uuid and tenant, without visibility filtering.
+
+        Pass ``for_update=True`` inside a ``transaction()`` to lock the row (SELECT ... FOR
+        UPDATE) so it cannot change between this read and a follow-up write.
+        """
 
     @abstractmethod
     async def save_result(
@@ -184,6 +209,35 @@ class PostgresDB(Database):
         """Close the engine's connection pool. Call on shutdown / when done with this instance."""
         await self.engine.dispose()
 
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[None]:
+        if _active_connection.get() is not None:
+            # Already inside a transaction on this task: join it so we commit as one unit.
+            yield
+            return
+        await self._ensure_schema()
+        async with self.engine.begin() as connection:
+            token = _active_connection.set(connection)
+            try:
+                yield
+            finally:
+                _active_connection.reset(token)
+
+    @asynccontextmanager
+    async def _connect(self) -> AsyncIterator[AsyncConnection]:
+        """Yield a connection, joining the active transaction if one is open, else its own.
+
+        Every operation goes through this instead of ``self.engine.begin()`` directly, so a
+        call made inside ``transaction()`` reuses that transaction's connection rather than
+        opening a second, independent one.
+        """
+        existing = _active_connection.get()
+        if existing is not None:
+            yield existing
+            return
+        async with self.engine.begin() as connection:
+            yield connection
+
     def _list_existing_tables(self, connection: Connection) -> set[str]:
         return set(inspect(connection).get_table_names(schema=self.schema_name))
 
@@ -239,7 +293,7 @@ class PostgresDB(Database):
             },
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
         logger.debug(
@@ -266,7 +320,7 @@ class PostgresDB(Database):
         )
 
         try:
-            async with self.engine.begin() as connection:
+            async with self._connect() as connection:
                 await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -296,7 +350,7 @@ class PostgresDB(Database):
         )
 
         try:
-            async with self.engine.begin() as connection:
+            async with self._connect() as connection:
                 result = await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -311,7 +365,7 @@ class PostgresDB(Database):
     ) -> bool:
         await self._ensure_schema()
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             # result and assignment reference template.uuid, so remove them first.
             # todo: do we want to remove all attached results?
             await connection.execute(
@@ -352,7 +406,7 @@ class PostgresDB(Database):
             },
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
         logger.debug(
@@ -373,7 +427,7 @@ class PostgresDB(Database):
             & (self.assignment_table.c.template_uuid == template_uuid),
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
 
@@ -411,7 +465,7 @@ class PostgresDB(Database):
             .order_by(self.template_table.c.title.asc())
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
             rows = result.fetchall()
 
@@ -421,6 +475,7 @@ class PostgresDB(Database):
         self,
         template_uuid: UUID,
         tenant_uuid: UUID,
+        for_update: bool = False,
     ) -> TemplateRecord | None:
         await self._ensure_schema()
         statement = self.template_table.select().where(
@@ -429,8 +484,10 @@ class PostgresDB(Database):
                 self.template_table.c.tenant_uuid == tenant_uuid,
             )
         )
+        if for_update:
+            statement = statement.with_for_update()
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
 
@@ -476,7 +533,7 @@ class PostgresDB(Database):
             },
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
         logger.debug(
@@ -507,7 +564,7 @@ class PostgresDB(Database):
             .values(stats=stats, updated_at=now)
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
 
         if result.rowcount == 0:
@@ -545,7 +602,7 @@ class PostgresDB(Database):
             )
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
 
         if result.rowcount == 0:

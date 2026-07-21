@@ -70,26 +70,26 @@ class TemplateService:
         template_uuid: UUID,
         payload: TemplateUpdateRequest,
     ) -> TemplateDetail:
-        # todo: this needs to be handled in a single transaction!
-        record = await self._database.get_template(template_uuid, auth.tenant_uuid)
-        if record is None:
-            raise NotFoundError(self.NOT_FOUND_MESSAGE)
-        if not self._can_mutate(auth, record.scope, record.user_uuid):
-            if record.scope is TemplateScope.TENANT:
-                raise AccessDeniedError(self.TENANT_MUTATION_MESSAGE)
-            raise NotFoundError(self.NOT_FOUND_MESSAGE)
+        async with self._database.transaction():
+            record = await self._database.get_template(template_uuid, auth.tenant_uuid, for_update=True)
+            if record is None:
+                raise NotFoundError(self.NOT_FOUND_MESSAGE)
+            if not self._can_mutate(auth, record.scope, record.user_uuid):
+                if record.scope is TemplateScope.TENANT:
+                    raise AccessDeniedError(self.TENANT_MUTATION_MESSAGE)
+                raise NotFoundError(self.NOT_FOUND_MESSAGE)
 
-        trimmed_title = self._validate_payload(payload.title, payload.content)
+            trimmed_title = self._validate_payload(payload.title, payload.content)
 
-        try:
-            await self._database.update_template(
-                template_uuid=template_uuid,
-                tenant_uuid=auth.tenant_uuid,
-                title=trimmed_title,
-                content=payload.content,
-            )
-        except TemplateTitleConflictError as error:
-            raise ConflictError(str(error)) from error
+            try:
+                await self._database.update_template(
+                    template_uuid=template_uuid,
+                    tenant_uuid=auth.tenant_uuid,
+                    title=trimmed_title,
+                    content=payload.content,
+                )
+            except TemplateTitleConflictError as error:
+                raise ConflictError(str(error)) from error
 
         return _model_from_fields(
             TemplateDetail,
@@ -100,14 +100,15 @@ class TemplateService:
         )
 
     async def delete(self, auth: AuthenticatedUser, template_uuid: UUID) -> None:
-        record = await self._database.get_template(template_uuid, auth.tenant_uuid)
-        if record is None:
-            raise NotFoundError(self.NOT_FOUND_MESSAGE)
-        if not self._can_mutate(auth, record.scope, record.user_uuid):
-            if record.scope is TemplateScope.TENANT:
-                raise AccessDeniedError(self.TENANT_MUTATION_MESSAGE)
-            raise NotFoundError(self.NOT_FOUND_MESSAGE)
-        await self._database.delete_template(template_uuid, auth.tenant_uuid)
+        async with self._database.transaction():
+            record = await self._database.get_template(template_uuid, auth.tenant_uuid, for_update=True)
+            if record is None:
+                raise NotFoundError(self.NOT_FOUND_MESSAGE)
+            if not self._can_mutate(auth, record.scope, record.user_uuid):
+                if record.scope is TemplateScope.TENANT:
+                    raise AccessDeniedError(self.TENANT_MUTATION_MESSAGE)
+                raise NotFoundError(self.NOT_FOUND_MESSAGE)
+            await self._database.delete_template(template_uuid, auth.tenant_uuid)
 
     @staticmethod
     def _can_view(auth: AuthenticatedUser, record: TemplateRecord) -> bool:

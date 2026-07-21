@@ -1,5 +1,6 @@
 import uuid
-from unittest.mock import AsyncMock
+from contextlib import nullcontext
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -24,6 +25,17 @@ USER_UUID = uuid.UUID('22222222-2222-2222-2222-222222222222')
 OTHER_USER_UUID = uuid.UUID('33333333-3333-3333-3333-333333333333')
 
 VALID_CONTENT = {'sections': []}
+
+
+def _database() -> AsyncMock:
+    """A mocked Database whose transaction() is a working no-op async context manager.
+
+    A bare AsyncMock returns a coroutine from transaction(), which can't be used with
+    `async with`; nullcontext() gives the service a real (no-op) async context manager.
+    """
+    database = AsyncMock()
+    database.transaction = MagicMock(return_value=nullcontext())
+    return database
 
 
 def _user(*, role: str = 'researcher', user_uuid: uuid.UUID = USER_UUID) -> AuthenticatedUser:
@@ -55,7 +67,7 @@ def _record(
 async def test_list_scopes_query_to_tenant_and_user() -> None:
     tenant_template_uuid = uuid.uuid4()
     personal_template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.list_templates.return_value = [
         _record(template_uuid=tenant_template_uuid, user_uuid=None, title='Common'),
         _record(template_uuid=personal_template_uuid, user_uuid=USER_UUID, title='Mine'),
@@ -72,7 +84,7 @@ async def test_list_scopes_query_to_tenant_and_user() -> None:
 
 async def test_get_returns_tenant_wide_template() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
     detail = await TemplateService(database).get(_user(), template_uuid)
@@ -83,7 +95,7 @@ async def test_get_returns_tenant_wide_template() -> None:
 
 async def test_get_returns_own_personal_template() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=USER_UUID)
 
     detail = await TemplateService(database).get(_user(), template_uuid)
@@ -93,7 +105,7 @@ async def test_get_returns_own_personal_template() -> None:
 
 async def test_get_hides_other_users_personal_template() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
@@ -101,7 +113,7 @@ async def test_get_hides_other_users_personal_template() -> None:
 
 
 async def test_get_raises_not_found_when_missing() -> None:
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = None
 
     with pytest.raises(NotFoundError):
@@ -110,7 +122,7 @@ async def test_get_raises_not_found_when_missing() -> None:
 
 async def test_create_personal_template_sets_owner() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.create_template.return_value = template_uuid
     payload = TemplateCreateRequest(title='  My template  ', content=VALID_CONTENT, scope=TemplateScope.PERSONAL)
 
@@ -128,7 +140,7 @@ async def test_create_personal_template_sets_owner() -> None:
 
 async def test_create_tenant_template_by_admin_has_no_owner() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.create_template.return_value = template_uuid
     payload = TemplateCreateRequest(title='Common', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
@@ -144,7 +156,7 @@ async def test_create_tenant_template_by_admin_has_no_owner() -> None:
 
 
 async def test_create_tenant_template_by_non_admin_is_denied() -> None:
-    database = AsyncMock()
+    database = _database()
     payload = TemplateCreateRequest(title='Common', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
@@ -156,7 +168,7 @@ async def test_create_tenant_template_by_non_admin_is_denied() -> None:
 async def test_create_authorizes_before_validating() -> None:
     # A non-admin submitting an invalid tenant-wide template must be rejected for
     # lack of permission (403), not for the payload (400).
-    database = AsyncMock()
+    database = _database()
     payload = TemplateCreateRequest(title='', content={}, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
@@ -164,7 +176,7 @@ async def test_create_authorizes_before_validating() -> None:
 
 
 async def test_create_rejects_blank_title() -> None:
-    database = AsyncMock()
+    database = _database()
     payload = TemplateCreateRequest(title='   ', content=VALID_CONTENT)
 
     with pytest.raises(ValidationError):
@@ -174,7 +186,7 @@ async def test_create_rejects_blank_title() -> None:
 
 
 async def test_create_rejects_content_without_sections() -> None:
-    database = AsyncMock()
+    database = _database()
     payload = TemplateCreateRequest(title='My template', content={'not_sections': 1})
 
     with pytest.raises(ValidationError):
@@ -182,7 +194,7 @@ async def test_create_rejects_content_without_sections() -> None:
 
 
 async def test_create_maps_title_conflict_to_conflict_error() -> None:
-    database = AsyncMock()
+    database = _database()
     database.create_template.side_effect = TemplateTitleConflictError('My template')
     payload = TemplateCreateRequest(title='My template', content=VALID_CONTENT)
 
@@ -192,7 +204,7 @@ async def test_create_maps_title_conflict_to_conflict_error() -> None:
 
 async def test_update_own_personal_template() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=USER_UUID)
     database.update_template.return_value = True
     payload = TemplateUpdateRequest(title='  Renamed  ', content=VALID_CONTENT)
@@ -211,7 +223,7 @@ async def test_update_own_personal_template() -> None:
 
 async def test_update_tenant_template_by_admin() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
     database.update_template.return_value = True
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
@@ -224,7 +236,7 @@ async def test_update_tenant_template_by_admin() -> None:
 
 async def test_update_tenant_template_by_non_admin_is_denied() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
@@ -236,7 +248,7 @@ async def test_update_tenant_template_by_non_admin_is_denied() -> None:
 
 async def test_update_other_users_personal_template_is_hidden() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
@@ -247,7 +259,7 @@ async def test_update_other_users_personal_template_is_hidden() -> None:
 
 
 async def test_update_missing_template_raises_not_found() -> None:
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = None
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
@@ -257,7 +269,7 @@ async def test_update_missing_template_raises_not_found() -> None:
 
 async def test_update_maps_title_conflict_to_conflict_error() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=USER_UUID)
     database.update_template.side_effect = TemplateTitleConflictError('Renamed')
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
@@ -268,7 +280,7 @@ async def test_update_maps_title_conflict_to_conflict_error() -> None:
 
 async def test_delete_own_personal_template() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=USER_UUID)
 
     await TemplateService(database).delete(_user(), template_uuid)
@@ -278,7 +290,7 @@ async def test_delete_own_personal_template() -> None:
 
 async def test_delete_tenant_template_by_admin() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
     await TemplateService(database).delete(_user(role='admin'), template_uuid)
@@ -288,7 +300,7 @@ async def test_delete_tenant_template_by_admin() -> None:
 
 async def test_delete_tenant_template_by_non_admin_is_denied() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
     with pytest.raises(AccessDeniedError):
@@ -299,7 +311,7 @@ async def test_delete_tenant_template_by_non_admin_is_denied() -> None:
 
 async def test_delete_other_users_personal_template_is_hidden() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
@@ -309,7 +321,7 @@ async def test_delete_other_users_personal_template_is_hidden() -> None:
 
 async def test_delete_other_users_by_admin_is_hidden() -> None:
     template_uuid = uuid.uuid4()
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
@@ -319,7 +331,7 @@ async def test_delete_other_users_by_admin_is_hidden() -> None:
 
 
 async def test_delete_missing_template_raises_not_found() -> None:
-    database = AsyncMock()
+    database = _database()
     database.get_template.return_value = None
 
     with pytest.raises(NotFoundError):

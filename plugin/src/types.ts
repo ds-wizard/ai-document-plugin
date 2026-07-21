@@ -1,6 +1,9 @@
+export type TemplateScope = 'personal' | 'tenant'
+
 export type TemplateOption = {
     uuid: string
     title: string
+    scope: TemplateScope
 }
 
 export type PipelineErrorResponse = {
@@ -22,6 +25,7 @@ export type TemplateDetail = {
     uuid: string
     title: string
     content: ApiTemplateContent
+    scope: TemplateScope
 }
 
 export type PipelineRunResponse = {

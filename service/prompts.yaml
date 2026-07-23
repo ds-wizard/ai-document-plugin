@@ -50,9 +50,7 @@ dmp_generation:
     Do not rewrite the heading, write only the section content. Make the text sound natural, it should not be just direct copy of the questions and answers, but rather a concise, well structured and fluent data management plan. 
     Feel free to use markdown tables or lists. Maintain consistency in style and terminology with the already generated parts. 
     
-    Determine the target language from the section title. Write the entire section exclusively in that language and translate all relevant information from the questions and answers into it, regardless of the language of the source content. Do not mix languages within the generated section.
-
-    Keep proper names, official project names, abbreviations, identifiers, filenames, repository names, standards, licences, and technical terms that are conventionally left untranslated in their original form. If the language cannot be reliably determined from the section title, use the language of the surrounding DMP content.
+    The output language should be {language}. Keep proper names, official project names, abbreviations, identifiers, filenames, repository names, standards, licences, and technical terms that are conventionally left untranslated in their original form.
 
 dmp_polishing:
   max_tokens: 16384
@@ -69,10 +67,9 @@ dmp_polishing:
     - Use the same language as the section titles.
     
     # Language rules:
-    - Determine the document's target language from the complete prescribed section structure in {sections}.
-    - Use the dominant natural language across all section titles. Do not determine the language independently for each individual section.
-    - Write all generated section content exclusively in the detected document language.
-    - Do not mix languages in the generated prose.
+    - Write all section content exclusively in {language}.
+    - Translate any relevant input content that is written in another language into {language}.
+    - Preserve proper names, official project names, abbreviations, identifiers, filenames, repository names, standards, licences, and technical terms that are conventionally left untranslated.
     - Maintain consistent terminology throughout the document.
     
     CRITICAL: Do NOT add any new information. Only reorganize, move, merge, or lightly rephrase what is already in the document. Every fact, figure, and statement in your output must come from the input. Do not invent, extrapolate, or add content that was not explicitly stated in the input DMP."""
@@ -88,4 +85,3 @@ dmp_polishing:
     ---
     
     {markdown}
-

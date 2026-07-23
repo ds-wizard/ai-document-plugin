@@ -276,7 +276,7 @@ export function TemplateStructureEditor({ value, onChange }: TemplateStructureEd
                 </div>
             ) : null}
 
-            <div className={styles.content}>
+            <div className="ai-doc-scroll-list">
                 {sections.length === 0 ? (
                     <div className={styles.emptyState}>
                         No sections yet. Add a section to get started.

@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
 
 import { createTemplate, updateTemplate } from '@/client'
 import styles from '@/components/CustomTemplateSection.module.css'
+import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
 
@@ -172,13 +173,13 @@ export function CustomTemplateSection({
     const savingLabel = isEditing ? 'Updating template...' : 'Saving template...'
 
     return (
-        <section className={styles.root}>
+        <section className="ai-doc-card">
             <div>
-                <h5 className={styles.title}>{heading}</h5>
+                <h5 className="ai-doc-title">{heading}</h5>
             </div>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>Template title</span>
+            <label className="ai-doc-field">
+                <span className="ai-doc-field-label">Template title</span>
                 <input
                     type="text"
                     value={title}
@@ -188,9 +189,9 @@ export function CustomTemplateSection({
                 />
             </label>
 
-            <div className={styles.label}>
-                <span className={styles.labelText}>Template structure</span>
-                <div className={`${styles.segmentedControl} btn-group`} role="group">
+            <div className="ai-doc-field">
+                <span className="ai-doc-field-label">Template structure</span>
+                <div className="ai-doc-segmented-control btn-group" role="group">
                     {(
                         [
                             { mode: 'visual' as const, label: 'Visual editor' },
@@ -267,7 +268,7 @@ export function CustomTemplateSection({
                 ) : null}
             </div>
 
-            {error ? <div className={styles.alert}>{error}</div> : null}
+            {error ? <FeedbackAlert kind="error">{error}</FeedbackAlert> : null}
         </section>
     )
 }

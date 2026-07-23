@@ -36,7 +36,7 @@ export default function ProjectTab({
             <div>
                 <div className={styles.root}>
                     <div>
-                        <h2 className={styles.title}>AI Document Generation</h2>
+                        <h2 className="ai-doc-title">AI Document Generation</h2>
                     </div>
 
                     <FeedbackAlert kind="warning">
@@ -55,7 +55,7 @@ export default function ProjectTab({
         <div className="Projects__Detail__Content Projects__Detail__Content--Metrics">
             <div className={`questionnaire__summary-report container ${styles.root}`}>
                 <div>
-                    <h2 className={styles.title}>AI Document Generation</h2>
+                    <h2 className="ai-doc-title">AI Document Generation</h2>
                     <p className={styles.lead}>
                         Select a DMP template from the database and run the pipeline on the current
                         project.

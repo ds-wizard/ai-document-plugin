@@ -1,23 +1,6 @@
-.root {
-    display: grid;
-    gap: 0.75rem;
-    padding: 1rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px solid var(--bs-border-color);
-    background: var(--ai-doc-color-slate-50);
-    min-width: 0;
-}
-
 .label {
     display: grid;
     gap: 0.5rem;
-}
-
-.content {
-    max-height: 36rem;
-    overflow-y: auto;
-    min-height: 0;
-    padding-right: 0.15rem;
 }
 
 .status {

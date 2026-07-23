@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 
 import { CustomTemplateSection, type EditingTemplate } from '@/components/CustomTemplateSection'
+import { FeedbackAlert } from '@/components/FeedbackAlert'
 import styles from '@/components/settings/TenantTemplateSettings.module.css'
 import { useTemplates } from '@/hooks/useTemplates'
 import type { TemplateOption } from '@/types'
@@ -91,8 +92,8 @@ export function TenantTemplateSection() {
                 </p>
             </div>
 
-            {error ? <div className={styles.errorAlert}>{error}</div> : null}
-            {success ? <div className={styles.successAlert}>{success}</div> : null}
+            {error ? <FeedbackAlert kind="error">{error}</FeedbackAlert> : null}
+            {success ? <FeedbackAlert kind="success">{success}</FeedbackAlert> : null}
 
             {templates.length === 0 ? (
                 <p className={styles.muted}>No common templates yet.</p>

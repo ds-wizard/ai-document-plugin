@@ -94,7 +94,7 @@ export function PipelineResultPanel({
                     <div className={styles.subtitle}>Preview of the generated document.</div>
                 </div>
                 <div className={styles.toolbar}>
-                    <div className={`${styles.segmentedControl} btn-group`} role="group">
+                    <div className="ai-doc-segmented-control btn-group" role="group">
                         {(
                             [
                                 {

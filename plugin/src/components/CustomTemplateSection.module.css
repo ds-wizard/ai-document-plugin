@@ -1,37 +1,7 @@
-.root {
-    display: grid;
-    gap: 0.75rem;
-    padding: 1rem;
-    border-radius: var(--bs-border-radius);;
-    border: 1px solid var(--ai-doc-color-slate-200);
-    background: var(--ai-doc-color-slate-50);
-}
-
 .text {
     color: var(--ai-doc-color-slate-500);
     font-size: 0.95rem;
     line-height: 1.6;
-}
-
-.label {
-    display: grid;
-    gap: 0.5rem;
-}
-
-.labelText {
-    font-weight: 600;
-}
-
-.input {
-    padding: 0.75rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px solid var(--ai-doc-color-slate-300);
-    background: var(--ai-doc-color-white);
-}
-
-.segmentedControl {
-    display: inline-flex;
-    justify-self: start;
 }
 
 .fileDropZone {
@@ -117,13 +87,6 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     line-height: 1.5;
     border-radius: var(--bs-border-radius);
-}
-
-.alert {
-    padding: 0.75rem 1rem;
-    border-radius: var(--bs-border-radius);
-    background: var(--ai-doc-color-red-50);
-    color: var(--ai-doc-color-red-700);
 }
 
 .saveButton {

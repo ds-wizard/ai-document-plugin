@@ -140,6 +140,7 @@ class Database(ABC):
         self,
         template_uuid: UUID,
         tenant_uuid: UUID,
+        *,
         for_update: bool = False,
     ) -> TemplateRecord | None:
         """Get a raw template row by uuid and tenant, without visibility filtering.
@@ -230,6 +231,9 @@ class PostgresDB(Database):
         Every operation goes through this instead of ``self.engine.begin()`` directly, so a
         call made inside ``transaction()`` reuses that transaction's connection rather than
         opening a second, independent one.
+
+        Yields:
+            AsyncConnection: A database connection for the current operation.
         """
         existing = _active_connection.get()
         if existing is not None:
@@ -367,7 +371,7 @@ class PostgresDB(Database):
 
         async with self._connect() as connection:
             # result and assignment reference template.uuid, so remove them first.
-            # todo: do we want to remove all attached results?
+            # do we want to remove all attached results?
             await connection.execute(
                 self.result_table.delete().where(self.result_table.c.template_uuid == template_uuid),
             )
@@ -457,7 +461,7 @@ class PostgresDB(Database):
             ),
         )
 
-    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[dict[str, str]]:
+    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
         await self._ensure_schema()
         statement = (
             self.template_table.select()
@@ -475,6 +479,7 @@ class PostgresDB(Database):
         self,
         template_uuid: UUID,
         tenant_uuid: UUID,
+        *,
         for_update: bool = False,
     ) -> TemplateRecord | None:
         await self._ensure_schema()

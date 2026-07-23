@@ -1,11 +1,10 @@
-import { useCallback, useState } from 'react'
-
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
+import { useCallback, useState } from 'react'
 
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
-import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
 import styles from '@/components/ProjectTab.module.css'
+import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import { useFeedback } from '@/hooks/useFeedback'

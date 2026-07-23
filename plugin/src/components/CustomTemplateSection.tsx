@@ -165,9 +165,7 @@ export function CustomTemplateSection({
         }
     }, [fileName, inputMode])
 
-    const heading = isEditing
-        ? `Edit ${scopeNoun(scope)}`
-        : `Create ${scopeNoun(scope)}`
+    const heading = isEditing ? `Edit ${scopeNoun(scope)}` : `Create ${scopeNoun(scope)}`
 
     const saveLabel = isEditing ? 'Update template' : 'Save template'
     const savingLabel = isEditing ? 'Updating template...' : 'Saving template...'

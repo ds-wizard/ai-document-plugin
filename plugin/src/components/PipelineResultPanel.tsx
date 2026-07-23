@@ -80,7 +80,9 @@ export function PipelineResultPanel({
             setEditableResultMarkdown(savedMarkdown)
             notifySuccess('Edited markdown has been saved.')
         } catch (error) {
-            notifyError(error instanceof Error ? error.message : 'Failed to save the edited version.')
+            notifyError(
+                error instanceof Error ? error.message : 'Failed to save the edited version.',
+            )
         } finally {
             setIsSavingEditedVersion(false)
         }

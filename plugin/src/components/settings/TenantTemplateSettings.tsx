@@ -161,7 +161,6 @@ export function TenantTemplateSection() {
                     )
                 }
             })()}
-     
         </section>
     )
 }

@@ -6,9 +6,12 @@ import type { FeedbackController } from '@/hooks/useFeedback'
 
 const POLL_INTERVAL_MS = 10_000
 
-type PipelineProject = {
-    uuid: string
-} | null | undefined
+type PipelineProject =
+    | {
+          uuid: string
+      }
+    | null
+    | undefined
 
 export type UsePipelineResult = {
     isRunning: boolean
@@ -37,8 +40,12 @@ export function usePipeline(
 
     // The feedback methods are stable; depend on them individually so a changing
     // `feedback.current` never restarts the polling effect below.
-    const { notifyError: notifyError, notifyInfo: notifyInfo, notifySuccess: notifySuccess, clear: clearFeedback } =
-        feedback
+    const {
+        notifyError: notifyError,
+        notifyInfo: notifyInfo,
+        notifySuccess: notifySuccess,
+        clear: clearFeedback,
+    } = feedback
 
     const run = useCallback(
         async (templateUuid: string) => {

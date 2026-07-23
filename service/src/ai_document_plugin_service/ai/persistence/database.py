@@ -98,7 +98,7 @@ class Database(ABC):
         template_uuid: UUID,
         tenant_uuid: UUID,
     ) -> bool:
-        """Delete a template (and its assignments/results). Return whether a row was deleted."""
+        """Soft-delete a template by marking it deleted. Return whether a row was updated."""
 
     @abstractmethod
     async def save_assignments(
@@ -348,7 +348,8 @@ class PostgresDB(Database):
             self.template_table.update()
             .where(
                 (self.template_table.c.uuid == template_uuid)
-                & (self.template_table.c.tenant_uuid == tenant_uuid),
+                & (self.template_table.c.tenant_uuid == tenant_uuid)
+                & (self.template_table.c.deleted_at.is_(None)),
             )
             .values(title=title, content=content)
         )
@@ -369,23 +370,20 @@ class PostgresDB(Database):
     ) -> bool:
         await self._ensure_schema()
 
-        async with self._connect() as connection:
-            # result and assignment reference template.uuid, so remove them first.
-            # do we want to remove all attached results?
-            await connection.execute(
-                self.result_table.delete().where(self.result_table.c.template_uuid == template_uuid),
+        statement = (
+            self.template_table.update()
+            .where(
+                (self.template_table.c.uuid == template_uuid)
+                & (self.template_table.c.tenant_uuid == tenant_uuid)
+                & (self.template_table.c.deleted_at.is_(None)),
             )
-            await connection.execute(
-                self.assignment_table.delete().where(self.assignment_table.c.template_uuid == template_uuid),
-            )
-            result = await connection.execute(
-                self.template_table.delete().where(
-                    (self.template_table.c.uuid == template_uuid)
-                    & (self.template_table.c.tenant_uuid == tenant_uuid),
-                ),
-            )
+            .values(deleted_at=datetime.now(tz=UTC))
+        )
 
-        logger.debug('Deleted template uuid=%s from %s.template', template_uuid, self.schema_name)
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+
+        logger.debug('Soft-deleted template uuid=%s in %s.template', template_uuid, self.schema_name)
         return result.rowcount > 0
 
     async def save_template(
@@ -455,6 +453,7 @@ class PostgresDB(Database):
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""
         return and_(
             self.template_table.c.tenant_uuid == tenant_uuid,
+            self.template_table.c.deleted_at.is_(None),
             or_(
                 self.template_table.c.user_uuid.is_(None),
                 self.template_table.c.user_uuid == user_uuid,
@@ -487,6 +486,7 @@ class PostgresDB(Database):
             and_(
                 self.template_table.c.uuid == template_uuid,
                 self.template_table.c.tenant_uuid == tenant_uuid,
+                self.template_table.c.deleted_at.is_(None),
             )
         )
         if for_update:

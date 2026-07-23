@@ -33,9 +33,7 @@ async def list_templates(templates: TemplateServiceDI, auth: AuthenticatedDI) ->
 
 
 @protected_router.get('/templates/{template_uuid}')
-async def get_template(
-    template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI
-) -> TemplateDetail:
+async def get_template(template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI) -> TemplateDetail:
     return await templates.get(auth, template_uuid)
 
 
@@ -57,9 +55,7 @@ async def update_template(
 
 
 @protected_router.delete('/templates/{template_uuid}', status_code=204)
-async def delete_template(
-    template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI
-) -> None:
+async def delete_template(template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI) -> None:
     await templates.delete(auth, template_uuid)
 
 

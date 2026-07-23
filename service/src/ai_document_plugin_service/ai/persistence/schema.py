@@ -37,12 +37,16 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         # NULL user_uuid marks a tenant-wide template shared with the whole tenant;
         # a set user_uuid marks a personal template owned by that user.
         Column('user_uuid', UUID(as_uuid=True), nullable=True),
+        # NULL means the template is live; a set value marks it as (soft) deleted.
+        # Soft-deleted templates are excluded from the unique title constraints below
+        # so a title can be reused once the template that held it is deleted.
+        Column('deleted_at', DateTime(timezone=True), nullable=True),
         Index(
             'uq_template_title_tenant_wide',
             'title',
             'tenant_uuid',
             unique=True,
-            postgresql_where=text('user_uuid IS NULL'),
+            postgresql_where=text('user_uuid IS NULL AND deleted_at IS NULL'),
         ),
         # ... and unique per user among that user's personal templates.
         Index(
@@ -51,7 +55,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             'tenant_uuid',
             'user_uuid',
             unique=True,
-            postgresql_where=text('user_uuid IS NOT NULL'),
+            postgresql_where=text('user_uuid IS NOT NULL AND deleted_at IS NULL'),
         ),
     )
 

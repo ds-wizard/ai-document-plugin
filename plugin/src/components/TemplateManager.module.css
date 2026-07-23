@@ -1,0 +1,12 @@
+.createTemplateButton {
+    justify-self: start;
+    padding-left: 0;
+    padding-right: 0;
+    text-decoration: none;
+}
+
+.templateActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}

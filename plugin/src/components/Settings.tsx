@@ -1,6 +1,7 @@
 import { SettingsComponentProps } from '@ds-wizard/plugin-sdk/elements'
 
 import styles from '@/components/Settings.module.css'
+import { TenantTemplateSection } from '@/components/settings/TenantTemplateSettings'
 import { SettingsData } from '@/data/settings-data'
 
 export default function Settings({
@@ -83,6 +84,8 @@ export default function Settings({
                     className={styles.input}
                 />
             </label>
+
+            <TenantTemplateSection />
         </div>
     )
 }

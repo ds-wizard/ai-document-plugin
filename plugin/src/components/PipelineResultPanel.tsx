@@ -1,34 +1,91 @@
+import { useEffect, useState } from 'react'
+
+import { saveEditedPipelineResult } from '@/client'
 import styles from '@/components/PipelineResultPanel.module.css'
+import type { FeedbackController } from '@/hooks/useFeedback'
 import { MarkdownRenderer } from '@/markdown-utils'
 import type { ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
     resultMarkdown: string | null
-    editableResultMarkdown: string
-    resultRenderMode: ResultRenderMode
-    isSavingEditedVersion: boolean
-    hasResultChanges: boolean
-    displayedResultMarkdown: string | null
-    onResultRenderModeChange: (mode: ResultRenderMode) => void
-    onEditableResultMarkdownChange: (value: string) => void
-    onCopyMarkdown: () => void
-    onDownloadMarkdown: () => void
-    onSaveEditedVersion: () => void
+    resultRunId: string | null
+    feedback: FeedbackController
+    downloadBaseName: string
 }
 
 export function PipelineResultPanel({
     resultMarkdown,
-    editableResultMarkdown,
-    resultRenderMode,
-    isSavingEditedVersion,
-    hasResultChanges,
-    displayedResultMarkdown,
-    onResultRenderModeChange,
-    onEditableResultMarkdownChange,
-    onCopyMarkdown,
-    onDownloadMarkdown,
-    onSaveEditedVersion,
+    resultRunId,
+    feedback,
+    downloadBaseName,
 }: PipelineResultPanelProps) {
+    const { notifyError, notifySuccess } = feedback
+
+    const [editableResultMarkdown, setEditableResultMarkdown] = useState('')
+    const [committedMarkdown, setCommittedMarkdown] = useState<string | null>(null)
+    const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
+    const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
+
+    useEffect(() => {
+        setEditableResultMarkdown(resultMarkdown ?? '')
+        setCommittedMarkdown(resultMarkdown)
+    }, [resultMarkdown])
+
+    const displayedResultMarkdown = resultMarkdown !== null ? editableResultMarkdown : null
+    const hasResultChanges =
+        resultMarkdown !== null && editableResultMarkdown !== (committedMarkdown ?? '')
+
+    const onCopyMarkdown = async () => {
+        if (!displayedResultMarkdown) {
+            return
+        }
+
+        try {
+            await navigator.clipboard.writeText(displayedResultMarkdown)
+            notifySuccess('Markdown has been copied to the clipboard.')
+        } catch {
+            notifyError('Failed to copy markdown to the clipboard.')
+        }
+    }
+
+    const onDownloadMarkdown = () => {
+        if (!displayedResultMarkdown) {
+            return
+        }
+
+        const blob = new Blob([displayedResultMarkdown], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${downloadBaseName || 'pipeline-output'}.md`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+        notifySuccess('Markdown download has started.')
+    }
+
+    const onSaveEditedVersion = async () => {
+        if (!resultRunId || !resultMarkdown) {
+            notifyError('There is no pipeline result to save yet.')
+            return
+        }
+
+        setIsSavingEditedVersion(true)
+        try {
+            const data = await saveEditedPipelineResult(resultRunId, editableResultMarkdown)
+
+            const savedMarkdown = data.resultMarkdown ?? editableResultMarkdown
+            setCommittedMarkdown(savedMarkdown)
+            setEditableResultMarkdown(savedMarkdown)
+            notifySuccess('Edited markdown has been saved.')
+        } catch (error) {
+            notifyError(error instanceof Error ? error.message : 'Failed to save the edited version.')
+        } finally {
+            setIsSavingEditedVersion(false)
+        }
+    }
+
     return (
         <section className={styles.root}>
             <div className={styles.header}>
@@ -55,7 +112,7 @@ export function PipelineResultPanel({
                             <button
                                 key={mode}
                                 type="button"
-                                onClick={() => onResultRenderModeChange(mode)}
+                                onClick={() => setResultRenderMode(mode)}
                                 className={
                                     resultRenderMode === mode
                                         ? 'btn btn-primary'
@@ -72,7 +129,7 @@ export function PipelineResultPanel({
                         <div className={styles.actions}>
                             <button
                                 type="button"
-                                onClick={() => onCopyMarkdown()}
+                                onClick={() => void onCopyMarkdown()}
                                 className="btn btn-outline-secondary"
                             >
                                 Copy markdown
@@ -80,7 +137,7 @@ export function PipelineResultPanel({
 
                             <button
                                 type="button"
-                                onClick={() => onDownloadMarkdown()}
+                                onClick={onDownloadMarkdown}
                                 className="btn btn-outline-secondary"
                             >
                                 Download .md
@@ -88,7 +145,7 @@ export function PipelineResultPanel({
 
                             <button
                                 type="button"
-                                onClick={() => onSaveEditedVersion()}
+                                onClick={() => void onSaveEditedVersion()}
                                 disabled={!hasResultChanges || isSavingEditedVersion}
                                 className={`btn btn-outline-secondary ${styles.saveButton}`}
                             >
@@ -107,7 +164,7 @@ export function PipelineResultPanel({
                 ) : resultRenderMode === 'raw' ? (
                     <textarea
                         value={editableResultMarkdown}
-                        onChange={(event) => onEditableResultMarkdownChange(event.target.value)}
+                        onChange={(event) => setEditableResultMarkdown(event.target.value)}
                         className={styles.textarea}
                     >
                         {editableResultMarkdown}

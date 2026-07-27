@@ -101,66 +101,66 @@ export function TenantTemplateSection() {
                 <ul className={styles.list}>
                     {templates.map((template) => (
                         <li key={template.uuid} className={styles.listItem}>
-                            <span className={styles.listTitle}>{template.title}</span>
-                            <div className={styles.listActions}>
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-secondary btn-sm with-icon"
-                                    onClick={() => void handleEdit(template)}
-                                    disabled={busyUuid !== null}
-                                >
-                                    <i className="fas fa-pen" aria-hidden="true" />
-                                    Edit
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-danger btn-sm with-icon"
-                                    onClick={() => void handleDelete(template)}
-                                    disabled={busyUuid !== null}
-                                >
-                                    <i className="fas fa-trash" aria-hidden="true" />
-                                    Delete
-                                </button>
+                            <div className={styles.listItemRow}>
+                                <span className={styles.listTitle}>{template.title}</span>
+                                <div className={styles.listActions}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-secondary btn-sm with-icon"
+                                        onClick={() => void handleEdit(template)}
+                                        disabled={
+                                            busyUuid !== null ||
+                                            editingTemplate?.uuid === template.uuid
+                                        }
+                                    >
+                                        <i className="fas fa-pen" aria-hidden="true" />
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-danger btn-sm with-icon"
+                                        onClick={() => void handleDelete(template)}
+                                        disabled={busyUuid !== null}
+                                    >
+                                        <i className="fas fa-trash" aria-hidden="true" />
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
+
+                            {editingTemplate?.uuid === template.uuid ? (
+                                <CustomTemplateSection
+                                    scope="tenant"
+                                    editingTemplate={editingTemplate}
+                                    onSaved={handleSaved}
+                                    onCancel={() => setEditingTemplate(null)}
+                                />
+                            ) : null}
                         </li>
                     ))}
                 </ul>
             )}
 
-            {(() => {
-                if (editingTemplate) {
-                    return (
-                        <CustomTemplateSection
-                            scope="tenant"
-                            editingTemplate={editingTemplate}
-                            onSaved={handleSaved}
-                            onCancel={() => setEditingTemplate(null)}
-                        />
-                    )
-                } else if (isCreating) {
-                    return (
-                        <CustomTemplateSection
-                            scope="tenant"
-                            onSaved={handleSaved}
-                            onCancel={() => setIsCreating(false)}
-                        />
-                    )
-                } else {
-                    return (
-                        <button
-                            type="button"
-                            className="btn btn-primary with-icon"
-                            onClick={() => {
-                                setIsCreating(true)
-                                setSuccess(null)
-                            }}
-                        >
-                            <i className="fas fa-plus" aria-hidden="true" />
-                            Create tenant-wide template
-                        </button>
-                    )
-                }
-            })()}
+            {isCreating ? (
+                <CustomTemplateSection
+                    scope="tenant"
+                    onSaved={handleSaved}
+                    onCancel={() => setIsCreating(false)}
+                />
+            ) : (
+                <button
+                    type="button"
+                    className="btn btn-primary with-icon"
+                    onClick={() => {
+                        setIsCreating(true)
+                        setEditingTemplate(null)
+                        setSuccess(null)
+                    }}
+                >
+                    <i className="fas fa-plus" aria-hidden="true" />
+                    Create tenant-wide template
+                </button>
+            )}
         </section>
     )
 }

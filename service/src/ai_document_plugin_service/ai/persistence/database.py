@@ -1,34 +1,104 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Connection, inspect
+from sqlalchemy import ColumnElement, Connection, Row, and_, inspect, or_
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
+from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
-from ai_document_plugin_service.api.types import TemplateDetail
+from ai_document_plugin_service.api.types import TemplateScope
 
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, Any] | Sequence[Any]
 
+# Holds the connection of the transaction currently active on this asyncio task, if any.
+# Set by PostgresDB.transaction(); read by every operation so it can join that transaction
+# instead of opening its own. ContextVar is per-task, so concurrent requests stay isolated.
+_active_connection: ContextVar[AsyncConnection | None] = ContextVar('active_connection', default=None)
+
+
+@dataclass(frozen=True)
+class TemplateRecord:
+    """A raw template row. Carries the owner so callers can apply access rules."""
+
+    uuid: UUID
+    title: str
+    content: dict
+    tenant_uuid: UUID
+    user_uuid: UUID | None
+
+    @property
+    def scope(self) -> TemplateScope:
+        return TemplateScope.for_user(self.user_uuid)
+
+    @classmethod
+    def from_row(cls, row: Row) -> 'TemplateRecord':
+        return cls(
+            uuid=row.uuid,
+            title=row.title,
+            content=row.content,
+            tenant_uuid=row.tenant_uuid,
+            user_uuid=row.user_uuid,
+        )
+
 
 class Database(ABC):
+    @abstractmethod
+    def transaction(self) -> AbstractAsyncContextManager[None]:
+        """Run several operations as one atomic transaction.
+
+        Usage:
+        async with database.transaction():
+                record = await database.get_template(uuid, tenant, for_update=True)
+                ...
+                await database.update_template(...)
+
+        Nesting is safe: an inner ``transaction()`` joins the outer one.
+        """
+
     @abstractmethod
     async def create_template(
         self,
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
+        user_uuid: UUID | None,
     ) -> UUID:
-        """Create a new template in a database backend. Return created template UUID"""
+        """Create a new template in a database backend. Return created template UUID.
+
+        A NULL user_uuid creates a tenant-wide template; a set user_uuid creates a
+        personal template owned by that user.
+        """
+
+    @abstractmethod
+    async def update_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+        title: str,
+        content: JsonValue,
+    ) -> bool:
+        """Update an existing template's title and content. Return whether a row was updated."""
+
+    @abstractmethod
+    async def delete_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+    ) -> bool:
+        """Soft-delete a template by marking it deleted. Return whether a row was updated."""
 
     @abstractmethod
     async def save_assignments(
@@ -62,12 +132,22 @@ class Database(ABC):
         """Get assignments from a database backend."""
 
     @abstractmethod
-    async def list_templates(self, tenant_uuid: UUID) -> list[dict[str, str]]:
-        """List available templates from a database backend."""
+    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
+        """List common templates plus the given user's personal templates."""
 
     @abstractmethod
-    async def get_template(self, template_uuid: UUID, tenant_uuid: UUID) -> TemplateDetail | None:
-        """Get a template record from a database backend."""
+    async def get_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+        *,
+        for_update: bool = False,
+    ) -> TemplateRecord | None:
+        """Get a raw template row by uuid and tenant, without visibility filtering.
+
+        Pass ``for_update=True`` inside a ``transaction()`` to lock the row (SELECT ... FOR
+        UPDATE) so it cannot change between this read and a follow-up write.
+        """
 
     @abstractmethod
     async def save_result(
@@ -130,6 +210,38 @@ class PostgresDB(Database):
         """Close the engine's connection pool. Call on shutdown / when done with this instance."""
         await self.engine.dispose()
 
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[None]:
+        if _active_connection.get() is not None:
+            # Already inside a transaction on this task: join it so we commit as one unit.
+            yield
+            return
+        await self._ensure_schema()
+        async with self.engine.begin() as connection:
+            token = _active_connection.set(connection)
+            try:
+                yield
+            finally:
+                _active_connection.reset(token)
+
+    @asynccontextmanager
+    async def _connect(self) -> AsyncIterator[AsyncConnection]:
+        """Yield a connection, joining the active transaction if one is open, else its own.
+
+        Every operation goes through this instead of ``self.engine.begin()`` directly, so a
+        call made inside ``transaction()`` reuses that transaction's connection rather than
+        opening a second, independent one.
+
+        Yields:
+            AsyncConnection: A database connection for the current operation.
+        """
+        existing = _active_connection.get()
+        if existing is not None:
+            yield existing
+            return
+        async with self.engine.begin() as connection:
+            yield connection
+
     def _list_existing_tables(self, connection: Connection) -> set[str]:
         return set(inspect(connection).get_table_names(schema=self.schema_name))
 
@@ -185,7 +297,7 @@ class PostgresDB(Database):
             },
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
         logger.debug(
@@ -199,6 +311,7 @@ class PostgresDB(Database):
         title: str,
         content: JsonValue,
         tenant_uuid: UUID,
+        user_uuid: UUID | None,
     ) -> UUID:
         template_uuid = uuid4()
         await self._ensure_schema()
@@ -207,14 +320,14 @@ class PostgresDB(Database):
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
+            user_uuid=user_uuid,
         )
 
         try:
-            async with self.engine.begin() as connection:
+            async with self._connect() as connection:
                 await connection.execute(statement)
         except IntegrityError as exc:
-            msg = f'Template with title "{title}" already exists.'
-            raise ValueError(msg) from exc
+            raise TemplateTitleConflictError(title) from exc
 
         logger.debug(
             'Created template uuid=%s in %s.template',
@@ -222,6 +335,56 @@ class PostgresDB(Database):
             self.schema_name,
         )
         return template_uuid
+
+    async def update_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+        title: str,
+        content: JsonValue,
+    ) -> bool:
+        await self._ensure_schema()
+        statement = (
+            self.template_table.update()
+            .where(
+                (self.template_table.c.uuid == template_uuid)
+                & (self.template_table.c.tenant_uuid == tenant_uuid)
+                & (self.template_table.c.deleted_at.is_(None)),
+            )
+            .values(title=title, content=content)
+        )
+
+        try:
+            async with self._connect() as connection:
+                result = await connection.execute(statement)
+        except IntegrityError as exc:
+            raise TemplateTitleConflictError(title) from exc
+
+        logger.debug('Updated template uuid=%s in %s.template', template_uuid, self.schema_name)
+        return result.rowcount > 0
+
+    async def delete_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+    ) -> bool:
+        await self._ensure_schema()
+
+        statement = (
+            self.template_table.update()
+            .where(
+                (self.template_table.c.uuid == template_uuid)
+                & (self.template_table.c.tenant_uuid == tenant_uuid)
+                & (self.template_table.c.deleted_at.is_(None)),
+            )
+            .values(deleted_at=datetime.now(tz=UTC))
+        )
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+
+        logger.debug('Soft-deleted template uuid=%s in %s.template', template_uuid, self.schema_name)
+        return result.rowcount > 0
 
     async def save_template(
         self,
@@ -245,7 +408,7 @@ class PostgresDB(Database):
             },
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
         logger.debug(
@@ -266,7 +429,7 @@ class PostgresDB(Database):
             & (self.assignment_table.c.template_uuid == template_uuid),
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
 
@@ -286,33 +449,50 @@ class PostgresDB(Database):
 
         return row.assignments
 
-    async def list_templates(self, tenant_uuid: UUID) -> list[dict[str, str]]:
+    def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
+        """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""
+        return and_(
+            self.template_table.c.tenant_uuid == tenant_uuid,
+            self.template_table.c.deleted_at.is_(None),
+            or_(
+                self.template_table.c.user_uuid.is_(None),
+                self.template_table.c.user_uuid == user_uuid,
+            ),
+        )
+
+    async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
         await self._ensure_schema()
         statement = (
             self.template_table.select()
-            .where(self.template_table.c.tenant_uuid == tenant_uuid)
+            .where(self._template_visible_to_user(tenant_uuid, user_uuid))
             .order_by(self.template_table.c.title.asc())
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
             rows = result.fetchall()
 
-        return [
-            {
-                'uuid': str(row.uuid),
-                'title': row.title,
-            }
-            for row in rows
-        ]
+        return [TemplateRecord.from_row(row) for row in rows]
 
-    async def get_template(self, template_uuid: UUID, tenant_uuid: UUID) -> TemplateDetail | None:
+    async def get_template(
+        self,
+        template_uuid: UUID,
+        tenant_uuid: UUID,
+        *,
+        for_update: bool = False,
+    ) -> TemplateRecord | None:
         await self._ensure_schema()
         statement = self.template_table.select().where(
-            (self.template_table.c.uuid == template_uuid) & (self.template_table.c.tenant_uuid == tenant_uuid),
+            and_(
+                self.template_table.c.uuid == template_uuid,
+                self.template_table.c.tenant_uuid == tenant_uuid,
+                self.template_table.c.deleted_at.is_(None),
+            )
         )
+        if for_update:
+            statement = statement.with_for_update()
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
 
@@ -324,11 +504,7 @@ class PostgresDB(Database):
                 self.schema_name,
             )
             return None
-        return TemplateDetail(
-            uuid=row.uuid,
-            title=row.title,
-            content=row.content,
-        )
+        return TemplateRecord.from_row(row)
 
     async def save_result(
         self,
@@ -362,7 +538,7 @@ class PostgresDB(Database):
             },
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
         logger.debug(
@@ -393,7 +569,7 @@ class PostgresDB(Database):
             .values(stats=stats, updated_at=now)
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
 
         if result.rowcount == 0:
@@ -431,7 +607,7 @@ class PostgresDB(Database):
             )
         )
 
-        async with self.engine.begin() as connection:
+        async with self._connect() as connection:
             result = await connection.execute(statement)
 
         if result.rowcount == 0:

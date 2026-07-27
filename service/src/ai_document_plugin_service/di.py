@@ -7,11 +7,13 @@ from ai_document_plugin_service.ai.persistence.database import Database, Postgre
 from ai_document_plugin_service.api.auth import AuthenticatedUser, verify_authenticated
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 from ai_document_plugin_service.service.pipeline_service import PipelineService
+from ai_document_plugin_service.service.template_service import TemplateService
 
 
 def setup_app_state(app: fastapi.FastAPI, config: Config) -> None:
     app.state.config = config
     app.state.database = PostgresDB(config.database)
+    app.state.template_service = TemplateService(app.state.database)
     app.state.pipeline_queue_manager = PipelineQueueManager(config.max_parallel_executions)
     app.state.pipeline_service = PipelineService(app.state.pipeline_queue_manager, app.state.database)
 
@@ -38,3 +40,10 @@ def _get_database(request: fastapi.Request) -> Database:
 
 
 DatabaseDI = Annotated[Database, fastapi.Depends(_get_database)]
+
+
+def _get_template_service(request: fastapi.Request) -> TemplateService:
+    return request.app.state.template_service
+
+
+TemplateServiceDI = Annotated[TemplateService, fastapi.Depends(_get_template_service)]

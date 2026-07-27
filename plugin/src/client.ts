@@ -5,6 +5,7 @@ import type {
     PipelineStatusResponse,
     TemplateDetail,
     TemplateOption,
+    TemplateScope,
 } from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
@@ -159,12 +160,14 @@ export const runPipeline = async ({
 type CreateTemplateParams = {
     title: string
     content: unknown
+    scope: TemplateScope
 }
 
 export const createTemplate = async ({
     title,
     content,
-}: CreateTemplateParams): Promise<TemplateOption> => {
+    scope,
+}: CreateTemplateParams): Promise<TemplateDetail> => {
     const url = `${getApiBaseUrl()}/templates`
     const response = await apiFetch(url, {
         method: 'POST',
@@ -174,6 +177,7 @@ export const createTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            scope,
         }),
     })
 
@@ -190,6 +194,56 @@ export const createTemplate = async ({
     }
 
     return data
+}
+
+type UpdateTemplateParams = {
+    uuid: string
+    title: string
+    content: unknown
+}
+
+export const updateTemplate = async ({
+    uuid,
+    title,
+    content,
+}: UpdateTemplateParams): Promise<TemplateDetail> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(uuid)}`
+    const response = await apiFetch(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            title,
+            content,
+        }),
+    })
+
+    const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to update the template.',
+        )
+    }
+
+    if (!('uuid' in data) || !('title' in data) || !('content' in data)) {
+        throw new Error('The backend did not return the updated template.')
+    }
+
+    return data
+}
+
+export const deleteTemplate = async (templateUuid: string): Promise<void> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
+    const response = await apiFetch(url, { method: 'DELETE' })
+
+    if (!response.ok) {
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(() => ({}))
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to delete the template.',
+        )
+    }
 }
 
 export const saveEditedPipelineResult = async (

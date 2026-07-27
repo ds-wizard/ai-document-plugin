@@ -1,17 +1,38 @@
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
 
-import { createTemplate } from '@/client'
+import { createTemplate, updateTemplate } from '@/client'
 import styles from '@/components/CustomTemplateSection.module.css'
+import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
-import type { TemplateOption } from '@/types'
+import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
 
-type CustomTemplateSectionProps = {
-    onTemplateCreated: (template: TemplateOption) => void
+export type EditingTemplate = {
+    uuid: string
+    title: string
+    content: ApiTemplateContent
 }
 
-export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSectionProps) {
-    const [title, setTitle] = useState('')
-    const [json, setJson] = useState('')
+type CustomTemplateSectionProps = {
+    scope: TemplateScope
+    onSaved: (template: TemplateOption) => void
+    editingTemplate?: EditingTemplate | null
+    onCancel?: () => void
+}
+
+const scopeNoun = (scope: TemplateScope): string =>
+    scope === 'tenant' ? 'tenant-wide template' : 'personal template'
+
+export function CustomTemplateSection({
+    scope,
+    onSaved,
+    editingTemplate = null,
+    onCancel,
+}: CustomTemplateSectionProps) {
+    const isEditing = editingTemplate !== null
+    const [title, setTitle] = useState(editingTemplate?.title ?? '')
+    const [json, setJson] = useState(
+        editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '',
+    )
     const [fileName, setFileName] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [isSaving, setIsSaving] = useState(false)
@@ -19,6 +40,15 @@ export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSecti
     const [isDraggingFile, setIsDraggingFile] = useState(false)
     const previousFileNameRef = useRef(fileName)
     const dragDepthRef = useRef(0)
+
+    // Reset the form whenever we switch which template is being edited (or created).
+    useEffect(() => {
+        setTitle(editingTemplate?.title ?? '')
+        setJson(editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '')
+        setFileName('')
+        setError(null)
+        setInputMode('visual')
+    }, [editingTemplate])
 
     const processTemplateFile = async (file: File) => {
         try {
@@ -100,21 +130,25 @@ export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSecti
             }
 
             setIsSaving(true)
-            const data = await createTemplate({
-                title: trimmedTitle,
-                content: parsed,
-            })
+            const data = isEditing
+                ? await updateTemplate({
+                      uuid: editingTemplate.uuid,
+                      title: trimmedTitle,
+                      content: parsed,
+                  })
+                : await createTemplate({
+                      title: trimmedTitle,
+                      content: parsed,
+                      scope,
+                  })
 
-            const savedTemplate: TemplateOption = {
-                uuid: data.uuid,
-                title: data.title,
+            if (!isEditing) {
+                setTitle('')
+                setJson('')
+                setFileName('')
             }
-
-            setTitle('')
-            setJson('')
-            setFileName('')
             setError(null)
-            onTemplateCreated(savedTemplate)
+            onSaved(data)
         } catch (saveError) {
             setError(saveError instanceof Error ? saveError.message : 'Template JSON is not valid.')
         } finally {
@@ -131,14 +165,19 @@ export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSecti
         }
     }, [fileName, inputMode])
 
+    const heading = isEditing ? `Edit ${scopeNoun(scope)}` : `Create ${scopeNoun(scope)}`
+
+    const saveLabel = isEditing ? 'Update template' : 'Save template'
+    const savingLabel = isEditing ? 'Updating template...' : 'Saving template...'
+
     return (
-        <section className={styles.root}>
+        <section className="ai-doc-card">
             <div>
-                <h5 className={styles.title}>Create custom template</h5>
+                <h5 className="ai-doc-title">{heading}</h5>
             </div>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>Template title</span>
+            <label className="ai-doc-field">
+                <span className="ai-doc-field-label">Template title</span>
                 <input
                     type="text"
                     value={title}
@@ -148,9 +187,9 @@ export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSecti
                 />
             </label>
 
-            <div className={styles.label}>
-                <span className={styles.labelText}>Template structure</span>
-                <div className={`${styles.segmentedControl} btn-group`} role="group">
+            <div className="ai-doc-field">
+                <span className="ai-doc-field-label">Template structure</span>
+                <div className="ai-doc-segmented-control btn-group" role="group">
                     {(
                         [
                             { mode: 'visual' as const, label: 'Visual editor' },
@@ -205,16 +244,29 @@ export function CustomTemplateSection({ onTemplateCreated }: CustomTemplateSecti
                 )}
             </div>
 
-            <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={isSaving}
-                className={`${styles.saveButton} btn btn-primary btn-wide`}
-            >
-                {isSaving ? 'Saving template...' : 'Save template'}
-            </button>
+            <div className={styles.actions}>
+                <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={isSaving}
+                    className={`${styles.saveButton} btn btn-primary btn-wide`}
+                >
+                    {isSaving ? savingLabel : saveLabel}
+                </button>
 
-            {error ? <div className={styles.alert}>{error}</div> : null}
+                {onCancel ? (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        disabled={isSaving}
+                        className="btn btn-outline-secondary"
+                    >
+                        Cancel
+                    </button>
+                ) : null}
+            </div>
+
+            {error ? <FeedbackAlert kind="error">{error}</FeedbackAlert> : null}
         </section>
     )
 }

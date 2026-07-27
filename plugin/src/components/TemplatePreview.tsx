@@ -46,10 +46,10 @@ export function TemplatePreview({ content, isLoading }: TemplatePreviewProps) {
     const sections = content?.sections ?? []
 
     return (
-        <section className={styles.root} aria-label="Template preview">
+        <section className="ai-doc-card" aria-label="Template preview">
             <div className={styles.label}>
-                <h5 className={styles.title}>Template preview:</h5>
-                <div className={styles.content}>
+                <h5 className="ai-doc-title">Template preview:</h5>
+                <div className="ai-doc-scroll-list">
                     {isLoading ? (
                         <p className={styles.status}>Loading template structure...</p>
                     ) : sections.length === 0 ? (

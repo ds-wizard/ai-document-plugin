@@ -3,7 +3,6 @@ import threading
 from datetime import UTC, datetime
 from uuid import UUID
 
-import fastapi
 from openai import AuthenticationError
 
 from ai_document_plugin_service.ai.common.config import (
@@ -25,6 +24,7 @@ from ai_document_plugin_service.api.types import (
     PipelineStatusResponse,
     _model_from_fields,
 )
+from ai_document_plugin_service.service.errors import InternalError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
@@ -152,10 +152,10 @@ class PipelineService:
     ) -> PipelineStatusResponse:
         pipeline_status = self.get_pipeline_status(run_id)
         if pipeline_status is None:
-            raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
 
         if pipeline_status.knowledge_model_uuid is None:
-            raise fastapi.HTTPException(status_code=500, detail='Missing knowledge_model_uuid')
+            raise InternalError(InternalError.MISSING_KNOWLEDGE_MODEL_MESSAGE)
 
         await self.database.update_result(
             template_uuid=pipeline_status.template_uuid,
@@ -172,7 +172,7 @@ class PipelineService:
             progress_message=None,
         )
         if updated_status is None:
-            raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
         return updated_status
 
     async def _run_pipeline_job(

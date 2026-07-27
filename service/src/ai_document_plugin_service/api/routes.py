@@ -12,9 +12,11 @@ from ai_document_plugin_service.api.types import (
     TemplateCreateRequest,
     TemplateDetail,
     TemplateListItem,
+    TemplateUpdateRequest,
     _model_from_fields,
 )
-from ai_document_plugin_service.di import AuthenticatedDI, ConfigDI, DatabaseDI, PipelineServiceDI
+from ai_document_plugin_service.di import AuthenticatedDI, ConfigDI, PipelineServiceDI, TemplateServiceDI
+from ai_document_plugin_service.service.errors import NotFoundError
 
 public_router = fastapi.APIRouter()
 protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authenticated)])
@@ -26,50 +28,35 @@ def health_check() -> dict[str, str]:
 
 
 @protected_router.get('/templates')
-async def list_templates(database: DatabaseDI, auth: AuthenticatedDI) -> list[TemplateListItem]:
-    return [_model_from_fields(TemplateListItem, **item) for item in await database.list_templates(auth.tenant_uuid)]
+async def list_templates(templates: TemplateServiceDI, auth: AuthenticatedDI) -> list[TemplateListItem]:
+    return await templates.list(auth)
 
 
 @protected_router.get('/templates/{template_uuid}')
-async def get_template(template_uuid: UUID, database: DatabaseDI, auth: AuthenticatedDI) -> TemplateDetail:
-    template = await database.get_template(template_uuid, auth.tenant_uuid)
-
-    if template is None:
-        raise fastapi.HTTPException(status_code=404, detail='Template not found')
-
-    return template
+async def get_template(template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI) -> TemplateDetail:
+    return await templates.get(auth, template_uuid)
 
 
 @protected_router.post('/templates', status_code=201)
 async def create_template(
-    payload: TemplateCreateRequest, database: DatabaseDI, auth: AuthenticatedDI
+    payload: TemplateCreateRequest, templates: TemplateServiceDI, auth: AuthenticatedDI
 ) -> TemplateDetail:
-    trimmed_title = payload.title.strip()
-    if not trimmed_title:
-        raise fastapi.HTTPException(status_code=400, detail='Template title is required')
+    return await templates.create(auth, payload)
 
-    sections = payload.content.get('sections')
-    if not isinstance(sections, list):
-        raise fastapi.HTTPException(
-            status_code=400,
-            detail='Template JSON must contain a top-level "sections" array.',
-        )
 
-    try:
-        template_uuid = await database.create_template(
-            title=trimmed_title,
-            content=payload.content,
-            tenant_uuid=auth.tenant_uuid,
-        )
-    except ValueError as error:
-        raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
+@protected_router.put('/templates/{template_uuid}')
+async def update_template(
+    template_uuid: UUID,
+    payload: TemplateUpdateRequest,
+    templates: TemplateServiceDI,
+    auth: AuthenticatedDI,
+) -> TemplateDetail:
+    return await templates.update(auth, template_uuid, payload)
 
-    return _model_from_fields(
-        TemplateDetail,
-        uuid=template_uuid,
-        title=trimmed_title,
-        content=payload.content,
-    )
+
+@protected_router.delete('/templates/{template_uuid}', status_code=204)
+async def delete_template(template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI) -> None:
+    await templates.delete(auth, template_uuid)
 
 
 @protected_router.post('/pipelines/run')
@@ -77,13 +64,10 @@ async def start_pipeline(
     payload: PipelineRunRequest,
     auth: AuthenticatedDI,
     config: ConfigDI,
-    database: DatabaseDI,
+    templates: TemplateServiceDI,
     pipeline: PipelineServiceDI,
 ) -> PipelineRunResponse:
-    template = await database.get_template(payload.template_uuid, auth.tenant_uuid)
-
-    if template is None:
-        raise fastapi.HTTPException(status_code=404, detail='Template not found')
+    template = await templates.get(auth, payload.template_uuid)
 
     run_id = str(uuid4())
     pipeline.enqueue_pipeline_job(
@@ -109,7 +93,7 @@ async def start_pipeline(
 def get_pipeline_status(run_id: str, pipeline: PipelineServiceDI) -> PipelineStatusResponse:
     status = pipeline.get_pipeline_status(run_id)
     if status is None:
-        raise fastapi.HTTPException(status_code=404, detail='Pipeline run not found')
+        raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
     return status
 
 

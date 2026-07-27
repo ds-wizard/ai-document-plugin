@@ -21,10 +21,6 @@
     font-size: 0.95rem;
 }
 
-.segmentedControl {
-    display: inline-flex;
-}
-
 .toolbar {
     display: flex;
     justify-content: space-between;

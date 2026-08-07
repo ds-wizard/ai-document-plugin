@@ -1,6 +1,6 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { useCallback, useState } from 'react'
-import { toast,Toaster } from 'sonner'
+import { toast, Toaster } from 'sonner'
 
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'

@@ -22,7 +22,6 @@ class ErrorType(StrEnum):
 
 
 class PipelineStatus(StrEnum):
-    ACCEPTED = 'accepted'
     QUEUED = 'queued'
     RUNNING = 'running'
     SUCCEEDED = 'succeeded'
@@ -72,14 +71,6 @@ class PipelineRunRequest(ApiModel):
     llm_max_workers: int | None = Field(default=None, alias='llmMaxWorkers', ge=1)
 
 
-class PipelineRunResponse(ApiModel):
-    status: PipelineStatus
-    run_id: str = Field(alias='runId')
-    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
-    template_uuid: UUID = Field(alias='templateUuid')
-    template_title: str = Field(alias='templateTitle')
-
-
 class PipelineSaveRequest(ApiModel):
     result_markdown: str = Field(alias='resultMarkdown')
 
@@ -89,13 +80,23 @@ class PipelineErrorResponse(ApiModel):
     message: str
 
 
+class PipelineSummaryResponse(ApiModel):
+    run_id: UUID = Field(alias='runId')
+    status: PipelineStatus
+    title: str = Field(alias='templateTitle')
+    error: PipelineErrorResponse | None = None
+    progress_message: str | None = Field(default=None, alias='progressMessage')
+    created_at: str = Field(alias='createdAt')
+    updated_at: str = Field(alias='updatedAt')
+
+
 class PipelineStatusResponse(ApiModel):
-    run_id: str = Field(alias='runId')
+    run_id: UUID = Field(alias='runId')
     status: PipelineStatus
     questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
     knowledge_model_uuid: UUID | None = Field(default=None, alias='knowledgeModelUuid')
     template_uuid: UUID = Field(alias='templateUuid')
-    template_title: str = Field(alias='templateTitle')
+    title: str = Field(alias='templateTitle')
     error: PipelineErrorResponse | None = None
     result_format: str | None = Field(default=None, alias='resultFormat')
     result_markdown: str | None = Field(default=None, alias='resultMarkdown')

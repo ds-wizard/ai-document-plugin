@@ -1,6 +1,7 @@
+import asyncio
 import logging
 import threading
-from datetime import UTC, datetime
+from asyncio import Task
 from uuid import UUID
 
 from openai import AuthenticationError
@@ -12,7 +13,7 @@ from ai_document_plugin_service.ai.common.config import (
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
-from ai_document_plugin_service.ai.persistence.database import Database
+from ai_document_plugin_service.ai.persistence.database import Database, GenerationRecord
 from ai_document_plugin_service.ai.run_pipeline import build_pipeline, run_pipeline
 from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
@@ -22,6 +23,7 @@ from ai_document_plugin_service.api.types import (
     PipelineSaveRequest,
     PipelineStatus,
     PipelineStatusResponse,
+    PipelineSummaryResponse,
     _model_from_fields,
 )
 from ai_document_plugin_service.service.errors import InternalError, NotFoundError
@@ -47,8 +49,40 @@ def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
     )
 
 
-def _now() -> str:
-    return datetime.now(tz=UTC).isoformat()
+def _generation_error(record: GenerationRecord) -> PipelineErrorResponse | None:
+    if record.error_type is None or record.error_message is None:
+        return None
+    return PipelineErrorResponse(type=ErrorType(record.error_type), message=record.error_message)
+
+
+def _generation_record_to_status_response(record: GenerationRecord) -> PipelineStatusResponse:
+    return _model_from_fields(
+        PipelineStatusResponse,
+        run_id=record.run_id,
+        status=PipelineStatus(record.status),
+        questionnaire_uuid=record.questionnaire_uuid,
+        knowledge_model_uuid=record.knowledge_model_uuid,
+        template_uuid=record.template_uuid,
+        title=record.title,
+        error=_generation_error(record),
+        result_format='markdown' if record.result_markdown is not None else None,
+        result_markdown=record.result_markdown,
+        progress_message=record.progress_message,
+        updated_at=record.updated_at.isoformat(),
+    )
+
+
+def _generation_record_to_summary_response(record: GenerationRecord) -> PipelineSummaryResponse:
+    return _model_from_fields(
+        PipelineSummaryResponse,
+        run_id=record.run_id,
+        status=PipelineStatus(record.status),
+        title=record.title,
+        error=_generation_error(record),
+        progress_message=record.progress_message,
+        created_at=record.created_at.isoformat(),
+        updated_at=record.updated_at.isoformat(),
+    )
 
 
 class LlmClientTenantStore:
@@ -72,69 +106,58 @@ class LlmClientTenantStore:
             return self._clients[tenant_uuid]
 
 
-class PipelineRunStore:
-    """Thread-safe in-memory store of pipeline run statuses."""
-
-    def __init__(self) -> None:
-        self._runs: dict[str, PipelineStatusResponse] = {}
-        self._lock = threading.Lock()
-
-    def get(self, run_id: str) -> PipelineStatusResponse | None:
-        with self._lock:
-            return self._runs.get(run_id)
-
-    def set(self, run_id: str, status: PipelineStatusResponse) -> None:
-        with self._lock:
-            self._runs[run_id] = status
-
-    def update(self, run_id: str, **updates: object) -> PipelineStatusResponse | None:
-        """Store a copy of the current status with ``updates`` applied and a fresh ``updated_at``."""
-        with self._lock:
-            current = self._runs.get(run_id)
-            if current is None:
-                return None
-            status = current.model_copy(update={**updates, 'updated_at': _now()})
-            self._runs[run_id] = status
-            return status
+def _log_background_update_failure(task: Task[object]) -> None:
+    # Progress-message updates are best-effort and fired without awaiting; this guards
+    # against an unhandled exception being silently swallowed.
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.error('Failed to persist pipeline progress message', exc_info=error)
 
 
 class PipelineService:
     def __init__(self, pipeline_queue_manager: PipelineQueueManager, database: Database) -> None:
         self.pipeline_queue_manager = pipeline_queue_manager
         self.database = database
-        self._runs = PipelineRunStore()
         self._llm_clients = LlmClientTenantStore()
 
-    def get_pipeline_status(self, run_id: str) -> PipelineStatusResponse | None:
-        status = self._runs.get(run_id)
-        if status is None or status.status != PipelineStatus.QUEUED:
+    async def get_pipeline_status(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse | None:
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            return None
+
+        status = _generation_record_to_status_response(record)
+        if status.status != PipelineStatus.QUEUED:
             return status
 
+        # Handle queued progress message (x dmps ahead in queue)
         progress_message = self.pipeline_queue_manager.progress_message(run_id)
         if progress_message is None:
             return status
 
         return status.model_copy(update={'progress_message': progress_message})
 
-    def enqueue_pipeline_job(
+    async def list_history(self, questionnaire_uuid: UUID, auth: AuthenticatedUser) -> list[PipelineSummaryResponse]:
+        records = await self.database.list_generations(questionnaire_uuid, auth.tenant_uuid, auth.user_uuid)
+        return [_generation_record_to_summary_response(record) for record in records]
+
+    async def enqueue_pipeline_job(
         self,
-        run_id: str,
         payload: PipelineRunRequest,
-        template_title: str,
+        title: str,
         auth: AuthenticatedUser,
         config: Config,
-    ) -> None:
+    ) -> UUID:
         """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
-        run = _model_from_fields(
-            PipelineStatusResponse,
-            run_id=run_id,
-            status=PipelineStatus.QUEUED,
+        run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
-            template_title=template_title,
-            updated_at=_now(),
+            title=title,
+            user_uuid=auth.user_uuid,
+            tenant_uuid=auth.tenant_uuid,
+            status=PipelineStatus.QUEUED,
         )
-        self._runs.set(run_id, run)
 
         llm_config = LLMConfig(
             model=payload.llm_model,
@@ -144,76 +167,94 @@ class PipelineService:
         )
         self.pipeline_queue_manager.enqueue(
             run_id,
-            lambda: self._run_pipeline_job(run, auth, llm_config, config),
+            lambda: self._run_pipeline_job(
+                run_id,
+                payload.questionnaire_uuid,
+                payload.template_uuid,
+                auth,
+                llm_config,
+                config,
+            ),
         )
+        return run_id
 
     async def update_pipeline_result(
-        self, run_id: str, save_request: PipelineSaveRequest, auth: AuthenticatedUser
+        self, run_id: UUID, save_request: PipelineSaveRequest, auth: AuthenticatedUser
     ) -> PipelineStatusResponse:
-        pipeline_status = self.get_pipeline_status(run_id)
-        if pipeline_status is None:
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
 
-        if pipeline_status.knowledge_model_uuid is None:
+        if record.knowledge_model_uuid is None:
             raise InternalError(InternalError.MISSING_KNOWLEDGE_MODEL_MESSAGE)
 
         await self.database.update_result(
-            template_uuid=pipeline_status.template_uuid,
-            knowledge_model_uuid=pipeline_status.knowledge_model_uuid,
+            template_uuid=record.template_uuid,
+            knowledge_model_uuid=record.knowledge_model_uuid,
             user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
             markdown=save_request.result_markdown,
         )
 
-        updated_status = self._runs.update(
+        updated_record = await self.database.update_generation(
             run_id,
-            result_format='markdown',
+            auth.tenant_uuid,
             result_markdown=save_request.result_markdown,
             progress_message=None,
         )
-        if updated_status is None:
+        if updated_record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
-        return updated_status
+        return _generation_record_to_status_response(updated_record)
 
     async def _run_pipeline_job(
         self,
-        run: PipelineStatusResponse,
+        run_id: UUID,
+        questionnaire_uuid: UUID,
+        template_uuid: UUID,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
     ) -> None:
         try:
-            await self._run_pipeline(run, auth, llm_config, config)
+            await self._run_pipeline(run_id, questionnaire_uuid, template_uuid, auth, llm_config, config)
         except Exception as error:
             logger.exception('Pipeline run failed')
-            self._runs.update(
-                run.run_id,
+            pipeline_error = _pipeline_error_from_exception(error)
+            await self.database.update_generation(
+                run_id,
+                auth.tenant_uuid,
                 status=PipelineStatus.FAILED,
-                error=_pipeline_error_from_exception(error),
+                error_type=pipeline_error.type,
+                error_message=pipeline_error.message,
                 progress_message=None,
             )
 
     async def _run_pipeline(
         self,
-        run: PipelineStatusResponse,
+        run_id: UUID,
+        questionnaire_uuid: UUID,
+        template_uuid: UUID,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
     ) -> None:
-        run_id = run.run_id
-        template = await self.database.get_template(run.template_uuid, auth.tenant_uuid)
+        template = await self.database.get_template(template_uuid, auth.tenant_uuid)
         if template is None:
-            self._runs.update(
+            await self.database.update_generation(
                 run_id,
+                auth.tenant_uuid,
                 status=PipelineStatus.FAILED,
-                error=PipelineErrorResponse(
-                    type=ErrorType.TEMPLATE_NOT_FOUND,
-                    message=TEMPLATE_NOT_FOUND_MESSAGE,
-                ),
+                error_type=ErrorType.TEMPLATE_NOT_FOUND,
+                error_message=TEMPLATE_NOT_FOUND_MESSAGE,
             )
             return
 
-        self._runs.update(run_id, status=PipelineStatus.RUNNING, progress_message='Starting pipeline...')
+        await self.database.update_generation(
+            run_id,
+            auth.tenant_uuid,
+            status=PipelineStatus.RUNNING,
+            progress_message='Starting pipeline...',
+        )
 
         llm_client = self._llm_clients.get_llm_client(auth.tenant_uuid)
         llm_client.update_config(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)
@@ -225,11 +266,16 @@ class PipelineService:
         )
 
         def on_progress(message: str) -> None:
-            self._runs.update(run_id, progress_message=message)
+            # Called synchronously from deep inside the (async) pipeline; fire the DB
+            # write without awaiting it so progress reporting never blocks generation.
+            task = asyncio.ensure_future(
+                self.database.update_generation(run_id, auth.tenant_uuid, progress_message=message),
+            )
+            task.add_done_callback(_log_background_update_failure)
 
         knowledge_model_uuid, result = await run_pipeline(
-            questionnaire_uuid=run.questionnaire_uuid,
-            template_uuid=run.template_uuid,
+            questionnaire_uuid=questionnaire_uuid,
+            template_uuid=template_uuid,
             template_title=template.title,
             template_data=template.content,
             user_uuid=auth.user_uuid,
@@ -241,11 +287,11 @@ class PipelineService:
             dsw_client=DSWClient(auth.token, auth.api_url),
         )
 
-        self._runs.update(
+        await self.database.update_generation(
             run_id,
+            auth.tenant_uuid,
             status=PipelineStatus.SUCCEEDED,
             knowledge_model_uuid=knowledge_model_uuid,
-            result_format='markdown',
             result_markdown=result,
             progress_message=None,
         )

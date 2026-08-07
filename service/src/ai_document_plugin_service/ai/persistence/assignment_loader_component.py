@@ -15,7 +15,7 @@ class AssignmentLoaderComponent:
         assignments=JsonValue | None,
         found=bool,
     )
-    async def run_async(self, knowledge_model_uuid: str, template_uuid: UUID) -> dict[str, Any]:
+    async def run_async(self, knowledge_model_uuid: UUID, template_uuid: UUID) -> dict[str, Any]:
         assignments = await self.database.get_assignments(knowledge_model_uuid, template_uuid)
 
         return {
@@ -27,7 +27,7 @@ class AssignmentLoaderComponent:
         assignments=JsonValue | None,
         found=bool,
     )
-    def run(self, knowledge_model_uuid: str, template_uuid: UUID) -> dict[str, Any]:
+    def run(self, knowledge_model_uuid: UUID, template_uuid: UUID) -> dict[str, Any]:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
         raise NotImplementedError(

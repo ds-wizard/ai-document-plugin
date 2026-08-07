@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from haystack import AsyncPipeline
 from haystack.components.routers import ConditionalRouter
@@ -30,9 +31,6 @@ from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPo
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-    from uuid import UUID
-
     from haystack.components.routers.conditional_router import Route
 
     from ai_document_plugin_service.ai.common.llm_client import LLMClient
@@ -122,13 +120,13 @@ async def run_pipeline(
     dsw_client: DSWClient,
     model_name: str,
     on_progress: ProgressCallback | None = None,
-) -> tuple[str, str]:
+) -> tuple[UUID, str]:
     t1 = time.time()
     km_data = await dsw_client.get_questionnaire_detail(questionnaire_uuid=questionnaire_uuid)
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
+    knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
 

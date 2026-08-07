@@ -22,6 +22,7 @@ class PersistenceSchema:
     assignment_table: Table
     template_table: Table
     result_table: Table
+    generation_table: Table
 
 
 def create_persistence_schema(schema_name: str) -> PersistenceSchema:
@@ -116,9 +117,47 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         ),
     )
 
+    generation_table = Table(
+        'generation',
+        metadata,
+        Column('run_id', UUID(as_uuid=True), primary_key=True),
+        Column('questionnaire_uuid', UUID(as_uuid=True), nullable=False),
+        Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), nullable=False),
+        Column('title', Text, nullable=False),
+        # Only known once the run has fetched the questionnaire from DSW.
+        Column('knowledge_model_uuid', UUID(as_uuid=True), nullable=True),
+        Column('user_uuid', UUID(as_uuid=True), nullable=False),
+        Column('tenant_uuid', UUID(as_uuid=True), nullable=False),
+        Column('status', Text, nullable=False),
+        Column('error_type', Text, nullable=True),
+        Column('error_message', Text, nullable=True),
+        Column('result_markdown', Text, nullable=True),
+        Column('progress_message', Text, nullable=True),
+        Column(
+            'created_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+        Column(
+            'updated_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+        Index(
+            'ix_generation_questionnaire_user_tenant_created_at',
+            'questionnaire_uuid',
+            'user_uuid',
+            'tenant_uuid',
+            'created_at',
+        ),
+    )
+
     return PersistenceSchema(
         metadata=metadata,
         assignment_table=assignment_table,
         template_table=template_table,
         result_table=result_table,
+        generation_table=generation_table,
     )

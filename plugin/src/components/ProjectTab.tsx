@@ -1,6 +1,6 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { useCallback, useState } from 'react'
-import { Toaster, toast } from 'sonner'
+import { toast,Toaster } from 'sonner'
 
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
@@ -83,7 +83,9 @@ export default function ProjectTab({
                             <button
                                 type="button"
                                 onClick={() => void handleRunPipeline()}
-                                disabled={templates.isLoading || history.isStarting || !selectedUuid}
+                                disabled={
+                                    templates.isLoading || history.isStarting || !selectedUuid
+                                }
                                 className={`btn btn-primary btn-wide ${styles.runButton}`}
                             >
                                 {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}

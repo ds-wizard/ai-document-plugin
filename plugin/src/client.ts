@@ -103,14 +103,18 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
     return data
 }
 
-export const getPipelineHistory = async (questionnaireUuid: string): Promise<PipelineSummaryItem[]> => {
+export const getPipelineHistory = async (
+    questionnaireUuid: string,
+): Promise<PipelineSummaryItem[]> => {
     const url = `${getApiBaseUrl()}/pipelines?questionnaireUuid=${encodeURIComponent(questionnaireUuid)}`
     const response = await apiFetch(url)
     const data = await readApiResponse<PipelineSummaryItem[] | { detail?: string }>(response, url)
 
     if (!response.ok) {
         throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Failed to load the generation history.',
+            'detail' in data && data.detail
+                ? data.detail
+                : 'Failed to load the generation history.',
         )
     }
 

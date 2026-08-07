@@ -1,11 +1,10 @@
-from uuid import UUID
-
 import asyncio
 import logging
 import threading
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from typing import Any
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 

@@ -42,7 +42,12 @@ const formatRelativeTime = (isoString: string): string => {
     return 'a few seconds ago'
 }
 
-export function HistorySidebar({ history, selectedRunId, onSelectNew, onSelectRun }: HistorySidebarProps) {
+export function HistorySidebar({
+    history,
+    selectedRunId,
+    onSelectNew,
+    onSelectRun,
+}: HistorySidebarProps) {
     const { items, isLoading } = history
 
     return (
@@ -71,7 +76,9 @@ export function HistorySidebar({ history, selectedRunId, onSelectNew, onSelectRu
                         />
                         <span className={styles.itemBody}>
                             <span className={styles.itemTitle}>{item.templateTitle}</span>
-                            <span className={styles.itemTime}>{formatRelativeTime(item.createdAt)}</span>
+                            <span className={styles.itemTime}>
+                                {formatRelativeTime(item.createdAt)}
+                            </span>
                         </span>
                     </button>
                 ))}

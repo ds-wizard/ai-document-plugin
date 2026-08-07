@@ -130,6 +130,7 @@ export function useGenerationHistory(
         }
 
         let cancelled = false
+        const pollers = pollersRef.current
 
         const load = async () => {
             setIsLoading(true)
@@ -165,12 +166,12 @@ export function useGenerationHistory(
 
         return () => {
             cancelled = true
-            for (const stop of pollersRef.current.values()) {
+            for (const stop of pollers.values()) {
                 stop()
             }
-            pollersRef.current.clear()
+            pollers.clear()
         }
-    }, [project?.uuid, beginPolling])
+    }, [project?.uuid, beginPolling, project])
 
     const getRun = useCallback((runId: string) => runsRef.current[runId], [])
 

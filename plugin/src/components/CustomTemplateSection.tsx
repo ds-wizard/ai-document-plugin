@@ -146,7 +146,9 @@ export function CustomTemplateSection({
             }
             onSaved(data)
         } catch (saveError) {
-            toast.error(saveError instanceof Error ? saveError.message : 'Template JSON is not valid.')
+            toast.error(
+                saveError instanceof Error ? saveError.message : 'Template JSON is not valid.',
+            )
         } finally {
             setIsSaving(false)
         }

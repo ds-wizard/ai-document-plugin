@@ -197,8 +197,6 @@ export function useGenerationHistory(
                     llmApiUrl: settings.apiUrl || null,
                     llmMaxWorkers: settings.maxWorkers ?? null,
                 })
-
-                toast.info(`Pipeline has been accepted for the template "${status.templateTitle}".`)
                 const record = applyStatus(status)
                 if (!isSettled(record.status)) {
                     beginPolling(record.runId)

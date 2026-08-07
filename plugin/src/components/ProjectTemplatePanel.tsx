@@ -35,7 +35,7 @@ export function ProjectTemplatePanel({
     return (
         <>
             <div className={styles.selector}>
-                <h4>DMP template</h4>
+                <h4>Generate DMP from your questionnaire</h4>
                 <TemplateDropdown
                     value={selectedUuid}
                     onChange={select}

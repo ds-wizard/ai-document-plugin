@@ -72,10 +72,6 @@ export default function ProjectTab({
                         <div className={styles.root}>
                             <div>
                                 <h2 className="ai-doc-title">AI Document Generation</h2>
-                                <p className={styles.lead}>
-                                    Select a DMP template from the database and run the pipeline on
-                                    the current project.
-                                </p>
                             </div>
 
                             <ProjectTemplatePanel

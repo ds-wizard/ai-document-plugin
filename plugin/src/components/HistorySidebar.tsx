@@ -9,7 +9,7 @@ type HistorySidebarProps = {
 }
 
 const STATUS_ICON: Record<RunRecord['status'], string> = {
-    queued: 'fas fa-clock',
+    queued: 'fas fa-spinner fa-spin',
     running: 'fas fa-spinner fa-spin',
     succeeded: 'fas fa-check-circle',
     failed: 'fas fa-exclamation-circle',
@@ -38,7 +38,8 @@ const formatRelativeTime = (isoString: string): string => {
             return relativeTimeFormatter.format(Math.round(diffSeconds / secondsInUnit), unit)
         }
     }
-    return relativeTimeFormatter.format(diffSeconds, 'second')
+
+    return 'a few seconds ago'
 }
 
 export function HistorySidebar({ history, selectedRunId, onSelectNew, onSelectRun }: HistorySidebarProps) {

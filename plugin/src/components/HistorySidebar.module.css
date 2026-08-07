@@ -41,11 +41,21 @@
     gap: 0.25rem;
     min-height: 0;
     overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.list::-webkit-scrollbar-thumb {
+    background: var(--ai-doc-color-slate-300);
+    border-radius: 3px;
 }
 
 .item {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.65rem;
     width: 100%;
     padding: 0.6rem 0.9rem;
@@ -88,14 +98,10 @@
 
 .statusIcon {
     flex-shrink: 0;
-    margin-top: 0.2rem;
     font-size: 0.85rem;
 }
 
-.statusIcon.queued {
-    color: var(--ai-doc-color-orange-700);
-}
-
+.statusIcon.queued,
 .statusIcon.running {
     color: var(--bs-primary);
 }

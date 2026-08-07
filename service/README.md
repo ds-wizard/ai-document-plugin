@@ -45,6 +45,10 @@ The file path can be overridden globally via `AI_DOCUMENT_PLUGIN_CONFIG_PATH`. S
 Prompt templates and LLM parameters for each step. In `config.yaml`, `files.prompts_path` must be a relative path and
 is resolved relative to the active config file.
 
+## Logging
+
+The service logs only to standard output. Configure the verbosity under `logging.level`.
+
 ## Make commands
 
 The project `Makefile` provides a few shortcuts for common development tasks:

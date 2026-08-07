@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
@@ -6,6 +7,7 @@ import fastapi
 import httpx
 
 from ai_document_plugin_service.ai.common.config import WILDCARD, AllowedApi, Config, normalize_project_url
+from ai_document_plugin_service.ai.common.logging_payloads import summarize_headers
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 
 DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
@@ -13,6 +15,7 @@ DSW_USER_VALIDATION_TIMEOUT_SECONDS = 10.0
 DSW_USER_VALIDATION_SUCCESS_STATUS = 200
 DSW_ADMIN_ROLE = 'admin'
 DSW_ADMIN_PERMISSION = 'SettingsManageRolePermission'
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,7 @@ def _parse_bearer_token(authorization: str | None) -> str | None:
 def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
     """Validate the token against DSW and return the current user, or None if rejected."""
     url = f'{normalize_project_url(api_url)}/users/current'
+    logger.debug('Validating DSW user against current-user endpoint', extra={'url.full': url})
     try:
         response = httpx.get(
             url,
@@ -58,6 +62,7 @@ def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
             timeout=DSW_USER_VALIDATION_TIMEOUT_SECONDS,
         )
     except httpx.HTTPError:
+        logger.warning('DSW user validation request failed', extra={'url.full': url}, exc_info=True)
         return None
 
     if response.status_code != DSW_USER_VALIDATION_SUCCESS_STATUS:
@@ -113,6 +118,14 @@ def verify_authenticated(
         raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
 
     if not is_allowed_request(normalized_api_url, tenant_uuid, config.allowed_apis):
+        logger.warning(
+            'Authentication failed: request target is not allowed by configuration',
+            extra={
+                'request.id': request_id,
+                'tenant_uuid': str(tenant_uuid),
+                'url.full': normalized_api_url,
+            },
+        )
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
     user = _fetch_dsw_user(normalized_api_url, token)

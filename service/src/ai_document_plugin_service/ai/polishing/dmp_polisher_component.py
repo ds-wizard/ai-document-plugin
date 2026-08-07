@@ -46,6 +46,13 @@ class DmpPolisherComponent:
 
         """
         stats = AssignmentStats()
+        logger.info(
+            'Starting DMP polishing',
+            extra={
+                'input_markdown_length': len(markdown),
+                'has_template_data': template_data is not None,
+            },
+        )
         if on_progress is not None:
             on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
@@ -53,6 +60,14 @@ class DmpPolisherComponent:
             markdown=markdown,
             structure_str=structure_str,
             stats=stats,
+        )
+        logger.info(
+            'Completed DMP polishing',
+            extra={
+                'input_markdown_length': len(markdown),
+                'output_markdown_length': len(polished),
+                'llm_call_count': stats.total_calls,
+            },
         )
         return {
             'markdown': polished,

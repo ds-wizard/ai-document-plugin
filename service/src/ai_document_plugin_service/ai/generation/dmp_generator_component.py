@@ -61,6 +61,13 @@ class DmpGeneratorComponent:
         logger.debug('Step 2: Generating DMP markdown...')
         assignments = db_assignments or new_assignments or []
         replies = self._filter_reachable_replies(replies, km)
+        logger.info(
+            'Starting DMP generation',
+            extra={
+                'assignment_count': len(assignments),
+                'reply_count': len(replies),
+            },
+        )
 
         stats = AssignmentStats()
         max_workers = self.dmp_generator_llm.get_max_workers()
@@ -80,6 +87,10 @@ class DmpGeneratorComponent:
             self._collect_leaf_sections(scheduled, leaf_sections)
 
         total_sections = len(leaf_sections)
+        logger.info(
+            'Prepared leaf sections for DMP generation',
+            extra={'leaf_section_count': total_sections, 'max_workers': max_workers},
+        )
         section_semaphore = asyncio.Semaphore(max_workers)
         tasks = [
             asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
@@ -100,6 +111,15 @@ class DmpGeneratorComponent:
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
+        logger.info(
+            'Completed DMP generation',
+            extra={
+                'leaf_section_count': total_sections,
+                'markdown_length': len(markdown),
+                'debug_markdown_length': len(debug_markdown),
+                'llm_call_count': stats.total_calls,
+            },
+        )
         return {
             'markdown': markdown,
             'debug_markdown': debug_markdown,

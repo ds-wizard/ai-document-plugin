@@ -79,7 +79,7 @@ def _normalize_path(path: str) -> str:
     return str(pathlib.Path(_expand_env_vars(path).strip()).expanduser())
 
 
-def _get(config: dict[str, Any], *path: str) -> Any:  # noqa: ANN401
+def _get(config: dict[str, Any], *path: str, allow_empty_string: bool = False) -> Any:  # noqa: ANN401
     current = config
     for key in path:
         if not isinstance(current, dict) or key not in current:
@@ -92,7 +92,7 @@ def _get(config: dict[str, Any], *path: str) -> Any:  # noqa: ANN401
     if current is None:
         msg = f"Missing required config value: '{'.'.join(path)}'"
         raise ValueError(msg)
-    if isinstance(current, str) and not current.strip():
+    if isinstance(current, str) and not current.strip() and not allow_empty_string:
         msg = f"Missing required config value: '{'.'.join(path)}'"
         raise ValueError(msg)
     return current

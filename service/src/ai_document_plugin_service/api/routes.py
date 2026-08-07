@@ -1,8 +1,11 @@
 from typing import Annotated
 from uuid import UUID
+import logging
+from uuid import UUID, uuid4
 
 import fastapi
 
+from ai_document_plugin_service.ai.common.logging_payloads import sanitize_for_logging
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
     PipelineExportRequest,
@@ -24,6 +27,8 @@ from ai_document_plugin_service.di import (
 )
 from ai_document_plugin_service.service.errors import NotFoundError
 from ai_document_plugin_service.utils.docx_export import DOCX_MEDIA_TYPE
+
+logger = logging.getLogger(__name__)
 
 public_router = fastapi.APIRouter()
 protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authenticated)])
@@ -113,6 +118,15 @@ async def get_pipeline_status(
 async def save_pipeline_result(
     run_id: UUID, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
 ) -> PipelineStatusResponse:
+    logger.info(
+        'Pipeline result update requested',
+        extra={
+            'run_id': run_id,
+            'tenant_uuid': str(auth.tenant_uuid),
+            'user_uuid': str(auth.user_uuid),
+            'result_markdown_length': len(save_request.result_markdown),
+        },
+    )
     return await pipeline.update_pipeline_result(run_id, save_request, auth)
 
 

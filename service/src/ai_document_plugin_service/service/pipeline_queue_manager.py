@@ -38,6 +38,10 @@ class PipelineQueueManager:
             daemon=True,
         )
         self._thread.start()
+        logger.info(
+            'Initialized pipeline queue manager',
+            extra={'max_concurrent_jobs': max_concurrent_jobs, 'thread_name': self._thread.name},
+        )
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
@@ -46,6 +50,8 @@ class PipelineQueueManager:
     def enqueue(self, run_id: UUID, job: JobFactory) -> None:
         with self._order_lock:
             self._order.append(run_id)
+            queue_size = len(self._order)
+        logger.info('Enqueued pipeline job', extra={'run_id': run_id, 'queue_size': queue_size})
 
         future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job), self._loop)
         future.add_done_callback(self._log_job_failure)
@@ -60,6 +66,7 @@ class PipelineQueueManager:
         with self._order_lock:
             if run_id in self._order:
                 self._order.remove(run_id)
+        logger.debug('Removed pipeline job from queue order tracking', extra={'run_id': run_id})
 
     def _jobs_waiting_ahead(self, run_id: UUID) -> int | None:
         with self._order_lock:
@@ -72,9 +79,11 @@ class PipelineQueueManager:
     async def _run_job(self, run_id: UUID, job: JobFactory) -> None:
         try:
             async with self._semaphore:
+                logger.info('Starting queued pipeline job', extra={'run_id': run_id})
                 await job()
         finally:
             self.remove(run_id)
+            logger.info('Finished queued pipeline job', extra={'run_id': run_id})
 
     @staticmethod
     def _log_job_failure(future: Future[None]) -> None:

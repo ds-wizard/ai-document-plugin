@@ -6,6 +6,7 @@ from starlette.responses import JSONResponse
 from ai_document_plugin_service.ai.common import configure_logging
 from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
 from ai_document_plugin_service.ai.persistence.migrations import run_startup_migrations
+from ai_document_plugin_service.api.request_logging import log_http_request_response
 from ai_document_plugin_service.api.routes import protected_router, public_router
 from ai_document_plugin_service.di import setup_app_state
 from ai_document_plugin_service.service.errors import ServiceError
@@ -21,6 +22,7 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
 
     app = fastapi.FastAPI(title='Plugin Service', version='1.0.0')
     setup_app_state(app, config)
+    app.middleware('http')(log_http_request_response)
 
     @app.exception_handler(ServiceError)
     def service_error_handler(_request: Request, exc: ServiceError) -> JSONResponse:

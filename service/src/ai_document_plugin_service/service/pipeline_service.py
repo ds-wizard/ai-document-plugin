@@ -2,6 +2,8 @@ import asyncio
 import logging
 import threading
 from asyncio import Task
+import time
+from datetime import UTC, datetime
 from uuid import UUID
 
 from openai import AuthenticationError
@@ -9,6 +11,11 @@ from openai import AuthenticationError
 from ai_document_plugin_service.ai.common.config import (
     Config,
     LLMConfig,
+)
+from ai_document_plugin_service.ai.common.execution_logging import (
+    RunLogContext,
+    log_timing_event,
+    run_log_context,
 )
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
@@ -131,6 +138,7 @@ class PipelineService:
         # Handle queued progress message (x dmps ahead in queue)
         progress_message = self.pipeline_queue_manager.progress_message(run_id)
         if progress_message is None:
+            logger.debug('Queued pipeline status has no queue progress message', extra={'run_id': run_id})
             return status
 
         return status.model_copy(update={'progress_message': progress_message})
@@ -244,6 +252,10 @@ class PipelineService:
                 error_type=ErrorType.TEMPLATE_NOT_FOUND,
                 error_message=TEMPLATE_NOT_FOUND_MESSAGE,
             )
+            logger.warning(
+                'Pipeline run failed because template was not found',
+                extra={'run_id': run_id, 'template_uuid': str(run.template_uuid), 'tenant_uuid': str(auth.tenant_uuid)},
+            )
             return
 
         await self.database.update_generation(
@@ -260,6 +272,15 @@ class PipelineService:
             saver=DBSaver(self.database),
             config=config,
             llm_client=llm_client,
+        )
+        logger.info(
+            'Pipeline graph built and LLM client configured',
+            extra={
+                'run_id': run_id,
+                'tenant_uuid': str(auth.tenant_uuid),
+                'llm_model': llm_client.get_model_name(),
+                'llm_max_workers': llm_client.get_max_workers(),
+            },
         )
 
         def on_progress(message: str) -> None:
@@ -283,6 +304,7 @@ class PipelineService:
             model_name=llm_client.get_model_name(),
             dsw_client=DSWClient(auth.token, auth.api_url),
         )
+        log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(knowledge_model_uuid))
 
         await self.database.update_generation(
             run_id,
@@ -291,4 +313,13 @@ class PipelineService:
             knowledge_model_uuid=knowledge_model_uuid,
             result_markdown=result,
             progress_message=None,
+        )
+        logger.info(
+            'Pipeline run status updated to succeeded',
+            extra={
+                'run_id': run_id,
+                'tenant_uuid': str(auth.tenant_uuid),
+                'knowledge_model_uuid': str(knowledge_model_uuid),
+                'result_markdown_length': len(result),
+            },
         )

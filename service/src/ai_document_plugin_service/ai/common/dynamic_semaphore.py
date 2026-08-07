@@ -57,6 +57,14 @@ class DynamicSemaphore:
         self.limit = new_limit
         self._wake_waiters()
 
+    @property
+    def active_count(self) -> int:
+        return self._active_count
+
+    @property
+    def queued_count(self) -> int:
+        return len(self._waiters)
+
     async def acquire(self) -> None:
         loop = self._bind_loop()
         if self._active_count < self.limit:

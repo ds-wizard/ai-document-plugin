@@ -17,6 +17,7 @@ from ai_document_plugin_service.ai.common import (
     get_component_markdown,
     get_component_stats,
 )
+from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
@@ -122,7 +123,12 @@ async def run_pipeline(
     on_progress: ProgressCallback | None = None,
 ) -> tuple[UUID, str]:
     t1 = time.time()
+    questionnaire_fetch_started = time.perf_counter()
     km_data = await dsw_client.get_questionnaire_detail(questionnaire_uuid=questionnaire_uuid)
+    log_timing_event(
+        'questionnaire_detail_loaded',
+        duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
+    )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -133,6 +139,7 @@ async def run_pipeline(
     if on_progress is not None:
         on_progress('Preparing document template')
 
+    pipeline_started = time.perf_counter()
     result = await pipeline.run_async(
         data={
             'loader_component': {
@@ -177,12 +184,17 @@ async def run_pipeline(
             'saver_component',
         },
     )
+    log_timing_event(
+        'pipeline_components_finished',
+        duration_ms=round((time.perf_counter() - pipeline_started) * 1000, 3),
+    )
 
     result_markdown = get_component_markdown(result, 'saver_component')
     if result_markdown is None:
         msg = 'Missing markdown output from saver_component'
         raise RuntimeError(msg)
 
+    metrics_started = time.perf_counter()
     await write_metrics(
         database,
         template_uuid,
@@ -192,6 +204,10 @@ async def run_pipeline(
         result,
         model_name,
         t1,
+    )
+    log_timing_event(
+        'pipeline_metrics_saved',
+        duration_ms=round((time.perf_counter() - metrics_started) * 1000, 3),
     )
     return knowledge_model_uuid, result_markdown
 

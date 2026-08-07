@@ -1,6 +1,5 @@
 import json
 import logging
-import pathlib
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import TYPE_CHECKING
@@ -124,30 +123,3 @@ class OpenAILayerMatcher(LayerMatcher):
                 result[str(id_str)] = []
         return result
 
-
-class LoggingNoopLayerMatcher(LayerMatcher):
-    """Logs assignment inputs to logger and a JSONL file; returns no mappings."""
-
-    def __init__(self, log_path: str | pathlib.Path) -> None:
-        self._log_path = pathlib.Path(log_path)
-
-    async def match_questions_to_sections(
-        self,
-        sections_xml: str,
-        question_chunk_xml: str,
-        stats: AssignmentStats,
-    ) -> dict[str, list[str]]:
-        record = {
-            'sections_xml': sections_xml,
-            'question_chunk_xml': question_chunk_xml,
-            'stats': stats.to_dict(),
-        }
-        self._log_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._log_path.open('a', encoding='utf-8') as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + '\n')
-        logger.info(
-            'LoggingNoopLayerMatcher appended inputs to %s stats=%s',
-            self._log_path,
-            stats,
-        )
-        return {}

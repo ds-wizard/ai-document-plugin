@@ -77,6 +77,14 @@ class AssignmentComponent:
 
         sections = build_section_records(template_data)
         question_chunks, question_id_to_path = build_question_chunks(data)
+        logger.info(
+            'Starting question-to-section assignment',
+            extra={
+                'section_count': len(sections),
+                'question_chunk_count': len(question_chunks),
+                'question_path_count': len(question_id_to_path),
+            },
+        )
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
@@ -118,6 +126,14 @@ class AssignmentComponent:
             sections,
             result_mapping,
             km,
+        )
+        logger.info(
+            'Completed question-to-section assignment',
+            extra={
+                'assignment_count': len(assignments),
+                'mapped_question_count': len(result_mapping),
+                'llm_call_count': stats.total_calls,
+            },
         )
 
         return {

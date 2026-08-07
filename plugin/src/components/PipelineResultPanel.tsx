@@ -4,13 +4,14 @@ import { saveEditedPipelineResult } from '@/client'
 import styles from '@/components/PipelineResultPanel.module.css'
 import type { FeedbackController } from '@/hooks/useFeedback'
 import { MarkdownRenderer } from '@/markdown-utils'
-import type { ResultRenderMode } from '@/types'
+import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
     resultMarkdown: string | null
     resultRunId: string | null
     feedback: FeedbackController
     downloadBaseName: string
+    onSaved?: (status: PipelineStatusResponse) => void
 }
 
 export function PipelineResultPanel({
@@ -18,6 +19,7 @@ export function PipelineResultPanel({
     resultRunId,
     feedback,
     downloadBaseName,
+    onSaved,
 }: PipelineResultPanelProps) {
     const { notifyError, notifySuccess } = feedback
 
@@ -78,6 +80,7 @@ export function PipelineResultPanel({
             const savedMarkdown = data.resultMarkdown ?? editableResultMarkdown
             setCommittedMarkdown(savedMarkdown)
             setEditableResultMarkdown(savedMarkdown)
+            onSaved?.(data)
             notifySuccess('Edited markdown has been saved.')
         } catch (error) {
             notifyError(

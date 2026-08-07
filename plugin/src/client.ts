@@ -1,8 +1,8 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type {
-    PipelineRunResponse,
     PipelineStatusResponse,
+    PipelineSummaryItem,
     TemplateDetail,
     TemplateOption,
     TemplateScope,
@@ -103,6 +103,24 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
     return data
 }
 
+export const getPipelineHistory = async (questionnaireUuid: string): Promise<PipelineSummaryItem[]> => {
+    const url = `${getApiBaseUrl()}/pipelines?questionnaireUuid=${encodeURIComponent(questionnaireUuid)}`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<PipelineSummaryItem[] | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to load the generation history.',
+        )
+    }
+
+    if (!Array.isArray(data)) {
+        throw new Error('Invalid generation history returned.')
+    }
+
+    return data
+}
+
 type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
@@ -119,7 +137,7 @@ export const runPipeline = async ({
     llmApiKey = null,
     llmApiUrl = null,
     llmMaxWorkers = null,
-}: RunPipelineParams): Promise<PipelineRunResponse> => {
+}: RunPipelineParams): Promise<PipelineStatusResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/run`
     const response = await apiFetch(url, {
         method: 'POST',
@@ -136,7 +154,7 @@ export const runPipeline = async ({
         }),
     })
 
-    const data = await readApiResponse<PipelineRunResponse | { detail?: unknown }>(response, url)
+    const data = await readApiResponse<PipelineStatusResponse | { detail?: unknown }>(response, url)
 
     if (!response.ok) {
         if (response.status == 422) {
@@ -150,7 +168,7 @@ export const runPipeline = async ({
         )
     }
 
-    if (!('runId' in data)) {
+    if (!isPipelineStatusResponse(data)) {
         throw new Error('The backend did not return a pipeline run identifier.')
     }
 

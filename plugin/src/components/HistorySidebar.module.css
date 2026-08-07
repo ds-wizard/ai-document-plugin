@@ -1,0 +1,115 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 17rem;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100%;
+    padding: 1.5rem 0.75rem;
+    border-right: 1px solid  rgba(0, 0, 0, 0.2);
+}
+
+.newButton {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border: 1px dashed var(--ai-doc-color-slate-300);
+    border-radius: var(--bs-border-radius);
+    background: var(--ai-doc-color-white);
+    color: var(--ai-doc-color-slate-700);
+    font-weight: 600;
+    text-align: left;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+.newButton:hover {
+    background: var(--bs-primary-bg);
+    border-color: var(--bs-primary);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    gap: 0.25rem;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    width: 100%;
+    padding: 0.6rem 0.9rem;
+    border: 0;
+    border-radius: var(--bs-border-radius);
+    background: transparent;
+    color: var(--ai-doc-color-slate-900);
+    text-align: left;
+    transition: background-color 120ms ease;
+}
+
+.item:hover {
+    background: var(--ai-doc-color-slate-100);
+}
+
+.itemActive {
+    background: var(--bs-primary-bg);
+    color: var(--bs-primary);
+}
+
+.itemBody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.itemTitle {
+    font-size: 0.9rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itemTime {
+    font-size: 0.78rem;
+    color: var(--ai-doc-color-slate-500);
+}
+
+.statusIcon {
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+}
+
+.statusIcon.queued {
+    color: var(--ai-doc-color-orange-700);
+}
+
+.statusIcon.running {
+    color: var(--bs-primary);
+}
+
+.statusIcon.succeeded {
+    color: var(--ai-doc-color-emerald-700);
+}
+
+.statusIcon.failed {
+    color: var(--ai-doc-color-red-700);
+}
+
+.emptyState {
+    padding: 0.6rem 0.9rem;
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.85rem;
+}

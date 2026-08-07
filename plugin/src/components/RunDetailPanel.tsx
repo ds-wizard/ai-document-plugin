@@ -3,16 +3,14 @@ import { useEffect } from 'react'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
 import styles from '@/components/RunDetailPanel.module.css'
-import type { FeedbackController } from '@/hooks/useFeedback'
 import type { UseGenerationHistoryResult } from '@/hooks/useGenerationHistory'
 
 type RunDetailPanelProps = {
     runId: string
     history: UseGenerationHistoryResult
-    feedback: FeedbackController
 }
 
-export function RunDetailPanel({ runId, history, feedback }: RunDetailPanelProps) {
+export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
     const run = history.getRun(runId)
     const { ensureDetailLoaded, applyStatus } = history
 
@@ -77,7 +75,6 @@ export function RunDetailPanel({ runId, history, feedback }: RunDetailPanelProps
             <PipelineResultPanel
                 resultMarkdown={run.resultMarkdown}
                 resultRunId={run.runId}
-                feedback={feedback}
                 downloadBaseName={run.templateTitle}
                 onSaved={applyStatus}
             />

@@ -1,5 +1,6 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { useCallback, useState } from 'react'
+import { Toaster, toast } from 'sonner'
 
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
@@ -8,7 +9,6 @@ import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
 import { RunDetailPanel } from '@/components/RunDetailPanel'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
-import { useFeedback } from '@/hooks/useFeedback'
 import { useGenerationHistory } from '@/hooks/useGenerationHistory'
 import { useTemplates } from '@/hooks/useTemplates'
 
@@ -17,13 +17,11 @@ export default function ProjectTab({
     userSettings: _userSettings,
     project,
 }: ProjectTabComponentProps<SettingsData, UserSettingsData>) {
-    const feedback = useFeedback()
     const templates = useTemplates({
         reloadKey: settings.serviceUrl,
-        onReload: feedback.clear,
-        onLoadError: feedback.notifyError,
+        onLoadError: toast.error,
     })
-    const history = useGenerationHistory(project, settings, feedback)
+    const history = useGenerationHistory(project, settings)
 
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
@@ -35,6 +33,7 @@ export default function ProjectTab({
     if (!project) {
         return (
             <div>
+                <Toaster richColors closeButton />
                 <div className={styles.root}>
                     <div>
                         <h2 className="ai-doc-title">AI Document Generation</h2>
@@ -57,6 +56,7 @@ export default function ProjectTab({
 
     return (
         <div className="Projects__Detail__Content Projects__Detail__Content--Metrics">
+            <Toaster richColors closeButton />
             <div className={`questionnaire__summary-report ${styles.layout}`}>
                 <HistorySidebar
                     history={history}
@@ -67,7 +67,7 @@ export default function ProjectTab({
 
                 <div className={styles.main}>
                     {selectedRunId ? (
-                        <RunDetailPanel runId={selectedRunId} history={history} feedback={feedback} />
+                        <RunDetailPanel runId={selectedRunId} history={history} />
                     ) : (
                         <div className={styles.root}>
                             <div>
@@ -80,7 +80,6 @@ export default function ProjectTab({
 
                             <ProjectTemplatePanel
                                 templates={templates}
-                                feedback={feedback}
                                 disabled={history.isStarting}
                                 onSelectedUuidChange={handleSelectedUuidChange}
                             />
@@ -93,12 +92,6 @@ export default function ProjectTab({
                             >
                                 {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}
                             </button>
-
-                            {feedback.current ? (
-                                <FeedbackAlert kind={feedback.current.kind}>
-                                    {feedback.current.text}
-                                </FeedbackAlert>
-                            ) : null}
                         </div>
                     )}
                 </div>

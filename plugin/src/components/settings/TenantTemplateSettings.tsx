@@ -1,43 +1,30 @@
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { CustomTemplateSection, type EditingTemplate } from '@/components/CustomTemplateSection'
-import { FeedbackAlert } from '@/components/FeedbackAlert'
 import styles from '@/components/settings/TenantTemplateSettings.module.css'
 import { useTemplates } from '@/hooks/useTemplates'
 import type { TemplateOption } from '@/types'
 
 export function TenantTemplateSection() {
-    const [error, setError] = useState<string | null>(null)
-    const [success, setSuccess] = useState<string | null>(null)
     const [isCreating, setIsCreating] = useState(false)
     const [editingTemplate, setEditingTemplate] = useState<EditingTemplate | null>(null)
     const [busyUuid, setBusyUuid] = useState<string | null>(null)
 
-    const handleReload = useCallback(() => {
-        setError(null)
-    }, [])
-
-    const handleLoadError = useCallback((message: string) => {
-        setError(message)
-    }, [])
-
     const { templates, isLoading, upsertSaved, deleteByUuid, loadDetail } = useTemplates({
         scope: 'tenant',
-        onReload: handleReload,
-        onLoadError: handleLoadError,
+        onLoadError: toast.error,
     })
 
     const handleSaved = (savedTemplate: TemplateOption) => {
         upsertSaved(savedTemplate)
         setIsCreating(false)
         setEditingTemplate(null)
-        setError(null)
-        setSuccess(`Common template "${savedTemplate.title}" was saved.`)
+        toast.success(`Common template "${savedTemplate.title}" was saved.`)
     }
 
     const handleEdit = async (template: TemplateOption) => {
         setBusyUuid(template.uuid)
-        setError(null)
         try {
             const detail = await loadDetail(template.uuid)
             setIsCreating(false)
@@ -47,7 +34,7 @@ export function TenantTemplateSection() {
                 content: detail.content,
             })
         } catch (editError) {
-            setError(
+            toast.error(
                 editError instanceof Error ? editError.message : 'Failed to load the template.',
             )
         } finally {
@@ -57,18 +44,17 @@ export function TenantTemplateSection() {
 
     const handleDelete = async (template: TemplateOption) => {
         setBusyUuid(template.uuid)
-        setError(null)
 
         const deleted = await deleteByUuid(template, {
             confirmMessage: `Delete the tenant-wide template "${template.title}"? This cannot be undone.`,
-            onError: (message) => setError(message),
+            onError: toast.error,
         })
 
         if (deleted) {
             if (editingTemplate?.uuid === template.uuid) {
                 setEditingTemplate(null)
             }
-            setSuccess(`Tenant-wide template "${template.title}" was deleted.`)
+            toast.success(`Tenant-wide template "${template.title}" was deleted.`)
         }
 
         setBusyUuid(null)
@@ -91,9 +77,6 @@ export function TenantTemplateSection() {
                     Templates created here are available to everyone in your tenant.
                 </p>
             </div>
-
-            {error ? <FeedbackAlert kind="error">{error}</FeedbackAlert> : null}
-            {success ? <FeedbackAlert kind="success">{success}</FeedbackAlert> : null}
 
             {templates.length === 0 ? (
                 <p className={styles.muted}>No common templates yet.</p>
@@ -154,7 +137,6 @@ export function TenantTemplateSection() {
                     onClick={() => {
                         setIsCreating(true)
                         setEditingTemplate(null)
-                        setSuccess(null)
                     }}
                 >
                     <i className="fas fa-plus" aria-hidden="true" />

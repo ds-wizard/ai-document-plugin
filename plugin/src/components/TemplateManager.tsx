@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { getTemplate } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
@@ -15,8 +16,6 @@ type TemplateManagerProps = {
     isDeleting: boolean
     upsertSaved: UseTemplatesResult['upsertSaved']
     deleteByUuid: UseTemplatesResult['deleteByUuid']
-    notifySuccess: (message: string) => void
-    notifyError: (message: string) => void
     onSelectedUuidChange: (uuid: string) => void
 }
 
@@ -31,8 +30,6 @@ export function TemplateManager({
     isDeleting,
     upsertSaved,
     deleteByUuid,
-    notifySuccess,
-    notifyError,
     onSelectedUuidChange,
 }: TemplateManagerProps) {
     const [isCreating, setIsCreating] = useState(false)
@@ -123,9 +120,9 @@ export function TemplateManager({
             resetDetail()
             setIsEditing(false)
             setIsCreating(false)
-            notifySuccess(`Template "${saved.title}" was saved.`)
+            toast.success(`Template "${saved.title}" was saved.`)
         },
-        [upsertSaved, onSelectedUuidChange, resetDetail, notifySuccess],
+        [upsertSaved, onSelectedUuidChange, resetDetail],
     )
 
     const handleDelete = useCallback(async () => {
@@ -135,16 +132,16 @@ export function TemplateManager({
 
         const deleted = await deleteByUuid(selected, {
             confirmMessage: `Delete the template "${selected.title}"? This cannot be undone.`,
-            onError: notifyError,
+            onError: toast.error,
         })
 
         if (deleted) {
             onSelectedUuidChange('')
             resetDetail()
             setIsEditing(false)
-            notifySuccess(`Template "${selected.title}" was deleted.`)
+            toast.success(`Template "${selected.title}" was deleted.`)
         }
-    }, [selected, deleteByUuid, onSelectedUuidChange, resetDetail, notifySuccess, notifyError])
+    }, [selected, deleteByUuid, onSelectedUuidChange, resetDetail])
 
     return (
         <>

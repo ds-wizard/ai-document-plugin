@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
 import { SettingsData } from '@/data/settings-data'
-import type { FeedbackController } from '@/hooks/useFeedback'
 import { pollRunStatus } from '@/runPoller'
 import type { PipelineErrorResponse, PipelineStatusResponse, PipelineSummaryItem } from '@/types'
 
@@ -64,7 +64,6 @@ const isSettled = (status: RunStatusValue): boolean => status === 'succeeded' ||
 export function useGenerationHistory(
     project: PipelineProject,
     settings: SettingsData,
-    feedback: FeedbackController,
 ): UseGenerationHistoryResult {
     const [runs, setRuns] = useState<Record<string, RunRecord>>({})
     const [isLoading, setIsLoading] = useState(false)
@@ -74,8 +73,6 @@ export function useGenerationHistory(
     // read/merge the latest state without waiting on React's async setState.
     const runsRef = useRef<Record<string, RunRecord>>({})
     const pollersRef = useRef<Map<string, () => void>>(new Map())
-
-    const { notifyError, notifyInfo, clear: clearFeedback } = feedback
 
     const setRunRecord = useCallback((record: RunRecord) => {
         runsRef.current = { ...runsRef.current, [record.runId]: record }
@@ -180,17 +177,16 @@ export function useGenerationHistory(
     const startRun = useCallback(
         async (templateUuid: string): Promise<RunRecord | null> => {
             if (!project) {
-                notifyError('Project is not available.')
+                toast.error('Project is not available.')
                 return null
             }
 
             if (!templateUuid) {
-                notifyError('Select a DMP template.')
+                toast.error('Select a DMP template.')
                 return null
             }
 
             setIsStarting(true)
-            clearFeedback()
 
             try {
                 const status = await runPipeline({
@@ -202,14 +198,14 @@ export function useGenerationHistory(
                     llmMaxWorkers: settings.maxWorkers ?? null,
                 })
 
-                notifyInfo(`Pipeline has been accepted for the template "${status.templateTitle}".`)
+                toast.info(`Pipeline has been accepted for the template "${status.templateTitle}".`)
                 const record = applyStatus(status)
                 if (!isSettled(record.status)) {
                     beginPolling(record.runId)
                 }
                 return record
             } catch (error) {
-                notifyError(error instanceof Error ? error.message : 'Pipeline execution failed.')
+                toast.error(error instanceof Error ? error.message : 'Pipeline execution failed.')
                 return null
             } finally {
                 setIsStarting(false)
@@ -221,9 +217,6 @@ export function useGenerationHistory(
             settings.apiKey,
             settings.apiUrl,
             settings.maxWorkers,
-            notifyError,
-            notifyInfo,
-            clearFeedback,
             applyStatus,
             beginPolling,
         ],
@@ -240,7 +233,7 @@ export function useGenerationHistory(
                     const status = await getPipelineStatus(runId)
                     applyStatus(status)
                 } catch (error) {
-                    notifyError(
+                    toast.error(
                         error instanceof Error
                             ? error.message
                             : 'Failed to load the generation result.',
@@ -248,7 +241,7 @@ export function useGenerationHistory(
                 }
             })()
         },
-        [applyStatus, notifyError],
+        [applyStatus],
     )
 
     return {

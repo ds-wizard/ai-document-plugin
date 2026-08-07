@@ -24,7 +24,6 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
-    _model_from_fields,
 )
 from ai_document_plugin_service.service.errors import InternalError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
@@ -56,14 +55,13 @@ def _generation_error(record: GenerationRecord) -> PipelineErrorResponse | None:
 
 
 def _generation_record_to_status_response(record: GenerationRecord) -> PipelineStatusResponse:
-    return _model_from_fields(
-        PipelineStatusResponse,
+    return PipelineStatusResponse(
         run_id=record.run_id,
         status=PipelineStatus(record.status),
         questionnaire_uuid=record.questionnaire_uuid,
         knowledge_model_uuid=record.knowledge_model_uuid,
         template_uuid=record.template_uuid,
-        title=record.title,
+        template_title=record.title,
         error=_generation_error(record),
         result_format='markdown' if record.result_markdown is not None else None,
         result_markdown=record.result_markdown,
@@ -73,11 +71,10 @@ def _generation_record_to_status_response(record: GenerationRecord) -> PipelineS
 
 
 def _generation_record_to_summary_response(record: GenerationRecord) -> PipelineSummaryResponse:
-    return _model_from_fields(
-        PipelineSummaryResponse,
+    return PipelineSummaryResponse(
         run_id=record.run_id,
         status=PipelineStatus(record.status),
-        title=record.title,
+        template_title=record.title,
         error=_generation_error(record),
         progress_message=record.progress_message,
         created_at=record.created_at.isoformat(),

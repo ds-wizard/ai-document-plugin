@@ -2,17 +2,15 @@ from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-def _model_from_fields[T: ApiModel](
-    model_type: type[T],
-    **data: object,
-) -> T:
-    return model_type.model_validate(data)
+from pydantic.alias_generators import to_camel
 
 
 class ApiModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+        serialize_by_alias=True,
+    )
 
 
 class ErrorType(StrEnum):
@@ -63,16 +61,16 @@ class TemplateUpdateRequest(ApiModel):
 
 
 class PipelineRunRequest(ApiModel):
-    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
-    template_uuid: UUID = Field(alias='templateUuid')
-    llm_model: str = Field(alias='llmModel')
-    llm_api_key: str = Field(alias='llmApiKey')
-    llm_api_url: str = Field(alias='llmApiUrl')
-    llm_max_workers: int | None = Field(default=None, alias='llmMaxWorkers', ge=1)
+    questionnaire_uuid: UUID
+    template_uuid: UUID
+    llm_model: str
+    llm_api_key: str
+    llm_api_url: str
+    llm_max_workers: int | None = Field(default=None, ge=1)
 
 
 class PipelineSaveRequest(ApiModel):
-    result_markdown: str = Field(alias='resultMarkdown')
+    result_markdown: str
 
 
 class PipelineErrorResponse(ApiModel):
@@ -81,24 +79,24 @@ class PipelineErrorResponse(ApiModel):
 
 
 class PipelineSummaryResponse(ApiModel):
-    run_id: UUID = Field(alias='runId')
+    run_id: UUID
     status: PipelineStatus
-    title: str = Field(alias='templateTitle')
+    template_title: str
     error: PipelineErrorResponse | None = None
-    progress_message: str | None = Field(default=None, alias='progressMessage')
-    created_at: str = Field(alias='createdAt')
-    updated_at: str = Field(alias='updatedAt')
+    progress_message: str | None = None
+    created_at: str
+    updated_at: str
 
 
 class PipelineStatusResponse(ApiModel):
-    run_id: UUID = Field(alias='runId')
+    run_id: UUID
     status: PipelineStatus
-    questionnaire_uuid: UUID = Field(alias='questionnaireUuid')
-    knowledge_model_uuid: UUID | None = Field(default=None, alias='knowledgeModelUuid')
-    template_uuid: UUID = Field(alias='templateUuid')
-    title: str = Field(alias='templateTitle')
+    questionnaire_uuid: UUID
+    knowledge_model_uuid: UUID | None = None
+    template_uuid: UUID
+    template_title: str
     error: PipelineErrorResponse | None = None
-    result_format: str | None = Field(default=None, alias='resultFormat')
-    result_markdown: str | None = Field(default=None, alias='resultMarkdown')
-    progress_message: str | None = Field(default=None, alias='progressMessage')
-    updated_at: str = Field(alias='updatedAt')
+    result_format: str | None = None
+    result_markdown: str | None = None
+    progress_message: str | None = None
+    updated_at: str

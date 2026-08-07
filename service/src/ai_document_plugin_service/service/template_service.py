@@ -9,7 +9,6 @@ from ai_document_plugin_service.api.types import (
     TemplateListItem,
     TemplateScope,
     TemplateUpdateRequest,
-    _model_from_fields,
 )
 from ai_document_plugin_service.service.errors import (
     AccessDeniedError,
@@ -56,8 +55,7 @@ class TemplateService:
         except TemplateTitleConflictError as error:
             raise ConflictError(str(error)) from error
 
-        return _model_from_fields(
-            TemplateDetail,
+        return TemplateDetail(
             uuid=template_uuid,
             title=trimmed_title,
             content=payload.content,
@@ -91,8 +89,7 @@ class TemplateService:
             except TemplateTitleConflictError as error:
                 raise ConflictError(str(error)) from error
 
-        return _model_from_fields(
-            TemplateDetail,
+        return TemplateDetail(
             uuid=template_uuid,
             title=trimmed_title,
             content=payload.content,
@@ -122,8 +119,7 @@ class TemplateService:
 
     @staticmethod
     def _to_list_item(record: TemplateRecord) -> TemplateListItem:
-        return _model_from_fields(
-            TemplateListItem,
+        return TemplateListItem(
             uuid=str(record.uuid),
             title=record.title,
             scope=record.scope,
@@ -131,8 +127,7 @@ class TemplateService:
 
     @staticmethod
     def _to_detail(record: TemplateRecord) -> TemplateDetail:
-        return _model_from_fields(
-            TemplateDetail,
+        return TemplateDetail(
             uuid=record.uuid,
             title=record.title,
             content=record.content,

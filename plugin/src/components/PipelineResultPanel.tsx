@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { saveEditedPipelineResult } from '@/client'
+import { exportPipelineResultAsDocx, saveEditedPipelineResult } from '@/client'
 import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
 import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
+
+const triggerBlobDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+}
 
 type PipelineResultPanelProps = {
     resultMarkdown: string | null
@@ -23,6 +34,7 @@ export function PipelineResultPanel({
     const [committedMarkdown, setCommittedMarkdown] = useState<string | null>(null)
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
+    const [isDownloadingDocx, setIsDownloadingDocx] = useState(false)
 
     useEffect(() => {
         setEditableResultMarkdown(resultMarkdown ?? '')
@@ -52,15 +64,31 @@ export function PipelineResultPanel({
         }
 
         const blob = new Blob([displayedResultMarkdown], { type: 'text/markdown;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `${downloadBaseName || 'pipeline-output'}.md`
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-        URL.revokeObjectURL(url)
+        triggerBlobDownload(blob, `${downloadBaseName || 'pipeline-output'}.md`)
         toast.success('Markdown download has started.')
+    }
+
+    const onDownloadDocx = async () => {
+        if (!displayedResultMarkdown || !resultRunId) {
+            toast.error('There is no pipeline result to export yet.')
+            return
+        }
+
+        setIsDownloadingDocx(true)
+        try {
+            // The editor's current text is sent along, so unsaved edits are exported too.
+            const blob = await exportPipelineResultAsDocx(resultRunId, displayedResultMarkdown)
+            triggerBlobDownload(blob, `${downloadBaseName || 'pipeline-output'}.docx`)
+            toast.success('Word download has started.')
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to export the result as a Word document.',
+            )
+        } finally {
+            setIsDownloadingDocx(false)
+        }
     }
 
     const onSaveEditedVersion = async () => {
@@ -138,6 +166,15 @@ export function PipelineResultPanel({
                                 className="btn btn-outline-secondary"
                             >
                                 Download .md
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => void onDownloadDocx()}
+                                disabled={!resultRunId || isDownloadingDocx}
+                                className="btn btn-outline-secondary"
+                            >
+                                {isDownloadingDocx ? 'Preparing...' : 'Download .docx'}
                             </button>
 
                             <button

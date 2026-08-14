@@ -73,6 +73,12 @@ class PipelineSaveRequest(ApiModel):
     result_markdown: str
 
 
+class PipelineExportRequest(ApiModel):
+    """Carries the editor's current text so unsaved edits can be exported."""
+
+    result_markdown: str
+
+
 class PipelineErrorResponse(ApiModel):
     type: ErrorType
     message: str

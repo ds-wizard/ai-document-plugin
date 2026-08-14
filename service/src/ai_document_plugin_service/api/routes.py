@@ -5,6 +5,7 @@ import fastapi
 
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
+    PipelineExportRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatusResponse,
@@ -15,6 +16,7 @@ from ai_document_plugin_service.api.types import (
     TemplateUpdateRequest,
 )
 from ai_document_plugin_service.di import AuthenticatedDI, ConfigDI, PipelineServiceDI, TemplateServiceDI
+from ai_document_plugin_service.service.docx_export import DOCX_MEDIA_TYPE
 from ai_document_plugin_service.service.errors import NotFoundError
 
 public_router = fastapi.APIRouter()
@@ -106,3 +108,19 @@ async def save_pipeline_result(
     run_id: UUID, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
 ) -> PipelineStatusResponse:
     return await pipeline.update_pipeline_result(run_id, save_request, auth)
+
+
+@protected_router.post(
+    '/pipelines/status/{run_id}/export/docx',
+    response_class=fastapi.Response,
+    responses={200: {'content': {DOCX_MEDIA_TYPE: {}}}},
+)
+async def export_pipeline_result_as_docx(
+    run_id: UUID, export_request: PipelineExportRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
+) -> fastapi.Response:
+    export = await pipeline.export_result_as_docx(run_id, export_request, auth)
+    return fastapi.Response(
+        content=export.content,
+        media_type=DOCX_MEDIA_TYPE,
+        headers={'Content-Disposition': f'attachment; filename="{export.file_name}"'},
+    )

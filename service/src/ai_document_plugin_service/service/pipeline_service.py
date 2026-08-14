@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import re
 import threading
 from asyncio import Task
+from dataclasses import dataclass
 from uuid import UUID
 
 from openai import AuthenticationError
@@ -19,13 +21,15 @@ from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
     ErrorType,
     PipelineErrorResponse,
+    PipelineExportRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
 )
-from ai_document_plugin_service.service.errors import InternalError, NotFoundError
+from ai_document_plugin_service.service.docx_export import markdown_to_docx
+from ai_document_plugin_service.service.errors import InternalError, NotFoundError, ValidationError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
@@ -33,6 +37,23 @@ logger = logging.getLogger(__name__)
 AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
 SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
 TEMPLATE_NOT_FOUND_MESSAGE = 'Template not found.'
+
+DEFAULT_EXPORT_FILE_NAME = 'document'
+MAX_EXPORT_FILE_NAME_LENGTH = 80
+_UNSAFE_FILE_NAME_CHARACTERS = re.compile(r'[^A-Za-z0-9._ -]+')
+
+
+@dataclass(frozen=True)
+class DocxExport:
+    content: bytes
+    file_name: str
+
+
+def _docx_file_name(title: str) -> str:
+    """Build a filename safe to interpolate into a Content-Disposition header."""
+    cleaned = _UNSAFE_FILE_NAME_CHARACTERS.sub(' ', title).strip()
+    collapsed = ' '.join(cleaned.split())[:MAX_EXPORT_FILE_NAME_LENGTH].strip()
+    return f'{collapsed or DEFAULT_EXPORT_FILE_NAME}.docx'
 
 
 def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
@@ -202,6 +223,35 @@ class PipelineService:
         if updated_record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
         return _generation_record_to_status_response(updated_record)
+
+    async def export_result_as_docx(
+        self, run_id: UUID, export_request: PipelineExportRequest, auth: AuthenticatedUser
+    ) -> DocxExport:
+        """Render markdown as a Word document.
+
+        The markdown comes from the request rather than the stored run so the editor can export
+        unsaved edits, matching how the markdown download already behaves. The run is still
+        looked up to confirm the caller owns it and to name the file.
+
+        Raises:
+            NotFoundError: The run does not exist or does not belong to the caller.
+            ValidationError: The submitted markdown is empty.
+
+        """
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
+        if not export_request.result_markdown.strip():
+            raise ValidationError(ValidationError.EMPTY_MARKDOWN_MESSAGE)
+
+        # python-docx is synchronous and CPU-bound; keep it off the event loop.
+        content = await asyncio.to_thread(
+            markdown_to_docx,
+            export_request.result_markdown,
+            title=record.title,
+        )
+        return DocxExport(content=content, file_name=_docx_file_name(record.title))
 
     async def _run_pipeline_job(
         self,

@@ -268,6 +268,32 @@ export const deleteTemplate = async (templateUuid: string): Promise<void> => {
     }
 }
 
+export const exportPipelineResultAsDocx = async (
+    runId: string,
+    resultMarkdown: string,
+): Promise<Blob> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/export/docx`
+    const response = await apiFetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            resultMarkdown,
+        }),
+    })
+
+    if (!response.ok) {
+        // Errors still come back as JSON; only the success path is binary.
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(
+            (): { detail?: string } => ({}),
+        )
+        throw new Error(data.detail || 'Failed to export the result as a Word document.')
+    }
+
+    return response.blob()
+}
+
 export const saveEditedPipelineResult = async (
     runId: string,
     resultMarkdown: string,

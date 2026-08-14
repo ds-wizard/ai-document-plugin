@@ -55,9 +55,10 @@ export function HistorySidebar({
             <button
                 type="button"
                 onClick={onSelectNew}
+                disabled={selectedRunId === null}
                 className={`${styles.newButton} ${selectedRunId === null ? styles.itemActive : ''}`}
             >
-                <i className="fas fa-plus" aria-hidden="true" />
+                <i className={`fas fa-plus ${styles.statusIcon}`} aria-hidden="true" />
                 Generate new DMP
             </button>
 

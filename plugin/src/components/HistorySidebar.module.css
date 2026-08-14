@@ -1,44 +1,119 @@
 .root {
+    /* Content height of a two-line run item (title + timestamp) — every item matches it. */
+    --ai-doc-history-item-body: calc(1.5 * 0.9rem + 0.1rem + 1.5 * 0.75rem);
+    --ai-doc-history-radius: var(--bs-border-radius);
+    --ai-doc-history-line: var(--ai-doc-color-slate-250);
+
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.25rem;
     width: 17rem;
     flex-shrink: 0;
     position: sticky;
     top: 0;
     align-self: flex-start;
     height: 100%;
-    padding: 1.5rem 0.75rem;
-    border-right: 1px solid  rgba(0, 0, 0, 0.2);
+    padding: 1.5rem 0 1.5rem 0.75rem;
 }
 
+/* Divider towards the main panel; the selected item paints over it. */
+.root::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--ai-doc-history-line);
+}
+
+.item,
 .newButton {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.55rem;
+    position: relative;
     width: 100%;
-    padding: 0.7rem 0.9rem;
-    border: 1px dashed var(--ai-doc-color-slate-300);
-    border-radius: var(--bs-border-radius);
-    background: var(--ai-doc-color-white);
-    color: var(--ai-doc-color-slate-700);
-    font-weight: 600;
+    min-height: calc(var(--ai-doc-history-item-body) + 0.9rem + 2px);
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--ai-doc-color-slate-200);
+    border-radius: var(--ai-doc-history-radius) 0 0 var(--ai-doc-history-radius);
+    background: var(--ai-doc-color-slate-50);
+    color: var(--ai-doc-color-slate-800);
+    font-size: 0.9rem;
+    font-weight: 500;
     text-align: left;
     transition:
         background-color 120ms ease,
         border-color 120ms ease;
 }
 
-.newButton:hover {
-    background: var(--bs-primary-bg);
-    border-color: var(--bs-primary);
+.item:hover:not(.itemActive),
+.newButton:hover:not(:disabled) {
+    background: var(--ai-doc-color-slate-100);
+    border-color: var(--ai-doc-color-slate-300);
+}
+
+/* Selected item reads as the open page: white and merged with the main panel. */
+.itemActive,
+.newButton:disabled {
+    background: var(--ai-doc-color-white);
+    border-color: var(--ai-doc-history-line);
+    border-right-color: transparent;
+    color: var(--ai-doc-color-slate-950);
+    font-weight: 600;
+    cursor: default;
+    z-index: 1;
+}
+
+/*
+ * Concave corners that carry the divider into the selected item's top and
+ * bottom edge, so the tab flows into the content instead of butting against it.
+ * Each is a white patch over the divider with the arc drawn by a radial
+ * gradient centred on the corner the curve turns around.
+ */
+.itemActive::before,
+.itemActive::after,
+.newButton:disabled::before,
+.newButton:disabled::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    width: var(--ai-doc-history-radius);
+    height: calc(var(--ai-doc-history-radius) + 1px);
+}
+
+.itemActive::before,
+.newButton:disabled::before {
+    top: calc(-1px - var(--ai-doc-history-radius));
+    background: radial-gradient(
+        circle at 0 0,
+        var(--ai-doc-color-white) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) var(--ai-doc-history-radius),
+        var(--ai-doc-color-white) var(--ai-doc-history-radius)
+    );
+}
+
+.itemActive::after,
+.newButton:disabled::after {
+    bottom: calc(-1px - var(--ai-doc-history-radius));
+    background: radial-gradient(
+        circle at 0 100%,
+        var(--ai-doc-color-white) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) var(--ai-doc-history-radius),
+        var(--ai-doc-color-white) var(--ai-doc-history-radius)
+    );
 }
 
 .list {
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    gap: 0.25rem;
+    /* Room for the selected item's concave corners between neighbours. */
+    gap: calc(var(--ai-doc-history-radius) + 2px);
+    padding: calc(var(--ai-doc-history-radius) + 1px) 0;
     min-height: 0;
     overflow-y: auto;
     scrollbar-width: thin;
@@ -53,52 +128,31 @@
     border-radius: 3px;
 }
 
-.item {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    width: 100%;
-    padding: 0.6rem 0.9rem;
-    border: 0;
-    border-radius: var(--bs-border-radius);
-    background: transparent;
-    color: var(--ai-doc-color-slate-900);
-    text-align: left;
-    transition: background-color 120ms ease;
-}
-
-.item:hover {
-    background: var(--ai-doc-color-slate-100);
-}
-
-.itemActive {
-    background: var(--bs-primary-bg);
-    color: var(--bs-primary);
-}
-
 .itemBody {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.1rem;
     min-width: 0;
 }
 
 .itemTitle {
-    font-size: 0.9rem;
-    font-weight: 500;
+    line-height: 1.5;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .itemTime {
-    font-size: 0.78rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.5;
     color: var(--ai-doc-color-slate-500);
 }
 
 .statusIcon {
     flex-shrink: 0;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    color: var(--ai-doc-color-slate-500);
 }
 
 .statusIcon.queued,
@@ -115,7 +169,7 @@
 }
 
 .emptyState {
-    padding: 0.6rem 0.9rem;
+    padding: 0.5rem 0.7rem;
     color: var(--ai-doc-color-slate-500);
     font-size: 0.85rem;
 }

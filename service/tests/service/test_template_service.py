@@ -38,13 +38,13 @@ def _database() -> AsyncMock:
     return database
 
 
-def _user(*, role: str = 'researcher', user_uuid: uuid.UUID = USER_UUID) -> AuthenticatedUser:
+def _user(*, is_admin: bool = False, user_uuid: uuid.UUID = USER_UUID) -> AuthenticatedUser:
     return AuthenticatedUser(
         token='token',
         api_url='https://dsw.example.com/wizard-api',
         user_uuid=user_uuid,
         tenant_uuid=TENANT_UUID,
-        role=role,
+        is_admin=is_admin,
     )
 
 
@@ -144,7 +144,7 @@ async def test_create_tenant_template_by_admin_has_no_owner() -> None:
     database.create_template.return_value = template_uuid
     payload = TemplateCreateRequest(title='Common', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
-    detail = await TemplateService(database).create(_user(role='admin'), payload)
+    detail = await TemplateService(database).create(_user(is_admin=True), payload)
 
     database.create_template.assert_awaited_once_with(
         title='Common',
@@ -160,7 +160,7 @@ async def test_create_tenant_template_by_non_admin_is_denied() -> None:
     payload = TemplateCreateRequest(title='Common', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).create(_user(role='researcher'), payload)
+        await TemplateService(database).create(_user(is_admin=False), payload)
 
     database.create_template.assert_not_awaited()
 
@@ -172,7 +172,7 @@ async def test_create_authorizes_before_validating() -> None:
     payload = TemplateCreateRequest(title='', content={}, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).create(_user(role='researcher'), payload)
+        await TemplateService(database).create(_user(is_admin=False), payload)
 
 
 async def test_create_rejects_blank_title() -> None:
@@ -228,7 +228,7 @@ async def test_update_tenant_template_by_admin() -> None:
     database.update_template.return_value = True
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
-    detail = await TemplateService(database).update(_user(role='admin'), template_uuid, payload)
+    detail = await TemplateService(database).update(_user(is_admin=True), template_uuid, payload)
 
     assert detail.scope is TemplateScope.TENANT
     database.update_template.assert_awaited_once()
@@ -241,7 +241,7 @@ async def test_update_tenant_template_by_non_admin_is_denied() -> None:
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).update(_user(role='researcher'), template_uuid, payload)
+        await TemplateService(database).update(_user(is_admin=False), template_uuid, payload)
 
     database.update_template.assert_not_awaited()
 
@@ -293,7 +293,7 @@ async def test_delete_tenant_template_by_admin() -> None:
     database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
-    await TemplateService(database).delete(_user(role='admin'), template_uuid)
+    await TemplateService(database).delete(_user(is_admin=True), template_uuid)
 
     database.delete_template.assert_awaited_once_with(template_uuid, TENANT_UUID)
 
@@ -304,7 +304,7 @@ async def test_delete_tenant_template_by_non_admin_is_denied() -> None:
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).delete(_user(role='researcher'), template_uuid)
+        await TemplateService(database).delete(_user(is_admin=False), template_uuid)
 
     database.delete_template.assert_not_awaited()
 
@@ -325,7 +325,7 @@ async def test_delete_other_users_by_admin_is_hidden() -> None:
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).delete(_user(role="admin"), template_uuid)
+        await TemplateService(database).delete(_user(is_admin=True), template_uuid)
 
     database.delete_template.assert_not_awaited()
 

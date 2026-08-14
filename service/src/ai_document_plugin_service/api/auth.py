@@ -82,7 +82,7 @@ def _is_admin(user: dict[str, object], api_url: str) -> bool:
     if 'permissions' in user:
         # Handle DSW version >= 0.4.33
         permissions = user.get('permissions')
-        if not isinstance(permissions, list):
+        if isinstance(permissions, list):
             return DSW_ADMIN_PERMISSION in permissions
         return False
     msg = (

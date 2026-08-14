@@ -1,20 +1,31 @@
 """Convert generated markdown into a Word (.docx) document.
 
 The markdown produced by the pipeline is CommonMark plus the GitHub extensions the plugin
-renders in the browser (tables, strikethrough), so the parser here is configured to match
-`remark-gfm` on the frontend.
+renders in the browser (tables, strikethrough, and bare URLs as links), so the parser here is
+configured to match `remark-gfm` on the frontend. Linkify matters in practice: the pipeline
+writes repository and dataset URLs as bare text rather than as `[label](url)`.
 
-Everything maps onto Word's built-in styles, so this module contains no raw OOXML. That keeps
-it small, and it means headings feed Word's navigation pane and generated tables of contents,
-and an institution can restyle the output by editing the styles rather than this code. The
-trade is that Word's `List Number` style carries a single counter, so consecutive numbered
-lists continue rather than restart -- see `test_docx_export.py`.
+Everything maps onto Word's built-in styles, which keeps this module small, lets headings feed
+Word's navigation pane and generated tables of contents, and lets an institution restyle the
+output by editing the styles rather than this code. The trade is that Word's `List Number`
+style carries a single counter, so consecutive numbered lists continue rather than restart --
+see `test_docx_export.py`.
+
+Hyperlinks are the one place that drops to raw OOXML, because python-docx exposes no API for
+writing them.
+
+Images and thematic breaks are not handled: the pipeline does not produce them. Neither breaks
+the export if one does appear -- a rule is dropped and an image leaves its alt text behind.
 """
 
 import io
 from typing import TYPE_CHECKING
 
 import docx
+from docx.opc.constants import RELATIONSHIP_TYPE
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import RGBColor
 from markdown_it import MarkdownIt
 from markdown_it.tree import SyntaxTreeNode
 
@@ -28,33 +39,19 @@ _MAX_HEADING_LEVEL = 6
 # Word's default template defines three levels of each list style; deeper nesting is clamped.
 _MAX_LIST_LEVEL = 3
 _CODE_FONT = 'Consolas'
-_HORIZONTAL_RULE = '―' * 40
+# The default template has no Hyperlink character style, so links are coloured directly.
+_LINK_COLOR = RGBColor(0x05, 0x63, 0xC1)
 
-_PARSER = MarkdownIt('commonmark').enable(['table', 'strikethrough'])
+_PARSER = MarkdownIt('commonmark', {'linkify': True}).enable(['table', 'strikethrough', 'linkify'])
 
 # Inline nodes that switch a run property on for everything nested inside them.
 _INLINE_FORMATS = {'strong': 'bold', 'em': 'italic', 's': 'strike'}
-
-# Inline nodes that contribute text directly. Images are listed here even though they carry an
-# alt-text child, so that they render as a placeholder instead of as bare text.
-_INLINE_LEAVES = {'text', 'softbreak', 'hardbreak', 'image'}
 
 
 def _list_style(list_type: str, level: int) -> str:
     name = 'List Number' if list_type == 'ordered_list' else 'List Bullet'
     capped = min(level, _MAX_LIST_LEVEL - 1)
     return name if capped == 0 else f'{name} {capped + 1}'
-
-
-def _leaf_text(node: SyntaxTreeNode) -> str:
-    """The literal text a self-contained inline node contributes."""
-    if node.type in {'softbreak', 'hardbreak'}:
-        return ' '
-    if node.type == 'image':
-        # Images are not embedded: the markdown only carries a URL, and fetching remote media
-        # server-side would turn an export into an outbound request.
-        return f'[{node.content or "image"}]'
-    return node.content
 
 
 def _add_run(paragraph: 'Paragraph', text: str, formats: frozenset[str]) -> None:
@@ -74,6 +71,29 @@ def _add_run(paragraph: 'Paragraph', text: str, formats: frozenset[str]) -> None
         run.font.strike = True
     if 'code' in formats:
         run.font.name = _CODE_FONT
+    if 'link' in formats:
+        run.font.color.rgb = _LINK_COLOR
+        run.font.underline = True
+
+
+def _write_link(paragraph: 'Paragraph', node: SyntaxTreeNode, formats: frozenset[str]) -> None:
+    """Wrap the link's runs in a `w:hyperlink`, which python-docx has no public API for."""
+    href = node.attrGet('href')
+    already_written = len(paragraph.runs)
+    _write_inline(paragraph, node, formats | {'link'})
+
+    # `runs` only counts direct children, and earlier links have moved theirs into their own
+    # hyperlink element, so whatever is past this point belongs to this link alone.
+    new_runs = paragraph.runs[already_written:]
+    if not isinstance(href, str) or not href or not new_runs:
+        return
+
+    hyperlink = OxmlElement('w:hyperlink')
+    hyperlink.set(qn('r:id'), paragraph.part.relate_to(href, RELATIONSHIP_TYPE.HYPERLINK, is_external=True))
+    for run in new_runs:
+        # Appending moves the run out of the paragraph and into the hyperlink.
+        hyperlink.append(run._element)  # noqa: SLF001
+    paragraph._p.append(hyperlink)  # noqa: SLF001
 
 
 def _write_inline(paragraph: 'Paragraph', node: SyntaxTreeNode, formats: frozenset[str]) -> None:
@@ -81,15 +101,11 @@ def _write_inline(paragraph: 'Paragraph', node: SyntaxTreeNode, formats: frozens
         if child.type in _INLINE_FORMATS:
             _write_inline(paragraph, child, formats | {_INLINE_FORMATS[child.type]})
         elif child.type == 'link':
-            # python-docx cannot write clickable links, so the target is spelled out instead.
-            _write_inline(paragraph, child, formats)
-            href = child.attrGet('href')
-            if isinstance(href, str) and href not in paragraph.text:
-                _add_run(paragraph, f' ({href})', formats)
+            _write_link(paragraph, child, formats)
         elif child.type == 'code_inline':
             _add_run(paragraph, child.content, formats | {'code'})
-        elif child.type in _INLINE_LEAVES:
-            _add_run(paragraph, _leaf_text(child), formats)
+        elif child.type in {'softbreak', 'hardbreak'}:
+            _add_run(paragraph, ' ', formats)
         elif child.children:
             _write_inline(paragraph, child, formats)
         else:
@@ -144,8 +160,6 @@ def _write_block(document: 'Document', node: SyntaxTreeNode, style: str | None =
         _write_code(document, node)
     elif node.type == 'table':
         _write_table(document, node)
-    elif node.type == 'hr':
-        document.add_paragraph(_HORIZONTAL_RULE)
     elif node.children:
         _write_blocks(document, node.children, style)
     elif node.content.strip():

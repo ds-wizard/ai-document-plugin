@@ -3,13 +3,36 @@ import io
 import docx
 import pytest
 from docx.document import Document
+from docx.oxml.ns import qn
+from docx.shared import RGBColor
 from docx.text.paragraph import Paragraph
+from docx.text.run import Run
 
 from ai_document_plugin_service.service.docx_export import markdown_to_docx
 
 
 def _render(markdown: str) -> Document:
     return docx.Document(io.BytesIO(markdown_to_docx(markdown)))
+
+
+def _hyperlinks(paragraph: Paragraph) -> list:
+    return paragraph._p.findall(qn('w:hyperlink'))  # noqa: SLF001
+
+
+def _link_targets(paragraph: Paragraph) -> list[str]:
+    """The external URL each hyperlink in the paragraph points at, in document order."""
+    return [paragraph.part.rels[hyperlink.get(qn('r:id'))].target_ref for hyperlink in _hyperlinks(paragraph)]
+
+
+def _hyperlink_runs(paragraph: Paragraph) -> list[Run]:
+    return [Run(element, paragraph) for hyperlink in _hyperlinks(paragraph) for element in hyperlink.findall(qn('w:r'))]
+
+
+def _hyperlink_text(paragraph: Paragraph) -> list[str]:
+    return [
+        ''.join(run.text for run in (Run(element, paragraph) for element in hyperlink.findall(qn('w:r'))))
+        for hyperlink in _hyperlinks(paragraph)
+    ]
 
 
 def _style_name(paragraph: Paragraph) -> str | None:
@@ -62,17 +85,71 @@ def test_soft_break_becomes_a_space_in_one_paragraph() -> None:
     assert [paragraph.text for paragraph in document.paragraphs if paragraph.text] == ['first second']
 
 
-def test_link_keeps_its_target_as_visible_text() -> None:
-    # python-docx cannot write clickable links, so the URL must not be silently dropped.
-    document = _render('See [the guide](https://example.org/guide).')
+def test_link_becomes_a_clickable_hyperlink() -> None:
+    document = _render('See [the guide](https://example.org/guide) now.')
 
-    assert document.paragraphs[0].text == 'See the guide (https://example.org/guide).'
+    paragraph = document.paragraphs[0]
+    assert _link_targets(paragraph) == ['https://example.org/guide']
+    assert _hyperlink_text(paragraph) == ['the guide']
+    # The link is spliced in at the right position, not appended at the end of the paragraph.
+    assert paragraph.text == 'See the guide now.'
 
 
-def test_link_whose_text_is_already_the_url_is_not_repeated() -> None:
-    document = _render('[https://example.org](https://example.org)')
+def test_link_runs_are_styled_as_links() -> None:
+    document = _render('[the guide](https://example.org/guide)')
 
-    assert document.paragraphs[0].text == 'https://example.org'
+    run = _hyperlink_runs(document.paragraphs[0])[0]
+    assert run.font.underline is True
+    assert run.font.color.rgb == RGBColor(0x05, 0x63, 0xC1)
+
+
+def test_link_keeps_formatting_inside_its_text() -> None:
+    document = _render('[**bold** link](https://example.org)')
+
+    runs = _hyperlink_runs(document.paragraphs[0])
+    assert [run.text for run in runs] == ['bold', ' link']
+    assert [run.bold for run in runs] == [True, None]
+
+
+def test_two_links_in_one_paragraph_keep_separate_targets() -> None:
+    document = _render('[first](https://a.example) and [second](https://b.example)')
+
+    paragraph = document.paragraphs[0]
+    assert _link_targets(paragraph) == ['https://a.example', 'https://b.example']
+    assert _hyperlink_text(paragraph) == ['first', 'second']
+
+
+def test_link_inside_a_list_item_still_becomes_a_hyperlink() -> None:
+    document = _render('- see [the guide](https://example.org/guide)')
+
+    numbered = [p for p in document.paragraphs if _style_name(p) == 'List Bullet']
+    assert _link_targets(numbered[0]) == ['https://example.org/guide']
+
+
+def test_link_inside_a_table_cell_still_becomes_a_hyperlink() -> None:
+    document = _render('| a |\n| --- |\n| [x](https://example.org) |')
+
+    cell_paragraph = document.tables[0].cell(1, 0).paragraphs[0]
+    assert _link_targets(cell_paragraph) == ['https://example.org']
+
+
+def test_bare_url_becomes_a_hyperlink() -> None:
+    # The pipeline writes URLs as bare text, not as [label](url), so linkify carries the
+    # feature in practice. remark-gfm makes these clickable in the preview too.
+    document = _render('See https://example.org/guide for details.')
+
+    paragraph = document.paragraphs[0]
+    assert _link_targets(paragraph) == ['https://example.org/guide']
+    assert _hyperlink_text(paragraph) == ['https://example.org/guide']
+    assert paragraph.text == 'See https://example.org/guide for details.'
+
+
+def test_link_without_a_target_is_left_as_plain_text() -> None:
+    document = _render('[just text]()')
+
+    paragraph = document.paragraphs[0]
+    assert _link_targets(paragraph) == []
+    assert paragraph.text == 'just text'
 
 
 def test_lists_use_built_in_list_styles() -> None:
@@ -153,25 +230,22 @@ def test_blockquote_uses_the_quote_style() -> None:
     assert _styles(document) == ['Quote']
 
 
-def test_horizontal_rule_is_written_as_a_visible_line() -> None:
-    document = _render('above\n\n---\n\nbelow')
-
-    texts = [paragraph.text for paragraph in document.paragraphs if paragraph.text]
-    assert texts[0] == 'above'
-    assert set(texts[1]) == {'―'}
-    assert texts[2] == 'below'
-
-
 def test_raw_html_is_kept_as_literal_text_not_interpreted() -> None:
     document = _render('<script>alert(1)</script>')
 
     assert 'alert(1)' in '\n'.join(paragraph.text for paragraph in document.paragraphs)
 
 
-def test_image_falls_back_to_alt_text() -> None:
-    document = _render('![a diagram](https://example.org/x.png)')
+def test_unsupported_constructs_degrade_without_breaking_the_document() -> None:
+    """Images and thematic breaks are deliberately not handled; the pipeline never emits them.
 
-    assert document.paragraphs[0].text.startswith('[a diagram]')
+    They must still not raise or corrupt the file if one ever reaches the editor: a rule is
+    dropped and an image leaves its alt text behind.
+    """
+    document = _render('above\n\n---\n\n![a diagram](https://example.org/x.png)\n\nbelow')
+
+    texts = [paragraph.text for paragraph in document.paragraphs if paragraph.text]
+    assert texts == ['above', 'a diagram', 'below']
 
 
 def test_title_is_stored_as_document_metadata() -> None:

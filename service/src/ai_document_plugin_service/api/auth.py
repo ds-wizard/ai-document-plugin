@@ -12,6 +12,7 @@ DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
 DSW_USER_VALIDATION_TIMEOUT_SECONDS = 10.0
 DSW_USER_VALIDATION_SUCCESS_STATUS = 200
 DSW_ADMIN_ROLE = 'admin'
+DSW_ADMIN_PERMISSION = 'SettingsManageRolePermission'
 
 
 @dataclass(frozen=True)
@@ -20,11 +21,7 @@ class AuthenticatedUser:
     api_url: str
     user_uuid: UUID
     tenant_uuid: UUID
-    role: str
-
-    @property
-    def is_admin(self) -> bool:
-        return self.role.strip().lower() == DSW_ADMIN_ROLE
+    is_admin: bool
 
 
 def is_allowed_request(api_url: str, tenant_uuid: UUID, allowed_apis: tuple[AllowedApi, ...]) -> bool:
@@ -77,16 +74,22 @@ def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
     return user
 
 
-def _extract_role(user: dict[str, object], api_url: str) -> str:
+def _is_admin(user: dict[str, object], api_url: str) -> bool:
     role = user.get('role')
-    if not isinstance(role, str) or not role.strip():
-        msg = (
-            f'Unexpected response from DSW at {api_url}: the /users/current payload '
-            f'did not include a valid string "role" (got {role!r}). '
-            f'The tenant may be running an incompatible DSW version. Received payload: {user}'
-        )
-        raise ValueError(msg)
-    return role
+    if isinstance(role, str):
+        # DSW version < 0.4.33
+        return role == DSW_ADMIN_ROLE
+    if isinstance(role, dict):
+        # DSW version >= 0.4.33
+        permissions = role.get('permissions')
+        if isinstance(permissions, list):
+            return DSW_ADMIN_PERMISSION in permissions
+    msg = (
+        f'Unexpected response from DSW at {api_url}: the /users/current payload '
+        f'did not include a valid "role" string or a "role" object with a "permissions" list. '
+        f'The tenant may be running an incompatible DSW version. Received payload: {user}'
+    )
+    raise ValueError(msg)
 
 
 def verify_authenticated(
@@ -116,11 +119,10 @@ def verify_authenticated(
     if user is None:
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
-    role = _extract_role(user, normalized_api_url)
     return AuthenticatedUser(
         token=token,
         api_url=normalized_api_url,
         user_uuid=user_uuid,
         tenant_uuid=tenant_uuid,
-        role=role,
+        is_admin=_is_admin(user, normalized_api_url),
     )

@@ -113,7 +113,13 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     mock_httpx_get.return_value = httpx.Response(
         200,
         request=httpx.Request('GET', ALLOWED_URL),
-        json={'role': 'researcher'},
+        json={
+            'role': {
+                'name': 'Researcher',
+                'permissions': ['ProjectsViewRolePermission'],
+                'uuid': '31ccc093-3ab0-4459-b109-ab1d8dc2313f',
+            }
+        },
     )
     template_uuid = UUID('99999999-9999-9999-9999-999999999999')
     mock_postgres_db.return_value.list_templates = AsyncMock(

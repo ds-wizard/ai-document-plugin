@@ -75,19 +75,18 @@ def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
 
 
 def _is_admin(user: dict[str, object], api_url: str) -> bool:
-    if 'role' in user:
-        # Handle DSW version < 0.4.33
-        role = user.get('role')
+    role = user.get('role')
+    if isinstance(role, str):
+        # DSW version < 0.4.33
         return role == DSW_ADMIN_ROLE
-    if 'permissions' in user:
-        # Handle DSW version >= 0.4.33
-        permissions = user.get('permissions')
+    if isinstance(role, dict):
+        # DSW version >= 0.4.33
+        permissions = role.get('permissions')
         if isinstance(permissions, list):
             return DSW_ADMIN_PERMISSION in permissions
-        return False
     msg = (
         f'Unexpected response from DSW at {api_url}: the /users/current payload '
-        f'did not include a valid "role" or "permissions" field. '
+        f'did not include a valid "role" string or a "role" object with a "permissions" list. '
         f'The tenant may be running an incompatible DSW version. Received payload: {user}'
     )
     raise ValueError(msg)

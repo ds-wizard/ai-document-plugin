@@ -1,21 +1,11 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { exportPipelineResultAsDocx, saveEditedPipelineResult } from '@/client'
+import { saveEditedPipelineResult } from '@/client'
+import { DownloadDropdown } from '@/components/DownloadDropdown'
 import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
 import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
-
-const triggerBlobDownload = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-}
 
 type PipelineResultPanelProps = {
     resultMarkdown: string | null
@@ -34,7 +24,6 @@ export function PipelineResultPanel({
     const [committedMarkdown, setCommittedMarkdown] = useState<string | null>(null)
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
     const [isSavingEditedVersion, setIsSavingEditedVersion] = useState(false)
-    const [isDownloadingDocx, setIsDownloadingDocx] = useState(false)
 
     useEffect(() => {
         setEditableResultMarkdown(resultMarkdown ?? '')
@@ -55,39 +44,6 @@ export function PipelineResultPanel({
             toast.success('Markdown has been copied to the clipboard.')
         } catch {
             toast.error('Failed to copy markdown to the clipboard.')
-        }
-    }
-
-    const onDownloadMarkdown = () => {
-        if (!displayedResultMarkdown) {
-            return
-        }
-
-        const blob = new Blob([displayedResultMarkdown], { type: 'text/markdown;charset=utf-8' })
-        triggerBlobDownload(blob, `${downloadBaseName || 'pipeline-output'}.md`)
-        toast.success('Markdown download has started.')
-    }
-
-    const onDownloadDocx = async () => {
-        if (!displayedResultMarkdown || !resultRunId) {
-            toast.error('There is no pipeline result to export yet.')
-            return
-        }
-
-        setIsDownloadingDocx(true)
-        try {
-            // The editor's current text is sent along, so unsaved edits are exported too.
-            const blob = await exportPipelineResultAsDocx(resultRunId, displayedResultMarkdown)
-            triggerBlobDownload(blob, `${downloadBaseName || 'pipeline-output'}.docx`)
-            toast.success('Word download has started.')
-        } catch (error) {
-            toast.error(
-                error instanceof Error
-                    ? error.message
-                    : 'Failed to export the result as a Word document.',
-            )
-        } finally {
-            setIsDownloadingDocx(false)
         }
     }
 
@@ -157,34 +113,18 @@ export function PipelineResultPanel({
                                 onClick={() => void onCopyMarkdown()}
                                 className="btn btn-outline-secondary"
                             >
+                                <i
+                                    className={`fas fa-copy ${styles.buttonIcon}`}
+                                    aria-hidden="true"
+                                />
                                 Copy markdown
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={onDownloadMarkdown}
-                                className="btn btn-outline-secondary"
-                            >
-                                Download .md
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => void onDownloadDocx()}
-                                disabled={!resultRunId || isDownloadingDocx}
-                                className="btn btn-outline-secondary"
-                            >
-                                {isDownloadingDocx ? 'Preparing...' : 'Download .docx'}
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => void onSaveEditedVersion()}
-                                disabled={!hasResultChanges || isSavingEditedVersion}
-                                className={`btn btn-outline-secondary ${styles.saveButton}`}
-                            >
-                                {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
-                            </button>
+                            <DownloadDropdown
+                                markdown={displayedResultMarkdown}
+                                runId={resultRunId}
+                                baseName={downloadBaseName}
+                            />
                         </div>
                     ) : null}
                 </div>
@@ -196,13 +136,28 @@ export function PipelineResultPanel({
                         The generated markdown will appear here after a successful pipeline run.
                     </div>
                 ) : resultRenderMode === 'raw' ? (
-                    <textarea
-                        value={editableResultMarkdown}
-                        onChange={(event) => setEditableResultMarkdown(event.target.value)}
-                        className={styles.textarea}
-                    >
-                        {editableResultMarkdown}
-                    </textarea>
+                    <div className={styles.rawEditor}>
+                        <div className={styles.rawToolbar}>
+                            <button
+                                type="button"
+                                onClick={() => void onSaveEditedVersion()}
+                                disabled={!hasResultChanges || isSavingEditedVersion}
+                                className={`btn btn-outline-secondary ${styles.saveButton}`}
+                            >
+                                <i
+                                    className={`fas fa-save ${styles.buttonIcon}`}
+                                    aria-hidden="true"
+                                />
+                                {isSavingEditedVersion ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+
+                        <textarea
+                            value={editableResultMarkdown}
+                            onChange={(event) => setEditableResultMarkdown(event.target.value)}
+                            className={styles.textarea}
+                        />
+                    </div>
                 ) : (
                     <MarkdownRenderer markdown={displayedResultMarkdown || ''} />
                 )}

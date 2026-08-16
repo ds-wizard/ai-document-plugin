@@ -1,19 +1,5 @@
 """Convert generated markdown into a Word (.docx) document.
 
-The markdown produced by the pipeline is CommonMark plus the GitHub extensions the plugin
-renders in the browser (tables, strikethrough, and bare URLs as links), so the parser here is
-configured to match `remark-gfm` on the frontend. Linkify matters in practice: the pipeline
-writes repository and dataset URLs as bare text rather than as `[label](url)`.
-
-Everything maps onto Word's built-in styles, which keeps this module small, lets headings feed
-Word's navigation pane and generated tables of contents, and lets an institution restyle the
-output by editing the styles rather than this code. The trade is that Word's `List Number`
-style carries a single counter, so consecutive numbered lists continue rather than restart --
-see `test_docx_export.py`.
-
-Hyperlinks are the one place that drops to raw OOXML, because python-docx exposes no API for
-writing them.
-
 Images and thematic breaks are not handled: the pipeline does not produce them. Neither breaks
 the export if one does appear -- a rule is dropped and an image leaves its alt text behind.
 """
@@ -38,6 +24,8 @@ DOCX_MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 _MAX_HEADING_LEVEL = 6
 # Word's default template defines three levels of each list style; deeper nesting is clamped.
 _MAX_LIST_LEVEL = 3
+_BODY_FONT = 'Aptos'
+_HEADING_FONT = 'Aptos Display'
 _CODE_FONT = 'Consolas'
 # The default template has no Hyperlink character style, so links are coloured directly.
 _LINK_COLOR = RGBColor(0x05, 0x63, 0xC1)
@@ -46,6 +34,17 @@ _PARSER = MarkdownIt('commonmark', {'linkify': True}).enable(['table', 'striketh
 
 # Inline nodes that switch a run property on for everything nested inside them.
 _INLINE_FORMATS = {'strong': 'bold', 'em': 'italic', 's': 'strike'}
+
+
+def _apply_document_fonts(document: 'Document') -> None:
+    document.styles['Normal'].font.name = _BODY_FONT
+    for level in range(1, _MAX_HEADING_LEVEL + 1):
+        style = document.styles[f'Heading {level}']
+        style.font.name = _HEADING_FONT
+        # Heading styles keep a theme-font slot that Word prefers over font.name.
+        r_fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
+        r_fonts.set(qn('w:asciiTheme'), _HEADING_FONT)
+        r_fonts.set(qn('w:hAnsiTheme'), _HEADING_FONT)
 
 
 def _list_style(list_type: str, level: int) -> str:
@@ -175,6 +174,7 @@ def _write_blocks(document: 'Document', nodes: list[SyntaxTreeNode], style: str 
 def markdown_to_docx(markdown: str, *, title: str | None = None) -> bytes:
     """Render markdown as a .docx file and return its bytes."""
     document = docx.Document()
+    _apply_document_fonts(document)
     if title:
         document.core_properties.title = title
 

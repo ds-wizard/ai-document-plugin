@@ -54,6 +54,14 @@ def test_headings_use_word_heading_styles() -> None:
     ]
 
 
+def test_body_uses_aptos_and_headings_use_aptos_display() -> None:
+    document = _render('# Title\n\nBody')
+
+    assert document.styles['Normal'].font.name == 'Aptos'
+    assert document.styles['Heading 1'].font.name == 'Aptos Display'
+    assert document.styles['Heading 6'].font.name == 'Aptos Display'
+
+
 def test_inline_formatting_maps_to_runs() -> None:
     document = _render('Plain **bold** and *italic* and ~~struck~~ and `code`.')
 

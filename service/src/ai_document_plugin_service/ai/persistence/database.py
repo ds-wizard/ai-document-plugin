@@ -760,10 +760,7 @@ class PostgresDB(Database):
         now = datetime.now(tz=UTC)
         statement = (
             self.generation_table.update()
-            .where(
-                (self.generation_table.c.run_id == run_id)
-                & (self.generation_table.c.tenant_uuid == tenant_uuid)
-            )
+            .where((self.generation_table.c.run_id == run_id) & (self.generation_table.c.tenant_uuid == tenant_uuid))
             .values(**updates, updated_at=now)
             .returning(*self.generation_table.c)
         )

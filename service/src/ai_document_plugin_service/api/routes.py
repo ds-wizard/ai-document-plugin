@@ -18,9 +18,9 @@ from ai_document_plugin_service.api.types import (
 from ai_document_plugin_service.di import (
     AuthenticatedDI,
     ConfigDI,
+    ExportServiceDI,
     PipelineServiceDI,
     TemplateServiceDI,
-    ExportServiceDI,
 )
 from ai_document_plugin_service.service.errors import NotFoundError
 from ai_document_plugin_service.utils.docx_export import DOCX_MEDIA_TYPE

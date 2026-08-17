@@ -1,13 +1,33 @@
+.layout {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+}
+
+.main {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    margin-top: 1rem;
+}
+
+.main::-webkit-scrollbar {
+    width: 6px;
+}
+
+.main::-webkit-scrollbar-thumb {
+    background: var(--ai-doc-color-slate-300);
+    border-radius: 3px;
+}
+
 .root {
+    width: 100%;
+    max-width: 60rem;
+    margin: 0 auto;
     padding: 1.5rem;
     display: grid;
     gap: 1.25rem;
-}
-
-.lead {
-    margin: 0.75rem 0 0;
-    color: var(--ai-doc-color-slate-600);
-    line-height: 1.6;
 }
 
 .runButton {

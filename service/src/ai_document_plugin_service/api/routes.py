@@ -1,19 +1,18 @@
-from uuid import UUID, uuid4
+from typing import Annotated
+from uuid import UUID
 
 import fastapi
 
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
     PipelineRunRequest,
-    PipelineRunResponse,
     PipelineSaveRequest,
-    PipelineStatus,
     PipelineStatusResponse,
+    PipelineSummaryResponse,
     TemplateCreateRequest,
     TemplateDetail,
     TemplateListItem,
     TemplateUpdateRequest,
-    _model_from_fields,
 )
 from ai_document_plugin_service.di import AuthenticatedDI, ConfigDI, PipelineServiceDI, TemplateServiceDI
 from ai_document_plugin_service.service.errors import NotFoundError
@@ -66,32 +65,37 @@ async def start_pipeline(
     config: ConfigDI,
     templates: TemplateServiceDI,
     pipeline: PipelineServiceDI,
-) -> PipelineRunResponse:
+) -> PipelineStatusResponse:
     template = await templates.get(auth, payload.template_uuid)
 
-    run_id = str(uuid4())
-    pipeline.enqueue_pipeline_job(
-        run_id,
+    run_id = await pipeline.enqueue_pipeline_job(
         payload,
         template.title,
         auth,
         config,
     )
-    return _model_from_fields(
-        PipelineRunResponse,
-        status=PipelineStatus.ACCEPTED,
-        run_id=run_id,
-        questionnaire_uuid=payload.questionnaire_uuid,
-        user_uuid=auth.user_uuid,
-        tenant_uuid=auth.tenant_uuid,
-        template_uuid=payload.template_uuid,
-        template_title=template.title,
-    )
+    status = await pipeline.get_pipeline_status(run_id, auth)
+    if status is None:
+        raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+    return status
+
+
+@protected_router.get('/pipelines')
+async def list_pipeline_history(
+    pipeline: PipelineServiceDI,
+    auth: AuthenticatedDI,
+    questionnaire_uuid: Annotated[UUID, fastapi.Query(alias='questionnaireUuid')],
+) -> list[PipelineSummaryResponse]:
+    return await pipeline.list_history(questionnaire_uuid, auth)
 
 
 @protected_router.get('/pipelines/status/{run_id}')
-def get_pipeline_status(run_id: str, pipeline: PipelineServiceDI) -> PipelineStatusResponse:
-    status = pipeline.get_pipeline_status(run_id)
+async def get_pipeline_status(
+    run_id: UUID,
+    pipeline: PipelineServiceDI,
+    auth: AuthenticatedDI,
+) -> PipelineStatusResponse:
+    status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:
         raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
     return status
@@ -99,6 +103,6 @@ def get_pipeline_status(run_id: str, pipeline: PipelineServiceDI) -> PipelineSta
 
 @protected_router.post('/pipelines/status/{run_id}/save')
 async def save_pipeline_result(
-    run_id: str, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
+    run_id: UUID, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
 ) -> PipelineStatusResponse:
     return await pipeline.update_pipeline_result(run_id, save_request, auth)

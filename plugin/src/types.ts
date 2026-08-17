@@ -28,14 +28,6 @@ export type TemplateDetail = {
     scope: TemplateScope
 }
 
-export type PipelineRunResponse = {
-    status: string
-    runId: string
-    questionnaireUuid: string
-    templateUuid: string
-    templateTitle: string
-}
-
 export type PipelineStatusResponse = {
     runId: string
     status: 'queued' | 'running' | 'succeeded' | 'failed'
@@ -49,6 +41,16 @@ export type PipelineStatusResponse = {
     resultFormat: string | null
     resultMarkdown: string | null
     progressMessage: string | null
+    updatedAt: string
+}
+
+export type PipelineSummaryItem = {
+    runId: string
+    status: 'queued' | 'running' | 'succeeded' | 'failed'
+    templateTitle: string
+    error: PipelineErrorResponse | null
+    progressMessage: string | null
+    createdAt: string
     updatedAt: string
 }
 

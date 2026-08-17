@@ -5,7 +5,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypedDict, Unpack
 from uuid import UUID, uuid4
 
 from sqlalchemy import ColumnElement, Connection, Row, and_, inspect, or_
@@ -51,6 +51,54 @@ class TemplateRecord:
             content=row.content,
             tenant_uuid=row.tenant_uuid,
             user_uuid=row.user_uuid,
+        )
+
+
+class GenerationUpdate(TypedDict, total=False):
+    status: str
+    knowledge_model_uuid: UUID | None
+    error_type: str | None
+    error_message: str | None
+    result_markdown: str | None
+    progress_message: str | None
+
+
+@dataclass(frozen=True)
+class GenerationRecord:
+    """A raw generation (pipeline run) row."""
+
+    run_id: UUID
+    questionnaire_uuid: UUID
+    template_uuid: UUID
+    title: str
+    knowledge_model_uuid: UUID | None
+    user_uuid: UUID
+    tenant_uuid: UUID
+    status: str
+    error_type: str | None
+    error_message: str | None
+    result_markdown: str | None
+    progress_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Row) -> 'GenerationRecord':
+        return cls(
+            run_id=row.run_id,
+            questionnaire_uuid=row.questionnaire_uuid,
+            template_uuid=row.template_uuid,
+            title=row.title,
+            knowledge_model_uuid=row.knowledge_model_uuid,
+            user_uuid=row.user_uuid,
+            tenant_uuid=row.tenant_uuid,
+            status=row.status,
+            error_type=row.error_type,
+            error_message=row.error_message,
+            result_markdown=row.result_markdown,
+            progress_message=row.progress_message,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
         )
 
 
@@ -103,7 +151,7 @@ class Database(ABC):
     @abstractmethod
     async def save_assignments(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
@@ -126,7 +174,7 @@ class Database(ABC):
     @abstractmethod
     async def get_assignments(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         template_uuid: UUID,
     ) -> JsonValue | None:
         """Get assignments from a database backend."""
@@ -153,7 +201,7 @@ class Database(ABC):
     async def save_result(
         self,
         template_uuid: UUID,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         user_uuid: UUID,
         tenant_uuid: UUID,
         prepolished_markdown: str,
@@ -183,6 +231,50 @@ class Database(ABC):
     ) -> None:
         """Persist a markdown result in a database backend."""
 
+    @abstractmethod
+    async def create_generation(
+        self,
+        questionnaire_uuid: UUID,
+        template_uuid: UUID,
+        title: str,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
+        status: str,
+    ) -> UUID:
+        """Create a new generation (pipeline run) row. Return the created run id."""
+
+    @abstractmethod
+    async def update_generation(
+        self,
+        run_id: UUID,
+        tenant_uuid: UUID,
+        **updates: Unpack[GenerationUpdate],
+    ) -> GenerationRecord | None:
+        """Partially update a generation row and return the updated record.
+
+        Only the fields passed in ``updates`` are changed; any nullable field may be
+        set to ``None`` to clear it. Returns ``None`` if no row matches
+        ``run_id``/``tenant_uuid``.
+        """
+
+    @abstractmethod
+    async def get_generation(
+        self,
+        run_id: UUID,
+        tenant_uuid: UUID,
+        user_uuid: UUID,
+    ) -> GenerationRecord | None:
+        """Get a single generation row, scoped to its owning tenant and user."""
+
+    @abstractmethod
+    async def list_generations(
+        self,
+        questionnaire_uuid: UUID,
+        tenant_uuid: UUID,
+        user_uuid: UUID,
+    ) -> list[GenerationRecord]:
+        """List a user's generations for a project, newest first."""
+
 
 class PostgresDB(Database):
     def __init__(
@@ -204,6 +296,7 @@ class PostgresDB(Database):
         self.assignment_table = schema.assignment_table
         self.template_table = schema.template_table
         self.result_table = schema.result_table
+        self.generation_table = schema.generation_table
         self._database_verified = False
 
     async def dispose(self) -> None:
@@ -252,7 +345,7 @@ class PostgresDB(Database):
         async with self.engine.connect() as connection:
             existing_tables = await connection.run_sync(self._list_existing_tables)
 
-        required_tables = {'alembic_version', 'template', 'assignment', 'result'}
+        required_tables = {'alembic_version', 'template', 'assignment', 'result', 'generation'}
         missing_tables = sorted(required_tables - existing_tables)
 
         if missing_tables:
@@ -267,7 +360,7 @@ class PostgresDB(Database):
 
     async def save_assignments(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
@@ -419,7 +512,7 @@ class PostgresDB(Database):
 
     async def get_assignments(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         template_uuid: UUID,
     ) -> JsonValue | None:
         await self._ensure_schema()
@@ -509,7 +602,7 @@ class PostgresDB(Database):
     async def save_result(
         self,
         template_uuid: UUID,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         user_uuid: UUID,
         tenant_uuid: UUID,
         prepolished_markdown: str,
@@ -619,6 +712,121 @@ class PostgresDB(Database):
             knowledge_model_uuid,
             self.schema_name,
         )
+
+    async def create_generation(
+        self,
+        questionnaire_uuid: UUID,
+        template_uuid: UUID,
+        title: str,
+        user_uuid: UUID,
+        tenant_uuid: UUID,
+        status: str,
+    ) -> UUID:
+        run_id = uuid4()
+        await self._ensure_schema()
+        statement = self.generation_table.insert().values(
+            run_id=run_id,
+            questionnaire_uuid=questionnaire_uuid,
+            template_uuid=template_uuid,
+            title=title,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            status=status,
+        )
+
+        async with self._connect() as connection:
+            await connection.execute(statement)
+
+        logger.debug(
+            'Created generation run_id=%s in %s.generation',
+            run_id,
+            self.schema_name,
+        )
+        return run_id
+
+    async def update_generation(
+        self,
+        run_id: UUID,
+        tenant_uuid: UUID,
+        **updates: Unpack[GenerationUpdate],
+    ) -> GenerationRecord | None:
+        await self._ensure_schema()
+
+        unknown_fields = set(updates) - GenerationUpdate.__optional_keys__
+        if unknown_fields:
+            msg = f'Cannot update unknown generation fields: {sorted(unknown_fields)}'
+            raise ValueError(msg)
+
+        now = datetime.now(tz=UTC)
+        statement = (
+            self.generation_table.update()
+            .where(
+                (self.generation_table.c.run_id == run_id)
+                & (self.generation_table.c.tenant_uuid == tenant_uuid)
+            )
+            .values(**updates, updated_at=now)
+            .returning(*self.generation_table.c)
+        )
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            row = result.fetchone()
+
+        if row is None:
+            return None
+
+        logger.debug(
+            'Updated generation run_id=%s in %s.generation',
+            run_id,
+            self.schema_name,
+        )
+        return GenerationRecord.from_row(row)
+
+    async def get_generation(
+        self,
+        run_id: UUID,
+        tenant_uuid: UUID,
+        user_uuid: UUID,
+    ) -> GenerationRecord | None:
+        await self._ensure_schema()
+        statement = self.generation_table.select().where(
+            and_(
+                self.generation_table.c.run_id == run_id,
+                self.generation_table.c.tenant_uuid == tenant_uuid,
+                self.generation_table.c.user_uuid == user_uuid,
+            ),
+        )
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            row = result.fetchone()
+
+        return GenerationRecord.from_row(row) if row is not None else None
+
+    async def list_generations(
+        self,
+        questionnaire_uuid: UUID,
+        tenant_uuid: UUID,
+        user_uuid: UUID,
+    ) -> list[GenerationRecord]:
+        await self._ensure_schema()
+        statement = (
+            self.generation_table.select()
+            .where(
+                and_(
+                    self.generation_table.c.questionnaire_uuid == questionnaire_uuid,
+                    self.generation_table.c.tenant_uuid == tenant_uuid,
+                    self.generation_table.c.user_uuid == user_uuid,
+                ),
+            )
+            .order_by(self.generation_table.c.created_at.desc())
+        )
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            rows = result.fetchall()
+
+        return [GenerationRecord.from_row(row) for row in rows]
 
 
 def _validate_identifier(value: str) -> str:

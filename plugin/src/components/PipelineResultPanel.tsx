@@ -1,26 +1,24 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { saveEditedPipelineResult } from '@/client'
 import styles from '@/components/PipelineResultPanel.module.css'
-import type { FeedbackController } from '@/hooks/useFeedback'
 import { MarkdownRenderer } from '@/markdown-utils'
-import type { ResultRenderMode } from '@/types'
+import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
     resultMarkdown: string | null
     resultRunId: string | null
-    feedback: FeedbackController
     downloadBaseName: string
+    onSaved?: (status: PipelineStatusResponse) => void
 }
 
 export function PipelineResultPanel({
     resultMarkdown,
     resultRunId,
-    feedback,
     downloadBaseName,
+    onSaved,
 }: PipelineResultPanelProps) {
-    const { notifyError, notifySuccess } = feedback
-
     const [editableResultMarkdown, setEditableResultMarkdown] = useState('')
     const [committedMarkdown, setCommittedMarkdown] = useState<string | null>(null)
     const [resultRenderMode, setResultRenderMode] = useState<ResultRenderMode>('formatted')
@@ -42,9 +40,9 @@ export function PipelineResultPanel({
 
         try {
             await navigator.clipboard.writeText(displayedResultMarkdown)
-            notifySuccess('Markdown has been copied to the clipboard.')
+            toast.success('Markdown has been copied to the clipboard.')
         } catch {
-            notifyError('Failed to copy markdown to the clipboard.')
+            toast.error('Failed to copy markdown to the clipboard.')
         }
     }
 
@@ -62,12 +60,12 @@ export function PipelineResultPanel({
         link.click()
         link.remove()
         URL.revokeObjectURL(url)
-        notifySuccess('Markdown download has started.')
+        toast.success('Markdown download has started.')
     }
 
     const onSaveEditedVersion = async () => {
         if (!resultRunId || !resultMarkdown) {
-            notifyError('There is no pipeline result to save yet.')
+            toast.error('There is no pipeline result to save yet.')
             return
         }
 
@@ -78,9 +76,10 @@ export function PipelineResultPanel({
             const savedMarkdown = data.resultMarkdown ?? editableResultMarkdown
             setCommittedMarkdown(savedMarkdown)
             setEditableResultMarkdown(savedMarkdown)
-            notifySuccess('Edited markdown has been saved.')
+            onSaved?.(data)
+            toast.success('Edited markdown has been saved.')
         } catch (error) {
-            notifyError(
+            toast.error(
                 error instanceof Error ? error.message : 'Failed to save the edited version.',
             )
         } finally {
@@ -91,10 +90,6 @@ export function PipelineResultPanel({
     return (
         <section className={styles.root}>
             <div className={styles.header}>
-                <div className={styles.headerContent}>
-                    <h4>Pipeline output</h4>
-                    <div className={styles.subtitle}>Preview of the generated document.</div>
-                </div>
                 <div className={styles.toolbar}>
                     <div className="ai-doc-segmented-control btn-group" role="group">
                         {(

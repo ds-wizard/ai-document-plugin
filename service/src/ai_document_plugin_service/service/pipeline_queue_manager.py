@@ -4,6 +4,7 @@ import threading
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from typing import Any
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class PipelineQueueManager:
 
     def __init__(self, max_concurrent_jobs: int) -> None:
         self._max_concurrent_jobs = max_concurrent_jobs
-        self._order: list[str] = []
+        self._order: list[UUID] = []
         self._order_lock = threading.Lock()
         self._semaphore = asyncio.Semaphore(max_concurrent_jobs)
         self._loop = asyncio.new_event_loop()
@@ -42,25 +43,25 @@ class PipelineQueueManager:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
-    def enqueue(self, run_id: str, job: JobFactory) -> None:
+    def enqueue(self, run_id: UUID, job: JobFactory) -> None:
         with self._order_lock:
             self._order.append(run_id)
 
         future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job), self._loop)
         future.add_done_callback(self._log_job_failure)
 
-    def progress_message(self, run_id: str) -> str | None:
+    def progress_message(self, run_id: UUID) -> str | None:
         jobs_waiting_ahead = self._jobs_waiting_ahead(run_id)
         if jobs_waiting_ahead is None:
             return None
         return format_queue_progress(jobs_waiting_ahead)
 
-    def remove(self, run_id: str) -> None:
+    def remove(self, run_id: UUID) -> None:
         with self._order_lock:
             if run_id in self._order:
                 self._order.remove(run_id)
 
-    def _jobs_waiting_ahead(self, run_id: str) -> int | None:
+    def _jobs_waiting_ahead(self, run_id: UUID) -> int | None:
         with self._order_lock:
             try:
                 queue_index = self._order.index(run_id)
@@ -68,7 +69,7 @@ class PipelineQueueManager:
                 return None
         return queue_index - self._max_concurrent_jobs
 
-    async def _run_job(self, run_id: str, job: JobFactory) -> None:
+    async def _run_job(self, run_id: UUID, job: JobFactory) -> None:
         try:
             async with self._semaphore:
                 await job()

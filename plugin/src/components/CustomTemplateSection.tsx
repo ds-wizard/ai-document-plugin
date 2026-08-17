@@ -1,8 +1,8 @@
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { createTemplate, updateTemplate } from '@/client'
 import styles from '@/components/CustomTemplateSection.module.css'
-import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
 
@@ -34,7 +34,6 @@ export function CustomTemplateSection({
         editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '',
     )
     const [fileName, setFileName] = useState('')
-    const [error, setError] = useState<string | null>(null)
     const [isSaving, setIsSaving] = useState(false)
     const [inputMode, setInputMode] = useState<'visual' | 'file'>('visual')
     const [isDraggingFile, setIsDraggingFile] = useState(false)
@@ -46,7 +45,6 @@ export function CustomTemplateSection({
         setTitle(editingTemplate?.title ?? '')
         setJson(editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '')
         setFileName('')
-        setError(null)
         setInputMode('visual')
     }, [editingTemplate])
 
@@ -58,9 +56,8 @@ export function CustomTemplateSection({
             if (!title.trim()) {
                 setTitle(file.name.replace(/\.json$/i, ''))
             }
-            setError(null)
         } catch {
-            setError('Failed to read the selected JSON file.')
+            toast.error('Failed to read the selected JSON file.')
         }
     }
 
@@ -114,12 +111,12 @@ export function CustomTemplateSection({
         const trimmedJson = json.trim()
 
         if (!trimmedTitle) {
-            setError('Enter a template title.')
+            toast.error('Enter a template title.')
             return
         }
 
         if (!trimmedJson) {
-            setError('Insert or upload template JSON.')
+            toast.error('Insert or upload template JSON.')
             return
         }
 
@@ -147,10 +144,11 @@ export function CustomTemplateSection({
                 setJson('')
                 setFileName('')
             }
-            setError(null)
             onSaved(data)
         } catch (saveError) {
-            setError(saveError instanceof Error ? saveError.message : 'Template JSON is not valid.')
+            toast.error(
+                saveError instanceof Error ? saveError.message : 'Template JSON is not valid.',
+            )
         } finally {
             setIsSaving(false)
         }
@@ -265,8 +263,6 @@ export function CustomTemplateSection({
                     </button>
                 ) : null}
             </div>
-
-            {error ? <FeedbackAlert kind="error">{error}</FeedbackAlert> : null}
         </section>
     )
 }

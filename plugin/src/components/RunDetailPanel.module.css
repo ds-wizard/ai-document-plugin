@@ -1,0 +1,19 @@
+.root {
+    width: 100%;
+    max-width: 60rem;
+    margin: 0 auto;
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.progress {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 1.25rem;
+    border-radius: var(--bs-border-radius);
+    border: 1px solid var(--ai-doc-color-slate-300);
+    background: var(--ai-doc-color-slate-50);
+    color: var(--ai-doc-color-slate-700);
+}

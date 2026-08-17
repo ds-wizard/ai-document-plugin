@@ -20,7 +20,7 @@ class SaverComponent:
     async def run_async(
         self,
         template_uuid: UUID,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         user_uuid: UUID,
         tenant_uuid: UUID,
         debug_markdown: str,
@@ -44,7 +44,7 @@ class SaverComponent:
     def run(
         self,
         template_uuid: UUID,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         user_uuid: UUID,
         tenant_uuid: UUID,
         debug_markdown: str,

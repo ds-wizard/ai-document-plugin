@@ -44,7 +44,7 @@ class AssignmentSaverComponent:
     @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
     async def run_async(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: UUID,
@@ -80,7 +80,7 @@ class AssignmentSaverComponent:
     @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
     def run(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: UUID,
@@ -101,7 +101,7 @@ class Saver(ABC):
     @abstractmethod
     async def save(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
@@ -118,7 +118,7 @@ class Saver(ABC):
 class FileSaver(Saver):
     async def save(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,
@@ -154,12 +154,12 @@ class FileSaver(Saver):
 
     @staticmethod
     def _build_filename(
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         created_at: datetime | None = None,
     ) -> str:
-        normalized_uuid = _normalize_filename_part(knowledge_model_uuid)
+        normalized_uuid = _normalize_filename_part(str(knowledge_model_uuid))
         normalized_name = _normalize_filename_part(knowledge_model_name)
         normalized_version = _normalize_filename_part(knowledge_model_version)
 
@@ -176,7 +176,7 @@ class DBSaver(Saver):
 
     async def save(
         self,
-        knowledge_model_uuid: str,
+        knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         assignments: JsonValue,

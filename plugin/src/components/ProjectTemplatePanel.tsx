@@ -3,12 +3,10 @@ import { useCallback, useEffect, useState } from 'react'
 import styles from '@/components/ProjectTemplatePanel.module.css'
 import { TemplateDropdown } from '@/components/TemplateDropdown'
 import { TemplateManager } from '@/components/TemplateManager'
-import type { FeedbackController } from '@/hooks/useFeedback'
 import type { UseTemplatesResult } from '@/hooks/useTemplates'
 
 type ProjectTemplatePanelProps = {
     templates: UseTemplatesResult
-    feedback: FeedbackController
     disabled: boolean
     onSelectedUuidChange: (uuid: string) => void
 }
@@ -19,11 +17,9 @@ type ProjectTemplatePanelProps = {
  */
 export function ProjectTemplatePanel({
     templates,
-    feedback,
     disabled,
     onSelectedUuidChange,
 }: ProjectTemplatePanelProps) {
-    const { notifySuccess, notifyError } = feedback
     const { templates: options, isLoading, isDeleting, upsertSaved, deleteByUuid } = templates
 
     const [selectedUuid, setSelectedUuid] = useState('')
@@ -39,7 +35,7 @@ export function ProjectTemplatePanel({
     return (
         <>
             <div className={styles.selector}>
-                <h4>DMP template</h4>
+                <h4>Generate DMP from your questionnaire</h4>
                 <TemplateDropdown
                     value={selectedUuid}
                     onChange={select}
@@ -57,8 +53,6 @@ export function ProjectTemplatePanel({
                 isDeleting={isDeleting}
                 upsertSaved={upsertSaved}
                 deleteByUuid={deleteByUuid}
-                notifySuccess={notifySuccess}
-                notifyError={notifyError}
                 onSelectedUuidChange={setSelectedUuid}
             />
         </>

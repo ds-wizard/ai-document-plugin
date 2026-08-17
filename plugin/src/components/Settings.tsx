@@ -1,4 +1,5 @@
 import { SettingsComponentProps } from '@ds-wizard/plugin-sdk/elements'
+import { Toaster } from 'sonner'
 
 import styles from '@/components/Settings.module.css'
 import { TenantTemplateSection } from '@/components/settings/TenantTemplateSettings'
@@ -10,6 +11,7 @@ export default function Settings({
 }: SettingsComponentProps<SettingsData>) {
     return (
         <div className={styles.root}>
+            <Toaster richColors closeButton />
             <div>
                 <p className={styles.lead}>
                     Configure the LLM connection the plugin should use for pipeline execution.

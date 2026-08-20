@@ -39,6 +39,7 @@ def _configure_root_stdout_logging(level: int) -> None:
 
 
 def _configure_library_log_levels() -> None:
+    logging.getLogger('haystack').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('openai').setLevel(logging.WARNING)

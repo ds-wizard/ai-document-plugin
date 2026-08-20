@@ -15,7 +15,7 @@ SENSITIVE_FIELD_NAMES = {
     'set-cookie',
     'token',
 }
-MAX_LOG_TEXT_LENGTH = 4000
+MAX_LOG_TEXT_LENGTH = 1000
 
 
 def sanitize_for_logging(value: object) -> object:

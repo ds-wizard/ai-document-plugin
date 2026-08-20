@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, object] | Sequence[object]
-StatsJson = dict[str, dict[str, int]]
+StatsJson = dict[str, dict[str, int | float]]
 
 
 class AssignmentSaverComponentResult(TypedDict):
@@ -246,6 +246,9 @@ def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
             'total_calls': stats.total_calls,
             'total_input_tokens': stats.total_input_tokens,
             'total_output_tokens': stats.total_output_tokens,
+            'total_llm_wait_ms': stats.total_llm_wait_ms,
+            'total_llm_response_ms': stats.total_llm_response_ms,
+            'total_duration_ms': stats.total_duration_ms,
         },
     }
 

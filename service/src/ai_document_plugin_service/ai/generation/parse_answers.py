@@ -186,4 +186,5 @@ def parse_answer(  # noqa: PLR0911
         return ''
 
     msg = 'Unknown answer type'
+    logger.error('Unknown answer type encountered while parsing reply', extra={'answer_type': answer_type})
     raise RuntimeError(msg, answer_type)

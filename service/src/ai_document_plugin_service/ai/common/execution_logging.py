@@ -1,4 +1,3 @@
-import json
 import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -6,15 +5,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from ai_document_plugin_service.ai.common.json_log_writer import make_json_safe
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 _run_log_context: ContextVar['RunLogContext | None'] = ContextVar('run_log_context', default=None)
 _LLM_EVENT_LOGGER = logging.getLogger('ai_document_plugin_service.execution.llm')
-_TIMING_EVENT_LOGGER = logging.getLogger('ai_document_plugin_service.execution.timing')
-_SEMAPHORE_EVENT_LOGGER = logging.getLogger('ai_document_plugin_service.execution.semaphore')
+_PIPELINE_EVENT_LOGGER = logging.getLogger('ai_document_plugin_service.execution.pipeline')
 
 
 @dataclass(frozen=True)
@@ -46,20 +42,19 @@ def utc_now_iso() -> str:
 
 
 def log_llm_event(record: dict[str, Any]) -> None:
-    _emit_structured_event(_LLM_EVENT_LOGGER, record)
+    _emit_event(_LLM_EVENT_LOGGER, record)
 
 
 def log_timing_event(event: str, **fields: Any) -> None:  # noqa: ANN401
-    _emit_structured_event(_TIMING_EVENT_LOGGER, {'event': event, **fields})
+    _emit_event(_PIPELINE_EVENT_LOGGER, {'event': event, **fields})
 
 
 def log_semaphore_event(event: str, **fields: Any) -> None:  # noqa: ANN401
-    _emit_structured_event(_SEMAPHORE_EVENT_LOGGER, {'event': event, **fields})
+    _emit_event(_LLM_EVENT_LOGGER, {'event': event, **fields})
 
 
 def _with_context(record: dict[str, Any]) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        'timestamp': utc_now_iso(),
         **record,
     }
     context = get_run_log_context()
@@ -70,5 +65,13 @@ def _with_context(record: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _emit_structured_event(logger: logging.Logger, record: dict[str, Any]) -> None:
-    logger.info(json.dumps(make_json_safe(_with_context(record)), ensure_ascii=False, sort_keys=True))
+def _emit_event(logger: logging.Logger, record: dict[str, Any]) -> None:
+    payload = _with_context(record)
+    logger.log(_event_log_level(payload), 'Execution event', extra=payload)
+
+
+def _event_log_level(record: dict[str, Any]) -> int:
+    if record.get('status') in {'error', 'failed'} or record.get('state') == 'failed' or 'error_type' in record:
+        return logging.ERROR
+    return logging.INFO
+

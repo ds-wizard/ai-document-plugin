@@ -204,59 +204,62 @@ def resolve_config_path(config_path: str | None = None) -> str:
 def load_config(config_path: str | None = None) -> Config:
     resolved_config_path = _resolve_existing_path(resolve_config_path(config_path))
     config_dir = pathlib.Path(resolved_config_path).parent
+    try:
+        with pathlib.Path(resolved_config_path).open(encoding='utf-8') as handle:
+            config = yaml.safe_load(handle)
 
-    with pathlib.Path(resolved_config_path).open(encoding='utf-8') as handle:
-        config = yaml.safe_load(handle)
+        configured_prompts_path = _get_relative_file_path(config, 'prompts_path')
+        resolved_prompts_path = _resolve_existing_path(configured_prompts_path, base_dir=config_dir)
 
-    configured_prompts_path = _get_relative_file_path(config, 'prompts_path')
-    resolved_prompts_path = _resolve_existing_path(configured_prompts_path, base_dir=config_dir)
+        with pathlib.Path(resolved_prompts_path).open(encoding='utf-8') as handle:
+            prompts = yaml.safe_load(handle)
 
-    with pathlib.Path(resolved_prompts_path).open(encoding='utf-8') as handle:
-        prompts = yaml.safe_load(handle)
+        if not isinstance(config, dict):
+            msg = 'Invalid config format: expected a top-level mapping'
+            raise TypeError(msg)
+        if not isinstance(prompts, dict):
+            msg = 'Invalid prompts format: expected a top-level mapping'
+            raise TypeError(msg)
 
-    if not isinstance(config, dict):
-        msg = 'Invalid config format: expected a top-level mapping'
-        raise TypeError(msg)
-    if not isinstance(prompts, dict):
-        msg = 'Invalid prompts format: expected a top-level mapping'
-        raise TypeError(msg)
-
-    return Config(
-        allowed_apis=_get_allowed_apis(config),
-        log_level=_get_log_level(config),
-        database=DatabaseConfig(
-            host=_expand_env_vars(_get(config, 'database', 'host')),
-            port=int(_expand_env_vars(str(_get(config, 'database', 'port')))),
-            name=_expand_env_vars(_get(config, 'database', 'name')),
-            user=_expand_env_vars(_get(config, 'database', 'user')),
-            password=_expand_env_vars(_get(config, 'database', 'password')),
-            schema=_expand_env_vars(_get(config, 'database', 'schema')),
-        ),
-        files=FilePaths(
-            prompts_path=resolved_prompts_path,
-        ),
-        assignment=SystemAndUserPrompt(
-            temperature=float(_get(prompts, 'assignment', 'temperature')),
-            max_tokens=int(_get(prompts, 'assignment', 'max_tokens')),
-            system_message=_get(prompts, 'assignment', 'system_message'),
-            user_message=_get(prompts, 'assignment', 'user_message'),
-        ),
-        section_id=SystemAndUserPrompt(
-            temperature=float(_get(prompts, 'section_id', 'temperature')),
-            max_tokens=int(_get(prompts, 'section_id', 'max_tokens')),
-            system_message=_get(prompts, 'section_id', 'system_message'),
-            user_message=_get(prompts, 'section_id', 'user_message'),
-        ),
-        dmp_generation=SystemPrompt(
-            temperature=float(_get(prompts, 'dmp_generation', 'temperature')),
-            max_tokens=int(_get(prompts, 'dmp_generation', 'max_tokens')),
-            system_message=_get(prompts, 'dmp_generation', 'system_message'),
-        ),
-        dmp_polishing=SystemAndUserPrompt(
-            temperature=float(_get(prompts, 'dmp_polishing', 'temperature')),
-            max_tokens=int(_get(prompts, 'dmp_polishing', 'max_tokens')),
-            system_message=_get(prompts, 'dmp_polishing', 'system_message'),
-            user_message=_get(prompts, 'dmp_polishing', 'user_message'),
-        ),
-        max_parallel_executions=int(_get(config, 'max_parallel_executions')),
-    )
+        return Config(
+            allowed_apis=_get_allowed_apis(config),
+            log_level=_get_log_level(config),
+            database=DatabaseConfig(
+                host=_expand_env_vars(_get(config, 'database', 'host')),
+                port=int(_expand_env_vars(str(_get(config, 'database', 'port')))),
+                name=_expand_env_vars(_get(config, 'database', 'name')),
+                user=_expand_env_vars(_get(config, 'database', 'user')),
+                password=_expand_env_vars(_get(config, 'database', 'password')),
+                schema=_expand_env_vars(_get(config, 'database', 'schema')),
+            ),
+            files=FilePaths(
+                prompts_path=resolved_prompts_path,
+            ),
+            assignment=SystemAndUserPrompt(
+                temperature=float(_get(prompts, 'assignment', 'temperature')),
+                max_tokens=int(_get(prompts, 'assignment', 'max_tokens')),
+                system_message=_get(prompts, 'assignment', 'system_message'),
+                user_message=_get(prompts, 'assignment', 'user_message'),
+            ),
+            section_id=SystemAndUserPrompt(
+                temperature=float(_get(prompts, 'section_id', 'temperature')),
+                max_tokens=int(_get(prompts, 'section_id', 'max_tokens')),
+                system_message=_get(prompts, 'section_id', 'system_message'),
+                user_message=_get(prompts, 'section_id', 'user_message'),
+            ),
+            dmp_generation=SystemPrompt(
+                temperature=float(_get(prompts, 'dmp_generation', 'temperature')),
+                max_tokens=int(_get(prompts, 'dmp_generation', 'max_tokens')),
+                system_message=_get(prompts, 'dmp_generation', 'system_message'),
+            ),
+            dmp_polishing=SystemAndUserPrompt(
+                temperature=float(_get(prompts, 'dmp_polishing', 'temperature')),
+                max_tokens=int(_get(prompts, 'dmp_polishing', 'max_tokens')),
+                system_message=_get(prompts, 'dmp_polishing', 'system_message'),
+                user_message=_get(prompts, 'dmp_polishing', 'user_message'),
+            ),
+            max_parallel_executions=int(_get(config, 'max_parallel_executions')),
+        )
+    except (OSError, TypeError, ValueError, yaml.YAMLError):
+        logger.exception('Failed to load application config', extra={'config_path': resolved_config_path})
+        raise

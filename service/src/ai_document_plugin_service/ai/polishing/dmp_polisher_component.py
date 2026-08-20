@@ -5,6 +5,7 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 """
 
 import logging
+import time
 from collections.abc import Callable
 from typing import TypedDict
 
@@ -33,6 +34,7 @@ class DmpPolisherComponent:
         template_data: dict | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
+        started = time.perf_counter()
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
@@ -69,6 +71,7 @@ class DmpPolisherComponent:
                 'llm_call_count': stats.total_calls,
             },
         )
+        stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
         return {
             'markdown': polished,
             'stats': stats,

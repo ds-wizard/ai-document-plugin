@@ -4,6 +4,20 @@ from ai_document_plugin_service.ai.common.trace_context import get_trace_id
 
 LOG_FORMAT = '%(asctime)s | %(levelname)8s | %(name)s: [T:%(traceId)s] %(message)s'
 _ORIGINAL_LOG_RECORD_FACTORY = logging.getLogRecordFactory()
+_STANDARD_LOG_RECORD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__) | {'asctime', 'message', 'traceId'}
+
+
+class ExtraFormatter(logging.Formatter):
+    """Appends application fields supplied through ``extra`` to text logs."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        formatted = super().format(record)
+        extra = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _STANDARD_LOG_RECORD_FIELDS
+        }
+        return f'{formatted} | extra={extra!r}' if extra else formatted
 
 
 def configure_logging(level: int | str = logging.DEBUG) -> None:
@@ -35,7 +49,7 @@ def _configure_root_stdout_logging(level: int) -> None:
 
     for handler in root_logger.handlers:
         handler.setLevel(level)
-        handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        handler.setFormatter(ExtraFormatter(LOG_FORMAT))
 
 
 def _configure_library_log_levels() -> None:

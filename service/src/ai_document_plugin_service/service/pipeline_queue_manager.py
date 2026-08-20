@@ -78,14 +78,15 @@ class PipelineQueueManager:
                 return None
         return queue_index - self._max_concurrent_jobs
 
-    async def _run_job(self, run_id: UUID, job: JobFactory) -> None:
-        try:
-            async with self._semaphore:
-                logger.info('Starting queued pipeline job', extra={'run_id': run_id})
-                await job()
-        finally:
-            self.remove(run_id)
-            logger.info('Finished queued pipeline job', extra={'run_id': run_id})
+    async def _run_job(self, run_id: UUID, job: JobFactory, trace_id: str) -> None:
+        with trace_context(trace_id):
+            try:
+                async with self._semaphore:
+                    logger.info('Starting queued pipeline job', extra={'run_id': run_id})
+                    await job()
+            finally:
+                self.remove(run_id)
+                logger.info('Finished queued pipeline job', extra={'run_id': run_id})
 
     @staticmethod
     def _log_job_failure(future: Future[None], trace_id: str) -> None:

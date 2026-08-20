@@ -2,8 +2,6 @@ import asyncio
 import logging
 import threading
 from asyncio import Task
-import time
-from datetime import UTC, datetime
 from uuid import UUID
 
 from openai import AuthenticationError
@@ -13,9 +11,7 @@ from ai_document_plugin_service.ai.common.config import (
     LLMConfig,
 )
 from ai_document_plugin_service.ai.common.execution_logging import (
-    RunLogContext,
     log_timing_event,
-    run_log_context,
 )
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
@@ -225,16 +221,22 @@ class PipelineService:
         try:
             await self._run_pipeline(run_id, questionnaire_uuid, template_uuid, auth, llm_config, config)
         except Exception as error:
-            logger.exception('Pipeline run failed')
+            logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
             pipeline_error = _pipeline_error_from_exception(error)
-            await self.database.update_generation(
-                run_id,
-                auth.tenant_uuid,
-                status=PipelineStatus.FAILED,
-                error_type=pipeline_error.type,
-                error_message=pipeline_error.message,
-                progress_message=None,
-            )
+            try:
+                await self.database.update_generation(
+                    run_id,
+                    auth.tenant_uuid,
+                    status=PipelineStatus.FAILED,
+                    error_type=pipeline_error.type,
+                    error_message=pipeline_error.message,
+                    progress_message=None,
+                )
+            except Exception:
+                logger.exception(
+                    'Failed to persist pipeline failure status',
+                    extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)},
+                )
 
     async def _run_pipeline(
         self,
@@ -254,9 +256,9 @@ class PipelineService:
                 error_type=ErrorType.TEMPLATE_NOT_FOUND,
                 error_message=TEMPLATE_NOT_FOUND_MESSAGE,
             )
-            logger.warning(
+            logger.error(
                 'Pipeline run failed because template was not found',
-                extra={'run_id': run_id, 'template_uuid': str(run.template_uuid), 'tenant_uuid': str(auth.tenant_uuid)},
+                extra={'run_id': run_id, 'template_uuid': str(template_uuid), 'tenant_uuid': str(auth.tenant_uuid)},
             )
             return
 

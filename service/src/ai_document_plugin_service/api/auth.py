@@ -7,7 +7,6 @@ import fastapi
 import httpx
 
 from ai_document_plugin_service.ai.common.config import WILDCARD, AllowedApi, Config, normalize_project_url
-from ai_document_plugin_service.ai.common.logging_payloads import summarize_headers
 from ai_document_plugin_service.api.jwt import extract_identity_from_token
 
 DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
@@ -62,18 +61,24 @@ def _fetch_dsw_user(api_url: str, token: str) -> dict[str, object] | None:
             timeout=DSW_USER_VALIDATION_TIMEOUT_SECONDS,
         )
     except httpx.HTTPError:
-        logger.warning('DSW user validation request failed', extra={'url.full': url}, exc_info=True)
+        logger.exception('DSW user validation request failed', extra={'url.full': url})
         return None
 
     if response.status_code != DSW_USER_VALIDATION_SUCCESS_STATUS:
+        logger.error(
+            'DSW user validation rejected the token',
+            extra={'url.full': url, 'http.response.status_code': response.status_code},
+        )
         return None
 
     try:
         user = response.json()
     except ValueError:
+        logger.exception('DSW user validation returned invalid JSON', extra={'url.full': url})
         return None
 
     if not isinstance(user, dict):
+        logger.error('DSW user validation returned an invalid payload', extra={'url.full': url})
         return None
 
     return user
@@ -94,6 +99,7 @@ def _is_admin(user: dict[str, object], api_url: str) -> bool:
         f'did not include a valid "role" string or a "role" object with a "permissions" list. '
         f'The tenant may be running an incompatible DSW version. Received payload: {user}'
     )
+    logger.error('DSW user validation returned an unsupported role payload', extra={'url.full': api_url})
     raise ValueError(msg)
 
 
@@ -104,9 +110,11 @@ def verify_authenticated(
 ) -> AuthenticatedUser:
     token = _parse_bearer_token(authorization)
     if token is None:
+        logger.error('Authentication failed: missing or invalid Authorization header')
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
     if dsw_api_url is None or not dsw_api_url.strip():
+        logger.error('Authentication failed: missing DSW API URL header')
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
     config: Config = request.app.state.config
@@ -115,13 +123,13 @@ def verify_authenticated(
     try:
         user_uuid, tenant_uuid = extract_identity_from_token(token)
     except ValueError as error:
+        logger.exception('Authentication failed: bearer token could not be parsed')
         raise fastapi.HTTPException(status_code=400, detail=str(error)) from error
 
     if not is_allowed_request(normalized_api_url, tenant_uuid, config.allowed_apis):
-        logger.warning(
+        logger.error(
             'Authentication failed: request target is not allowed by configuration',
             extra={
-                'request.id': request_id,
                 'tenant_uuid': str(tenant_uuid),
                 'url.full': normalized_api_url,
             },
@@ -130,6 +138,10 @@ def verify_authenticated(
 
     user = _fetch_dsw_user(normalized_api_url, token)
     if user is None:
+        logger.error(
+            'Authentication failed: DSW current-user validation rejected the token',
+            extra={'tenant_uuid': str(tenant_uuid), 'url.full': normalized_api_url},
+        )
         raise fastapi.HTTPException(status_code=401, detail='Unauthorized')
 
     return AuthenticatedUser(

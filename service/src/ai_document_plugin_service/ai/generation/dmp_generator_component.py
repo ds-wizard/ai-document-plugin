@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import math
 import re
@@ -8,7 +9,6 @@ from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
-from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
@@ -95,18 +95,25 @@ class DmpGeneratorComponent:
         tasks = [
             asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
         ]
-        progress_bar = tqdm(
-            total=total_sections,
-            desc=f'Generating sections ({max_workers} workers)',
-        )
         for i, task in enumerate(asyncio.as_completed(tasks), start=1):
             await task
-            progress_bar.update(1)
+            logger.info(
+                json.dumps(
+                    {
+                        'event': 'generating_sections_progress',
+                        'completed_sections': i,
+                        'total_sections': total_sections,
+                        'progress_percent': progress_percent(i, total_sections),
+                        'max_workers': max_workers,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
             if on_progress is not None:
                 on_progress(
                     f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
                 )
-        progress_bar.close()
 
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])

@@ -1,7 +1,7 @@
+import json
 import typing
+import logging
 from abc import ABC, abstractmethod
-
-from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import LeafSection
 from ai_document_plugin_service.ai.common.config import Config
@@ -11,6 +11,8 @@ from ai_document_plugin_service.ai.common.llm_client import (
     call_with_retry,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+
+logger = logging.getLogger(__name__)
 
 
 class SectionIdGenerator(ABC):
@@ -47,8 +49,9 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
         user_tpl = self.config.section_id.user_message
         result: dict[str, str] = {}
         used_ids: set[str] = set()
+        total_sections = len(leaf_sections)
 
-        for leaf in tqdm(leaf_sections):
+        for index, leaf in enumerate(leaf_sections, start=1):
             existing_str = ', '.join(sorted(used_ids)) if used_ids else '(none yet)'
             content_block = leaf.text.strip()
             user_msg = (
@@ -77,6 +80,17 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                 sid = f'{sid}_{len(used_ids)}'
             used_ids.add(sid)
             result[leaf.id] = sid
+            logger.info(
+                json.dumps(
+                    {
+                        'event': 'generating_section_identifiers_progress',
+                        'completed_sections': index,
+                        'total_sections': total_sections,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
 
         return result
 
@@ -98,6 +112,18 @@ class LoggingNoopSectionIdGenerator(SectionIdGenerator):
         _: AssignmentStats,
     ) -> dict[str, str]:
         res = {}
-        for i, leaf in tqdm(enumerate(leaf_sections)):
-            res[leaf.id] = f'{leaf.id}_{i}'
+        total_sections = len(leaf_sections)
+        for index, leaf in enumerate(leaf_sections, start=1):
+            res[leaf.id] = f'{leaf.id}_{index - 1}'
+            logger.info(
+                json.dumps(
+                    {
+                        'event': 'generating_section_identifiers_progress',
+                        'completed_sections': index,
+                        'total_sections': total_sections,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
         return res

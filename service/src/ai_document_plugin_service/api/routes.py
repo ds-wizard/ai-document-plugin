@@ -73,6 +73,7 @@ async def delete_template(template_uuid: UUID, templates: TemplateServiceDI, aut
 
 @protected_router.post('/pipelines/run')
 async def start_pipeline(
+    request: fastapi.Request,
     payload: PipelineRunRequest,
     auth: AuthenticatedDI,
     config: ConfigDI,
@@ -86,6 +87,7 @@ async def start_pipeline(
         template.title,
         auth,
         config,
+        getattr(request.state, 'trace_uuid', '-'),
     )
     status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:

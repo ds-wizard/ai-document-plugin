@@ -153,6 +153,7 @@ class PipelineService:
         title: str,
         auth: AuthenticatedUser,
         config: Config,
+        trace_id: str,
     ) -> UUID:
         """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
         run_id = await self.database.create_generation(
@@ -180,6 +181,7 @@ class PipelineService:
                 llm_config,
                 config,
             ),
+            trace_id=trace_id
         )
         return run_id
 

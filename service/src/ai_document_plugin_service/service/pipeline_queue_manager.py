@@ -6,6 +6,8 @@ from concurrent.futures import Future
 from typing import Any
 from uuid import UUID
 
+from ai_document_plugin_service.ai.common.trace_context import trace_context
+
 logger = logging.getLogger(__name__)
 
 JobFactory = Callable[[], Coroutine[Any, Any, None]]
@@ -47,14 +49,14 @@ class PipelineQueueManager:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
-    def enqueue(self, run_id: UUID, job: JobFactory) -> None:
+    def enqueue(self, run_id: str, job: JobFactory, *, trace_id: str = '-') -> None:
         with self._order_lock:
             self._order.append(run_id)
             queue_size = len(self._order)
         logger.info('Enqueued pipeline job', extra={'run_id': run_id, 'queue_size': queue_size})
 
-        future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job), self._loop)
-        future.add_done_callback(self._log_job_failure)
+        future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job, trace_id), self._loop)
+        future.add_done_callback(lambda done_future: self._log_job_failure(done_future, trace_id))
 
     def progress_message(self, run_id: UUID) -> str | None:
         jobs_waiting_ahead = self._jobs_waiting_ahead(run_id)
@@ -86,9 +88,10 @@ class PipelineQueueManager:
             logger.info('Finished queued pipeline job', extra={'run_id': run_id})
 
     @staticmethod
-    def _log_job_failure(future: Future[None]) -> None:
+    def _log_job_failure(future: Future[None], trace_id: str) -> None:
         # Jobs are expected to handle their own errors; this guards against an
         # unhandled exception being silently swallowed by the background loop.
-        error = future.exception()
-        if error is not None:
-            logger.error('Pipeline job crashed without handling its error', exc_info=error)
+        with trace_context(trace_id):
+            error = future.exception()
+            if error is not None:
+                logger.error('Pipeline job crashed without handling its error', exc_info=error)

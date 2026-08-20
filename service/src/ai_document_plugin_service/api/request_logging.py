@@ -7,10 +7,12 @@ import fastapi
 from starlette.types import Message
 
 from ai_document_plugin_service.ai.common.logging_payloads import summarize_headers, summarize_http_body
+from ai_document_plugin_service.ai.common.trace_context import trace_context
 
 logger = logging.getLogger(__name__)
 
 REQUEST_ID_HEADER = 'X-Request-ID'
+TRACE_UUID_HEADER = 'X-Trace-UUID'
 
 
 async def log_http_request_response(
@@ -18,79 +20,88 @@ async def log_http_request_response(
     call_next: Callable[[fastapi.Request], Awaitable[fastapi.Response]],
 ) -> fastapi.Response:
     request_id = request.headers.get(REQUEST_ID_HEADER, str(uuid.uuid4()))
+    trace_uuid = str(uuid.uuid4())
     request.state.request_id = request_id
+    request.state.trace_uuid = trace_uuid
     request_body = await request.body()
     _restore_request_body(request, request_body)
 
-    logger.info(
-        'HTTP request started',
-        extra={
-            'request.id': request_id,
-            'http.request.method': request.method,
-            'url.path': request.url.path,
-            'url.query': request.url.query,
-            'client.address': request.client.host if request.client else None,
-            'client.port': request.client.port if request.client else None,
-            'http.request.headers': summarize_headers(dict(request.headers)),
-        },
-    )
-    request_body_summary = summarize_http_body(
-        request_body,
-        content_type=request.headers.get('content-type'),
-    )
-    if request_body_summary is not None:
-        logger.debug(
-            'HTTP request body',
+    with trace_context(trace_uuid):
+        logger.info(
+            'HTTP request started',
             extra={
                 'request.id': request_id,
-                'url.path': request.url.path,
-                'http.request.body': request_body_summary,
-            },
-        )
-
-    started_at = time.perf_counter()
-    try:
-        response = await call_next(request)
-    except Exception:
-        logger.exception(
-            'HTTP request failed with unhandled exception',
-            extra={
-                'request.id': request_id,
+                'trace.uuid': trace_uuid,
                 'http.request.method': request.method,
                 'url.path': request.url.path,
-                'duration_ms': round((time.perf_counter() - started_at) * 1000, 3),
+                'url.query': request.url.query,
+                'client.address': request.client.host if request.client else None,
+                'client.port': request.client.port if request.client else None,
+                'http.request.headers': summarize_headers(dict(request.headers)),
             },
         )
-        raise
+        request_body_summary = summarize_http_body(
+            request_body,
+            content_type=request.headers.get('content-type'),
+        )
+        if request_body_summary is not None:
+            logger.debug(
+                'HTTP request body',
+                extra={
+                    'request.id': request_id,
+                    'trace.uuid': trace_uuid,
+                    'url.path': request.url.path,
+                    'http.request.body': request_body_summary,
+                },
+            )
 
-    response_body = await _read_response_body(response)
-    duration_ms = round((time.perf_counter() - started_at) * 1000, 3)
-    logger.info(
-        'HTTP request completed',
-        extra={
-            'request.id': request_id,
-            'http.request.method': request.method,
-            'url.path': request.url.path,
-            'http.response.status_code': response.status_code,
-            'duration_ms': duration_ms,
-        },
-    )
-    response_body_summary = summarize_http_body(
-        response_body,
-        content_type=response.headers.get('content-type'),
-    )
-    if response_body_summary is not None:
-        logger.debug(
-            'HTTP response body',
+        started_at = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(
+                'HTTP request failed with unhandled exception',
+                extra={
+                    'request.id': request_id,
+                    'trace.uuid': trace_uuid,
+                    'http.request.method': request.method,
+                    'url.path': request.url.path,
+                    'duration_ms': round((time.perf_counter() - started_at) * 1000, 3),
+                },
+            )
+            raise
+
+        response_body = await _read_response_body(response)
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 3)
+        logger.info(
+            'HTTP request completed',
             extra={
                 'request.id': request_id,
+                'trace.uuid': trace_uuid,
+                'http.request.method': request.method,
                 'url.path': request.url.path,
-                'http.response.body': response_body_summary,
                 'http.response.status_code': response.status_code,
+                'duration_ms': duration_ms,
             },
         )
+        response_body_summary = summarize_http_body(
+            response_body,
+            content_type=response.headers.get('content-type'),
+        )
+        if response_body_summary is not None:
+            logger.debug(
+                'HTTP response body',
+                extra={
+                    'request.id': request_id,
+                    'trace.uuid': trace_uuid,
+                    'url.path': request.url.path,
+                    'http.response.body': response_body_summary,
+                    'http.response.status_code': response.status_code,
+                },
+            )
 
     response.headers[REQUEST_ID_HEADER] = request_id
+    response.headers[TRACE_UUID_HEADER] = trace_uuid
     return _rebuild_response(response, response_body)
 
 

@@ -119,7 +119,7 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
                         onClick={onDownloadMarkdown}
                         className={styles.item}
                     >
-                        <i className={`fas fa-file-alt ${styles.itemIcon}`} aria-hidden="true" />
+                        <i className={`fa far fa-file-alt ${styles.itemIcon}`} aria-hidden="true" />
                         Markdown
                     </button>
 
@@ -130,8 +130,8 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
                         disabled={!runId}
                         className={styles.item}
                     >
-                        <i className={`fas fa-file-word ${styles.itemIcon}`} aria-hidden="true" />
-                        Word
+                        <i className={`fa far fa-file-word ${styles.itemIcon}`} aria-hidden="true" />
+                        MS Word
                     </button>
                 </div>
             ) : null}

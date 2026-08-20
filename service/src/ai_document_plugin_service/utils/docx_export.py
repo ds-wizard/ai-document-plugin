@@ -24,8 +24,8 @@ DOCX_MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 _MAX_HEADING_LEVEL = 6
 # Word's default template defines three levels of each list style; deeper nesting is clamped.
 _MAX_LIST_LEVEL = 3
-_BODY_FONT = 'Aptos'
-_HEADING_FONT = 'Aptos Display'
+_BODY_FONT = 'Calibri'
+_HEADING_FONT = 'Cambria'
 _CODE_FONT = 'Consolas'
 # The default template has no Hyperlink character style, so links are coloured directly.
 _LINK_COLOR = RGBColor(0x05, 0x63, 0xC1)
@@ -39,12 +39,7 @@ _INLINE_FORMATS = {'strong': 'bold', 'em': 'italic', 's': 'strike'}
 def _apply_document_fonts(document: 'Document') -> None:
     document.styles['Normal'].font.name = _BODY_FONT
     for level in range(1, _MAX_HEADING_LEVEL + 1):
-        style = document.styles[f'Heading {level}']
-        style.font.name = _HEADING_FONT
-        # Heading styles keep a theme-font slot that Word prefers over font.name.
-        r_fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
-        r_fonts.set(qn('w:asciiTheme'), _HEADING_FONT)
-        r_fonts.set(qn('w:hAnsiTheme'), _HEADING_FONT)
+        document.styles[f'Heading {level}'].font.name = _HEADING_FONT
 
 
 def _list_style(list_type: str, level: int) -> str:

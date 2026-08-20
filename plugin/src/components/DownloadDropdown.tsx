@@ -130,7 +130,10 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
                         disabled={!runId}
                         className={styles.item}
                     >
-                        <i className={`fa far fa-file-word ${styles.itemIcon}`} aria-hidden="true" />
+                        <i
+                            className={`fa far fa-file-word ${styles.itemIcon}`}
+                            aria-hidden="true"
+                        />
                         MS Word
                     </button>
                 </div>

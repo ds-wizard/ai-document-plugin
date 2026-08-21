@@ -20,6 +20,8 @@ class AccessDeniedError(ServiceError):
 
 
 class ValidationError(ServiceError):
+    EMPTY_MARKDOWN_MESSAGE = 'There is no content to export'
+
     def __init__(self, detail: str) -> None:
         super().__init__(detail, status_code=400)
 

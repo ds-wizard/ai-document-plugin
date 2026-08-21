@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { saveEditedPipelineResult } from '@/client'
+import { DownloadDropdown } from '@/components/DownloadDropdown'
 import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
 import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
@@ -44,23 +45,6 @@ export function PipelineResultPanel({
         } catch {
             toast.error('Failed to copy markdown to the clipboard.')
         }
-    }
-
-    const onDownloadMarkdown = () => {
-        if (!displayedResultMarkdown) {
-            return
-        }
-
-        const blob = new Blob([displayedResultMarkdown], { type: 'text/markdown;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `${downloadBaseName || 'pipeline-output'}.md`
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-        URL.revokeObjectURL(url)
-        toast.success('Markdown download has started.')
     }
 
     const onSaveEditedVersion = async () => {
@@ -129,25 +113,18 @@ export function PipelineResultPanel({
                                 onClick={() => void onCopyMarkdown()}
                                 className="btn btn-outline-secondary"
                             >
+                                <i
+                                    className={`fas fa-copy ${styles.buttonIcon}`}
+                                    aria-hidden="true"
+                                />
                                 Copy markdown
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={onDownloadMarkdown}
-                                className="btn btn-outline-secondary"
-                            >
-                                Download .md
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => void onSaveEditedVersion()}
-                                disabled={!hasResultChanges || isSavingEditedVersion}
-                                className={`btn btn-outline-secondary ${styles.saveButton}`}
-                            >
-                                {isSavingEditedVersion ? 'Saving...' : 'Save edited version'}
-                            </button>
+                            <DownloadDropdown
+                                markdown={displayedResultMarkdown}
+                                runId={resultRunId}
+                                baseName={downloadBaseName}
+                            />
                         </div>
                     ) : null}
                 </div>
@@ -159,13 +136,28 @@ export function PipelineResultPanel({
                         The generated markdown will appear here after a successful pipeline run.
                     </div>
                 ) : resultRenderMode === 'raw' ? (
-                    <textarea
-                        value={editableResultMarkdown}
-                        onChange={(event) => setEditableResultMarkdown(event.target.value)}
-                        className={styles.textarea}
-                    >
-                        {editableResultMarkdown}
-                    </textarea>
+                    <div className={styles.rawEditor}>
+                        <div className={styles.rawToolbar}>
+                            <button
+                                type="button"
+                                onClick={() => void onSaveEditedVersion()}
+                                disabled={!hasResultChanges || isSavingEditedVersion}
+                                className={`btn btn-outline-secondary ${styles.saveButton}`}
+                            >
+                                <i
+                                    className={`fas fa-save ${styles.buttonIcon}`}
+                                    aria-hidden="true"
+                                />
+                                {isSavingEditedVersion ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+
+                        <textarea
+                            value={editableResultMarkdown}
+                            onChange={(event) => setEditableResultMarkdown(event.target.value)}
+                            className={styles.textarea}
+                        />
+                    </div>
                 ) : (
                     <MarkdownRenderer markdown={displayedResultMarkdown || ''} />
                 )}

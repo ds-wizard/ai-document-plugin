@@ -25,6 +25,20 @@
     margin-left: auto;
 }
 
+.rawEditor {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.rawToolbar {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.buttonIcon {
+    margin-right: 0.45rem;
+}
+
 .saveButton:disabled {
     opacity: 1;
 }

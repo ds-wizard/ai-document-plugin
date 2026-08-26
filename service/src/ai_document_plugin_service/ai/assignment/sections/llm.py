@@ -1,6 +1,6 @@
 import json
-import typing
 import logging
+import typing
 from abc import ABC, abstractmethod
 
 from ai_document_plugin_service.ai.assignment.types import LeafSection

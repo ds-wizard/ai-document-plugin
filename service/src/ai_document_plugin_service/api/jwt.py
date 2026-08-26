@@ -23,7 +23,7 @@ def decode_jwt_payload(token: str) -> dict[str, object]:
         parsed = json.loads(decoded)
     except (ValueError, json.JSONDecodeError) as exc:
         msg = 'Invalid JWT token payload.'
-        logger.error('JWT decode failed: invalid token payload', exc_info=exc)
+        logger.exception('JWT decode failed: invalid token payload', exc_info=exc)
         raise ValueError(msg) from exc
 
     if not isinstance(parsed, dict):
@@ -42,7 +42,7 @@ def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> str:
                 # TODO: https://github.com/ds-wizard/ai-document-plugin/issues/61
                 return str(UUID(value))
             except ValueError:
-                logger.error('JWT claim is not a valid UUID', extra={'claim_name': key})
+                logger.exception('JWT claim is not a valid UUID', extra={'claim_name': key})
                 continue
 
     msg = f'Missing required JWT claim: {", ".join(keys)}'

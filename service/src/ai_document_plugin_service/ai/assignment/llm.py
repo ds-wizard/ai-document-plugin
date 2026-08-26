@@ -97,7 +97,7 @@ class OpenAILayerMatcher(LayerMatcher):
                 return self._parse_json_question_to_sections(content)
             except JSONDecodeError as e:
                 msg = 'Unable to parse: ' + content
-                logger.error('Unable to parse LLM assignment response as JSON', exc_info=e)
+                logger.exception('Unable to parse LLM assignment response as JSON', exc_info=e)
                 raise UnableToParseResponseError(msg) from e
 
         return await call_with_retry(call_and_parse)

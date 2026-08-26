@@ -74,4 +74,3 @@ def _event_log_level(record: dict[str, Any]) -> int:
     if record.get('status') in {'error', 'failed'} or record.get('state') == 'failed' or 'error_type' in record:
         return logging.ERROR
     return logging.INFO
-

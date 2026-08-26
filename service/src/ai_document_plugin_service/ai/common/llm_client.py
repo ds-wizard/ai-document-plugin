@@ -161,20 +161,25 @@ class LLMClient:
         **kwargs: Any,  # noqa: ANN401
     ) -> ChatCompletion:
         if self.model is None:
-            logger.error('LLM completion failed: model is not configured', extra={'tenant_uuid': str(self.tenant_uuid)})
+            logger.error('LLM completion failed: model is not configured',
+                         extra={'tenant_uuid': str(self.tenant_uuid)})
             raise InvalidLLMConfigError('model', self.tenant_uuid)  # noqa: EM101
         if self.max_workers is None:
-            logger.error('LLM completion failed: max_workers is not configured', extra={'tenant_uuid': str(self.tenant_uuid)})
+            logger.error('LLM completion failed: max_workers is not configured',
+                         extra={'tenant_uuid': str(self.tenant_uuid)})
             raise InvalidLLMConfigError('max_workers', self.tenant_uuid)  # noqa: EM101
         if self.api_url is None:
-            logger.error('LLM completion failed: api_url is not configured', extra={'tenant_uuid': str(self.tenant_uuid)})
+            logger.error('LLM completion failed: api_url is not configured',
+                         extra={'tenant_uuid': str(self.tenant_uuid)})
             raise InvalidLLMConfigError('api_url', self.tenant_uuid)  # noqa: EM101
         if self.api_key is None:
-            logger.error('LLM completion failed: api_key is not configured', extra={'tenant_uuid': str(self.tenant_uuid)})
+            logger.error('LLM completion failed: api_key is not configured',
+                         extra={'tenant_uuid': str(self.tenant_uuid)})
             raise InvalidLLMConfigError('api_key', self.tenant_uuid)  # noqa: EM101
         if self.client is None:
             msg = f'LLM internal client is null but api_key and api_url is set for tenant {self.tenant_uuid}.'
-            logger.error('LLM completion failed: internal AsyncOpenAI client is missing', extra={'tenant_uuid': str(self.tenant_uuid)})
+            logger.error('LLM completion failed: internal AsyncOpenAI client is missing',
+                         extra={'tenant_uuid': str(self.tenant_uuid)})
             raise RuntimeError(msg)
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()

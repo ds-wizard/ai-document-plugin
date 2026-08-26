@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 import fastapi
 from starlette.types import Message
 
-from ai_document_plugin_service.ai.common.logging_payloads import summarize_headers, summarize_http_body
+from ai_document_plugin_service.ai.common.logging_payloads import summarize_http_body
 from ai_document_plugin_service.ai.common.trace_context import trace_context
 
 logger = logging.getLogger(__name__)
@@ -89,13 +89,13 @@ async def log_http_request_response(
 
 
 def _restore_request_body(request: fastapi.Request, body: bytes) -> None:
-    async def receive() -> Message:
+    async def receive() -> Message:  # noqa: RUF029
         return {
             'type': 'http.request',
             'body': body,
         }
 
-    request._receive = receive
+    request._receive = receive  # type: ignore[method-assign]  # noqa: SLF001
 
 
 async def _read_response_body(response: fastapi.Response) -> bytes:

@@ -1,11 +1,9 @@
+import logging
 from typing import Annotated
 from uuid import UUID
-import logging
-from uuid import UUID, uuid4
 
 import fastapi
 
-from ai_document_plugin_service.ai.common.logging_payloads import sanitize_for_logging
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
     PipelineExportRequest,

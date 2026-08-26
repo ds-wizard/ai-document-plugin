@@ -75,7 +75,7 @@ def _sanitize_value(value: object) -> object:
     return value
 
 
-def _sanitize_mapping(value: Mapping[object, object]) -> dict[str, object]:
+def _sanitize_mapping[Key](value: Mapping[Key, object]) -> dict[str, object]:
     sanitized: dict[str, object] = {}
     for raw_key, raw_value in value.items():
         key = str(raw_key)

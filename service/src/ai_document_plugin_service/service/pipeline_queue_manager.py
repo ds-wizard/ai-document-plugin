@@ -49,7 +49,7 @@ class PipelineQueueManager:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
-    def enqueue(self, run_id: str, job: JobFactory, *, trace_id: str = '-') -> None:
+    def enqueue(self, run_id: UUID, job: JobFactory, *, trace_id: str = '-') -> None:
         with self._order_lock:
             self._order.append(run_id)
             queue_size = len(self._order)

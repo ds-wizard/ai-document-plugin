@@ -1,6 +1,9 @@
 import json
 import threading
+from collections.abc import Mapping
 from pathlib import Path
+
+from pydantic import BaseModel
 
 type JsonScalar = str | int | float | bool | None
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
@@ -19,19 +22,12 @@ def make_json_safe(value: object) -> JsonValue:
     result: JsonValue
     if value is None or isinstance(value, str | int | float | bool):
         result = value
-    elif isinstance(value, dict):
+    elif isinstance(value, BaseModel):
+        result = make_json_safe(value.model_dump(mode='json'))
+    elif isinstance(value, Mapping):
         result = {str(key): make_json_safe(item) for key, item in value.items()}
     elif isinstance(value, list | tuple | set):
         result = [make_json_safe(item) for item in value]
-    elif hasattr(value, 'model_dump'):
-        dumped: object
-        try:
-            dumped = value.model_dump(mode='json')
-        except TypeError:
-            dumped = value.model_dump()
-        result = make_json_safe(dumped)
-    elif hasattr(value, '__dict__'):
-        result = make_json_safe(vars(value))
     else:
         result = repr(value)
     return result

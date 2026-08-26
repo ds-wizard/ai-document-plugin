@@ -615,13 +615,6 @@ class PostgresDB(Database):
                 'db.schema': self.schema_name,
             },
         )
-        return [
-            {
-                'uuid': str(row.uuid),
-                'title': row.title,
-            }
-            for row in rows
-        ]
         return [TemplateRecord.from_row(row) for row in rows]
 
     async def get_template(

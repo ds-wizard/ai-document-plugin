@@ -59,7 +59,6 @@ async def log_http_request_response(
             )
             raise
 
-        response_body = await _read_response_body(response)
         duration_ms = round((time.perf_counter() - started_at) * 1000, 3)
         logger.info(
             'HTTP request completed',
@@ -70,22 +69,8 @@ async def log_http_request_response(
                 'duration_ms': duration_ms,
             },
         )
-        response_body_summary = summarize_http_body(
-            response_body,
-            content_type=response.headers.get('content-type'),
-        )
-        if response_body_summary is not None:
-            logger.debug(
-                'HTTP response body',
-                extra={
-                    'url.path': request.url.path,
-                    'http.response.body': response_body_summary,
-                    'http.response.status_code': response.status_code,
-                },
-            )
-
     response.headers[TRACE_UUID_HEADER] = trace_uuid
-    return _rebuild_response(response, response_body)
+    return response
 
 
 def _restore_request_body(request: fastapi.Request, body: bytes) -> None:
@@ -96,20 +81,3 @@ def _restore_request_body(request: fastapi.Request, body: bytes) -> None:
         }
 
     request._receive = receive  # type: ignore[method-assign]  # noqa: SLF001
-
-
-async def _read_response_body(response: fastapi.Response) -> bytes:
-    body = b''
-    async for chunk in response.body_iterator:
-        body += chunk
-    return body
-
-
-def _rebuild_response(response: fastapi.Response, body: bytes) -> fastapi.Response:
-    return fastapi.Response(
-        content=body,
-        status_code=response.status_code,
-        headers=dict(response.headers),
-        media_type=response.media_type,
-        background=response.background,
-    )

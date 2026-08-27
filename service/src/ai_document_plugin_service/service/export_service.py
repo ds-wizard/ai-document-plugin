@@ -20,6 +20,7 @@ JSON_MEDIA_TYPE = 'application/json'
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass(frozen=True)
 class DocxExport:
     content: bytes
@@ -82,12 +83,10 @@ class ExportService:
     async def export_template_as_json(self, template_uuid: UUID, auth: AuthenticatedUser) -> JsonExport:
         record = await self.database.get_template(template_uuid, auth.tenant_uuid)
         if record is None:
-            logger.error(f'Template {template_uuid} does not exist')
-            raise NotFoundError('Template not found')
+            raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
 
         if record.user_uuid is not None and record.user_uuid != auth.user_uuid:
-            logger.error(f'User uuid {auth.user_uuid} does not belong to {template_uuid}')
-            raise NotFoundError('Template not found')
+            raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
 
         content = json.dumps(record.content, ensure_ascii=False, indent=2).encode('utf-8') + b'\n'
         return JsonExport(content=content, file_name=_json_file_name(record.title))

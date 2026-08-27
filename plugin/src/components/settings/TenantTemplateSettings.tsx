@@ -132,7 +132,9 @@ export function TenantTemplateSection() {
                                         disabled={busyUuid !== null}
                                     >
                                         <i className="fas fa-download" aria-hidden="true" />
-                                        {busyUuid === template.uuid ? 'Exporting...' : 'Export template'}
+                                        {busyUuid === template.uuid
+                                            ? 'Exporting...'
+                                            : 'Export template'}
                                     </button>
                                     <button
                                         type="button"

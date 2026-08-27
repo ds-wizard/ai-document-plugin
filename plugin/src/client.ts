@@ -275,7 +275,9 @@ export const exportTemplateAsJson = async (templateUuid: string): Promise<Blob> 
     if (!response.ok) {
         const data = await readApiResponse<{ detail?: string }>(response, url).catch(() => ({}))
         throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Failed to export the template as JSON.',
+            'detail' in data && data.detail
+                ? data.detail
+                : 'Failed to export the template as JSON.',
         )
     }
 

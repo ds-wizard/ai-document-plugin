@@ -1,5 +1,5 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { FeedbackAlert } from '@/components/FeedbackAlert'
@@ -11,6 +11,15 @@ import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import { useGenerationHistory } from '@/hooks/useGenerationHistory'
 import { useTemplates } from '@/hooks/useTemplates'
+
+const LANGUAGE_STORAGE_KEY = 'ai-document-plugin.language'
+
+const LANGUAGE_OPTIONS = [
+    { value: 'en', label: 'English' },
+    { value: 'cs', label: 'Czech' },
+    { value: 'sk', label: 'Slovak' },
+    { value: 'de', label: 'German' },
+] as const
 
 export default function ProjectTab({
     settings,
@@ -25,10 +34,30 @@ export default function ProjectTab({
 
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+    const [language, setLanguage] = useState('en')
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
     }, [])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
+        if (savedLanguage && LANGUAGE_OPTIONS.some((option) => option.value === savedLanguage)) {
+            setLanguage(savedLanguage)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language)
+    }, [language])
 
     if (!project) {
         return (
@@ -78,6 +107,26 @@ export default function ProjectTab({
                                 templates={templates}
                                 disabled={history.isStarting}
                                 onSelectedUuidChange={handleSelectedUuidChange}
+                                languageControl={
+                                    <label className={styles.languageControl}>
+                                        <span>Language</span>
+                                        <span className={styles.languageSelect}>
+                                            <select
+                                                value={language}
+                                                onChange={(event) => setLanguage(event.target.value)}
+                                            >
+                                                {LANGUAGE_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <span className={styles.languageCaret} aria-hidden="true">
+                                                ▼
+                                            </span>
+                                        </span>
+                                    </label>
+                                }
                             />
 
                             <button

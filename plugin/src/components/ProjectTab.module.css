@@ -35,3 +35,41 @@
     width: auto;
     margin-top: 0.25rem;
 }
+
+.languageControl {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--ai-doc-color-slate-900);
+    font: inherit;
+}
+
+.languageControl > span:first-child {
+    color: var(--ai-doc-color-slate-500);
+}
+
+.languageSelect {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.languageSelect select {
+    width: auto;
+    min-width: 7rem;
+    padding: 0.25rem 1.65rem 0.25rem 0.5rem;
+    border: 1px solid var(--ai-doc-color-slate-300);
+    border-radius: 0.25rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    appearance: none;
+}
+
+.languageCaret {
+    position: absolute;
+    right: 0.55rem;
+    pointer-events: none;
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.72rem;
+}

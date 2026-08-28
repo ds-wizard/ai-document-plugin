@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import math
 import re
@@ -100,17 +99,13 @@ class DmpGeneratorComponent:
         for i, task in enumerate(asyncio.as_completed(tasks), start=1):
             await task
             logger.info(
-                json.dumps(
-                    {
-                        'event': 'generating_sections_progress',
+                'Generating sections progress',
+                extra={
                         'completed_sections': i,
                         'total_sections': total_sections,
                         'progress_percent': progress_percent(i, total_sections),
                         'max_workers': max_workers,
-                    },
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
+                    }
             )
             if on_progress is not None:
                 on_progress(

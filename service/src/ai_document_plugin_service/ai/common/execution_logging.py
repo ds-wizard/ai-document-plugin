@@ -2,7 +2,6 @@ import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -37,20 +36,12 @@ def get_run_log_context() -> RunLogContext | None:
     return _run_log_context.get()
 
 
-def utc_now_iso() -> str:
-    return datetime.now(tz=UTC).isoformat()
-
-
 def log_llm_event(record: dict[str, Any]) -> None:
     _emit_event(_LLM_EVENT_LOGGER, record)
 
 
 def log_timing_event(event: str, **fields: Any) -> None:  # noqa: ANN401
     _emit_event(_PIPELINE_EVENT_LOGGER, {'event': event, **fields})
-
-
-def log_semaphore_event(event: str, **fields: Any) -> None:  # noqa: ANN401
-    _emit_event(_LLM_EVENT_LOGGER, {'event': event, **fields})
 
 
 def _with_context(record: dict[str, Any]) -> dict[str, Any]:

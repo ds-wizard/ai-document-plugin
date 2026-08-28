@@ -1,4 +1,3 @@
-import json
 import logging
 import typing
 from abc import ABC, abstractmethod
@@ -81,15 +80,11 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
             used_ids.add(sid)
             result[leaf.id] = sid
             logger.info(
-                json.dumps(
-                    {
-                        'event': 'generating_section_identifiers_progress',
+                'Generating section identifiers progress',
+                extra={
                         'completed_sections': index,
                         'total_sections': total_sections,
-                    },
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
+                    }
             )
 
         return result
@@ -116,14 +111,10 @@ class LoggingNoopSectionIdGenerator(SectionIdGenerator):
         for index, leaf in enumerate(leaf_sections, start=1):
             res[leaf.id] = f'{leaf.id}_{index - 1}'
             logger.info(
-                json.dumps(
-                    {
-                        'event': 'generating_section_identifiers_progress',
+                'Generating section identifiers progress',
+                extra={
                         'completed_sections': index,
                         'total_sections': total_sections,
-                    },
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
+                    }
             )
         return res

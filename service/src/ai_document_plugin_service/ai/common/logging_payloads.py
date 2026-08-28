@@ -29,10 +29,6 @@ def summarize_payload(value: object, *, max_chars: int = MAX_LOG_TEXT_LENGTH) ->
     return truncate_text(serialized, max_chars=max_chars)
 
 
-def summarize_headers(headers: Mapping[str, str]) -> dict[str, object]:
-    return _sanitize_mapping(headers)
-
-
 def summarize_http_body(
     body: bytes,
     *,

@@ -9,9 +9,7 @@ from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitEr
 from openai.types.chat import ChatCompletion
 
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
-from ai_document_plugin_service.ai.common.execution_logging import (
-    log_llm_event,
-)
+from ai_document_plugin_service.ai.common.execution_logging import log_llm_event
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats

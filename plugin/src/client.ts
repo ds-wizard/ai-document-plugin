@@ -151,6 +151,7 @@ export const getPipelineHistory = async (
 type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
+    language: string
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
@@ -160,6 +161,7 @@ type RunPipelineParams = {
 export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
+    language,
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
@@ -174,6 +176,7 @@ export const runPipeline = async ({
         body: JSON.stringify({
             questionnaireUuid,
             templateUuid,
+            language,
             llmModel,
             llmApiKey,
             llmApiUrl,

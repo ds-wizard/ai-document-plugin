@@ -12,9 +12,10 @@ if TYPE_CHECKING:
 
 
 class SectionPolishingLLM:
-    def __init__(self, llm_client: LLMClient, config: Config) -> None:
+    def __init__(self, llm_client: LLMClient, config: Config, language: str) -> None:
         self.config = config
         self.client = llm_client
+        self.language = language
 
     def get_max_workers(self) -> int:
         return self.client.get_max_workers()
@@ -28,7 +29,7 @@ class SectionPolishingLLM:
         system_prompt = self.config.dmp_polishing.system_message.replace(
             '{sections}',
             structure_str,
-        )
+        ).replace('{language}', self.language)
         user_content = self.config.dmp_polishing.user_message.replace(
             '{markdown}',
             markdown,

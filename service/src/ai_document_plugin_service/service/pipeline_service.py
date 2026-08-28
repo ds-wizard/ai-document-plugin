@@ -173,6 +173,7 @@ class PipelineService:
                 run_id,
                 payload.questionnaire_uuid,
                 payload.template_uuid,
+                payload.language,
                 auth,
                 llm_config,
                 config,
@@ -214,12 +215,21 @@ class PipelineService:
         run_id: UUID,
         questionnaire_uuid: UUID,
         template_uuid: UUID,
+        language: str,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
     ) -> None:
         try:
-            await self._run_pipeline(run_id, questionnaire_uuid, template_uuid, auth, llm_config, config)
+            await self._run_pipeline(
+                run_id,
+                questionnaire_uuid,
+                template_uuid,
+                language,
+                auth,
+                llm_config,
+                config,
+            )
         except Exception as error:
             logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
             pipeline_error = _pipeline_error_from_exception(error)
@@ -243,6 +253,7 @@ class PipelineService:
         run_id: UUID,
         questionnaire_uuid: UUID,
         template_uuid: UUID,
+        language: str,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
@@ -276,6 +287,7 @@ class PipelineService:
             saver=DBSaver(self.database),
             config=config,
             llm_client=llm_client,
+            language=language,
         )
         logger.info(
             'Pipeline graph built and LLM client configured',

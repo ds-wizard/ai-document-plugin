@@ -33,9 +33,10 @@ class GenerationLLM(ABC):
 
 
 class SectionGenerationLLM(GenerationLLM):
-    def __init__(self, llm_client: LLMClient, config: Config) -> None:
+    def __init__(self, llm_client: LLMClient, config: Config, language: str) -> None:
         self.config = config
         self.client = llm_client
+        self.language = language
 
     def get_max_workers(self) -> int:
         return self.client.get_max_workers()
@@ -46,7 +47,7 @@ class SectionGenerationLLM(GenerationLLM):
     ) -> list['ChatCompletionMessageParam']:
         system_message: ChatCompletionSystemMessageParam = {
             'role': 'system',
-            'content': self.config.dmp_generation.system_message,
+            'content': self.config.dmp_generation.system_message.replace('{language}', self.language),
         }
         user_message: ChatCompletionUserMessageParam = {
             'role': 'user',

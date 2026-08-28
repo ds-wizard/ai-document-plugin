@@ -2,6 +2,7 @@ import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { useCallback, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
+import { getQuestionnaireLanguage } from '@/client'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import styles from '@/components/ProjectTab.module.css'
@@ -12,7 +13,7 @@ import { UserSettingsData } from '@/data/user-settings-data'
 import { useGenerationHistory } from '@/hooks/useGenerationHistory'
 import { useTemplates } from '@/hooks/useTemplates'
 
-const LANGUAGE_STORAGE_KEY = 'ai-document-plugin.language'
+const DEFAULT_LANGUAGE = 'en'
 
 const LANGUAGE_OPTIONS = [
     { value: 'en', label: 'English' },
@@ -31,33 +32,42 @@ export default function ProjectTab({
         onLoadError: toast.error,
     })
     const history = useGenerationHistory(project, settings)
+    const projectUuid = project?.uuid
 
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-    const [language, setLanguage] = useState('en')
+    const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
     }, [])
 
     useEffect(() => {
-        if (typeof window === 'undefined') {
+        setLanguage(DEFAULT_LANGUAGE)
+
+        if (!projectUuid) {
             return
         }
 
-        const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
-        if (savedLanguage && LANGUAGE_OPTIONS.some((option) => option.value === savedLanguage)) {
-            setLanguage(savedLanguage)
-        }
-    }, [])
+        let cancelled = false
+        void getQuestionnaireLanguage(projectUuid)
+            .then((questionnaireLanguage) => {
+                if (
+                    !cancelled &&
+                    questionnaireLanguage &&
+                    LANGUAGE_OPTIONS.some((option) => option.value === questionnaireLanguage)
+                ) {
+                    setLanguage(questionnaireLanguage)
+                }
+            })
+            .catch(() => {
+                // Keep the default language when the questionnaire cannot be loaded.
+            })
 
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return
+        return () => {
+            cancelled = true
         }
-
-        window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language)
-    }, [language])
+    }, [projectUuid])
 
     if (!project) {
         return (

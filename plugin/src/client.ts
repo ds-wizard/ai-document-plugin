@@ -36,6 +36,29 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
 // __API_URL__ (with removed trailing /. e.g.: example.com/ => example.com
 export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
 
+export const getQuestionnaireLanguage = async (questionnaireUuid: string): Promise<string | null> => {
+    const { apiUrl, token } = getApiUrlAndToken()
+    if (!apiUrl) {
+        throw new Error('Failed to retrieve the DSW API URL.')
+    }
+
+    const url = `${apiUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(questionnaireUuid)}/questionnaire`
+    const response = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+    const data = await readApiResponse<unknown>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load the questionnaire language (${response.status}).`)
+    }
+
+    if (!data || typeof data !== 'object' || !('language' in data)) {
+        return null
+    }
+
+    return typeof data.language === 'string' ? data.language : null
+}
+
 const buildAuthHeaders = (): Record<string, string> => {
     const { apiUrl, token } = getApiUrlAndToken()
     if (!token) {

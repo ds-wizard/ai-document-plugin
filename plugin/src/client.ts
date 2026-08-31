@@ -36,7 +36,9 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
 // __API_URL__ (with removed trailing /. e.g.: example.com/ => example.com
 export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
 
-export const getQuestionnaireLanguage = async (questionnaireUuid: string): Promise<string | null> => {
+export const getQuestionnaireLanguage = async (
+    questionnaireUuid: string,
+): Promise<string | null> => {
     const { apiUrl, token } = getApiUrlAndToken()
     if (!apiUrl) {
         throw new Error('Failed to retrieve the DSW API URL.')

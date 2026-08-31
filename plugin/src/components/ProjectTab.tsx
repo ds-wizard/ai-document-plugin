@@ -47,7 +47,11 @@ export default function ProjectTab({
         let cancelled = false
         void getQuestionnaireLanguage(projectUuid)
             .then((questionnaireLanguage) => {
-                if (!cancelled && questionnaireLanguage && getLanguageOption(questionnaireLanguage)) {
+                if (
+                    !cancelled &&
+                    questionnaireLanguage &&
+                    getLanguageOption(questionnaireLanguage)
+                ) {
                     setLanguage(questionnaireLanguage)
                 }
             })

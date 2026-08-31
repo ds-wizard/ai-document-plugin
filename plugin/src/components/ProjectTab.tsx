@@ -5,22 +5,17 @@ import { toast, Toaster } from 'sonner'
 import { getQuestionnaireLanguage } from '@/client'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
+import { LanguageDropdown } from '@/components/LanguageDropdown'
 import styles from '@/components/ProjectTab.module.css'
 import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
 import { RunDetailPanel } from '@/components/RunDetailPanel'
+import { getLanguageOption } from '@/data/languages'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import { useGenerationHistory } from '@/hooks/useGenerationHistory'
 import { useTemplates } from '@/hooks/useTemplates'
 
 const DEFAULT_LANGUAGE = 'en'
-
-const LANGUAGE_OPTIONS = [
-    { value: 'en', label: 'English' },
-    { value: 'cs', label: 'Czech' },
-    { value: 'sk', label: 'Slovak' },
-    { value: 'de', label: 'German' },
-] as const
 
 export default function ProjectTab({
     settings,
@@ -52,11 +47,7 @@ export default function ProjectTab({
         let cancelled = false
         void getQuestionnaireLanguage(projectUuid)
             .then((questionnaireLanguage) => {
-                if (
-                    !cancelled &&
-                    questionnaireLanguage &&
-                    LANGUAGE_OPTIONS.some((option) => option.value === questionnaireLanguage)
-                ) {
+                if (!cancelled && questionnaireLanguage && getLanguageOption(questionnaireLanguage)) {
                     setLanguage(questionnaireLanguage)
                 }
             })
@@ -118,24 +109,13 @@ export default function ProjectTab({
                                 disabled={history.isStarting}
                                 onSelectedUuidChange={handleSelectedUuidChange}
                                 languageControl={
-                                    <label className={styles.languageControl}>
-                                        <span>Language</span>
-                                        <span className={styles.languageSelect}>
-                                            <select
-                                                value={language}
-                                                onChange={(event) => setLanguage(event.target.value)}
-                                            >
-                                                {LANGUAGE_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <span className={styles.languageCaret} aria-hidden="true">
-                                                ▼
-                                            </span>
-                                        </span>
-                                    </label>
+                                    <div className={styles.languageControl}>
+                                        <LanguageDropdown
+                                            value={language}
+                                            onChange={setLanguage}
+                                            disabled={history.isStarting}
+                                        />
+                                    </div>
                                 }
                             />
 

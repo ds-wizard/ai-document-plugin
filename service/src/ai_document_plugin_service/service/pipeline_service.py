@@ -156,6 +156,7 @@ class PipelineService:
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
             title=title,
+            language=payload.language,
             user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
             status=PipelineStatus.QUEUED,

@@ -124,6 +124,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('questionnaire_uuid', UUID(as_uuid=True), nullable=False),
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), nullable=False),
         Column('title', Text, nullable=False),
+        # Existing rows predate language selection and keep a NULL value after migration.
+        Column('language', Text, nullable=True),
         # Only known once the run has fetched the questionnaire from DSW.
         Column('knowledge_model_uuid', UUID(as_uuid=True), nullable=True),
         Column('user_uuid', UUID(as_uuid=True), nullable=False),

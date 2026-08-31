@@ -6,6 +6,8 @@ from concurrent.futures import Future
 from typing import Any
 from uuid import UUID
 
+from ai_document_plugin_service.ai.common.trace_context import trace_context
+
 logger = logging.getLogger(__name__)
 
 JobFactory = Callable[[], Coroutine[Any, Any, None]]
@@ -38,17 +40,23 @@ class PipelineQueueManager:
             daemon=True,
         )
         self._thread.start()
+        logger.info(
+            'Initialized pipeline queue manager',
+            extra={'max_concurrent_jobs': max_concurrent_jobs, 'thread_name': self._thread.name},
+        )
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
-    def enqueue(self, run_id: UUID, job: JobFactory) -> None:
+    def enqueue(self, run_id: UUID, job: JobFactory, *, trace_id: str = '-') -> None:
         with self._order_lock:
             self._order.append(run_id)
+            queue_size = len(self._order)
+        logger.info('Enqueued pipeline job', extra={'run_id': run_id, 'queue_size': queue_size})
 
-        future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job), self._loop)
-        future.add_done_callback(self._log_job_failure)
+        future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job, trace_id), self._loop)
+        future.add_done_callback(lambda done_future: self._log_job_failure(done_future, trace_id))
 
     def progress_message(self, run_id: UUID) -> str | None:
         jobs_waiting_ahead = self._jobs_waiting_ahead(run_id)
@@ -60,6 +68,7 @@ class PipelineQueueManager:
         with self._order_lock:
             if run_id in self._order:
                 self._order.remove(run_id)
+        logger.debug('Removed pipeline job from queue order tracking', extra={'run_id': run_id})
 
     def _jobs_waiting_ahead(self, run_id: UUID) -> int | None:
         with self._order_lock:
@@ -69,17 +78,21 @@ class PipelineQueueManager:
                 return None
         return queue_index - self._max_concurrent_jobs
 
-    async def _run_job(self, run_id: UUID, job: JobFactory) -> None:
-        try:
-            async with self._semaphore:
-                await job()
-        finally:
-            self.remove(run_id)
+    async def _run_job(self, run_id: UUID, job: JobFactory, trace_id: str) -> None:
+        with trace_context(trace_id):
+            try:
+                async with self._semaphore:
+                    logger.info('Starting queued pipeline job', extra={'run_id': run_id})
+                    await job()
+            finally:
+                self.remove(run_id)
+                logger.info('Finished queued pipeline job', extra={'run_id': run_id})
 
     @staticmethod
-    def _log_job_failure(future: Future[None]) -> None:
+    def _log_job_failure(future: Future[None], trace_id: str) -> None:
         # Jobs are expected to handle their own errors; this guards against an
         # unhandled exception being silently swallowed by the background loop.
-        error = future.exception()
-        if error is not None:
-            logger.error('Pipeline job crashed without handling its error', exc_info=error)
+        with trace_context(trace_id):
+            error = future.exception()
+            if error is not None:
+                logger.error('Pipeline job crashed without handling its error', exc_info=error)

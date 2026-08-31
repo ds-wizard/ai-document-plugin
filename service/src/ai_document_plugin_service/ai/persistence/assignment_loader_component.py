@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 from uuid import UUID
 
 from haystack import component
 
 from ai_document_plugin_service.ai.persistence.database import Database, JsonValue
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -16,7 +19,19 @@ class AssignmentLoaderComponent:
         found=bool,
     )
     async def run_async(self, knowledge_model_uuid: UUID, template_uuid: UUID) -> dict[str, Any]:
+        logger.debug(
+            'Loading stored assignments for pipeline',
+            extra={'knowledge_model_uuid': knowledge_model_uuid, 'template_uuid': str(template_uuid)},
+        )
         assignments = await self.database.get_assignments(knowledge_model_uuid, template_uuid)
+        logger.info(
+            'Assignment load completed',
+            extra={
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': str(template_uuid),
+                'found': assignments is not None,
+            },
+        )
 
         return {
             'assignments': assignments,

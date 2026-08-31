@@ -2,13 +2,13 @@ import asyncio
 import logging
 import math
 import re
+import time
 from collections.abc import Callable, Coroutine, Iterable
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
-from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
@@ -53,6 +53,7 @@ class DmpGeneratorComponent:
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
+        started = time.perf_counter()
         """Generate full DMP markdown from nested assignments tree.
 
         Returns (markdown, debug_markdown, stats). Use markdown for the polished DMP;
@@ -61,6 +62,13 @@ class DmpGeneratorComponent:
         logger.debug('Step 2: Generating DMP markdown...')
         assignments = db_assignments or new_assignments or []
         replies = self._filter_reachable_replies(replies, km)
+        logger.info(
+            'Starting DMP generation',
+            extra={
+                'assignment_count': len(assignments),
+                'reply_count': len(replies),
+            },
+        )
 
         stats = AssignmentStats()
         max_workers = self.dmp_generator_llm.get_max_workers()
@@ -80,26 +88,43 @@ class DmpGeneratorComponent:
             self._collect_leaf_sections(scheduled, leaf_sections)
 
         total_sections = len(leaf_sections)
+        logger.info(
+            'Prepared leaf sections for DMP generation',
+            extra={'leaf_section_count': total_sections, 'max_workers': max_workers},
+        )
         section_semaphore = asyncio.Semaphore(max_workers)
         tasks = [
             asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
         ]
-        progress_bar = tqdm(
-            total=total_sections,
-            desc=f'Generating sections ({max_workers} workers)',
-        )
         for i, task in enumerate(asyncio.as_completed(tasks), start=1):
             await task
-            progress_bar.update(1)
+            logger.info(
+                'Generating sections progress',
+                extra={
+                        'completed_sections': i,
+                        'total_sections': total_sections,
+                        'progress_percent': progress_percent(i, total_sections),
+                        'max_workers': max_workers,
+                    }
+            )
             if on_progress is not None:
                 on_progress(
                     f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
                 )
-        progress_bar.close()
 
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
+        logger.info(
+            'Completed DMP generation',
+            extra={
+                'leaf_section_count': total_sections,
+                'markdown_length': len(markdown),
+                'debug_markdown_length': len(debug_markdown),
+                'llm_call_count': stats.total_calls,
+            },
+        )
+        stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
         return {
             'markdown': markdown,
             'debug_markdown': debug_markdown,
@@ -688,6 +713,7 @@ class DmpGeneratorComponent:
         async with semaphore:
             if section.leaf_coro is None:
                 msg = 'Leaf section has no generation coroutine'
+                logger.error('Leaf section execution failed: generation coroutine is missing')
                 raise RuntimeError(msg)
             section.result = await section.leaf_coro
 
@@ -778,6 +804,7 @@ class DmpGeneratorComponent:
         assignments = node['assignments']
         if assignments is None:
             msg = f"Leaf section '{title}' is missing assignments"
+            logger.error('Leaf section generation failed: assignments are missing', extra={'section_title': title})
             raise ValueError(msg)
         matches, _ = self.match_replies_selection(assignments, replies, km)
         rows = self._flatten_matched_questions(matches, title)

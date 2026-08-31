@@ -1,3 +1,4 @@
+import logging
 import typing
 from typing import TypedDict
 from uuid import UUID
@@ -5,6 +6,8 @@ from uuid import UUID
 from haystack import component
 
 from ai_document_plugin_service.ai.persistence.database import Database
+
+logger = logging.getLogger(__name__)
 
 
 class FileSaverComponentResult(TypedDict):
@@ -26,6 +29,17 @@ class SaverComponent:
         debug_markdown: str,
         markdown: str,
     ) -> FileSaverComponentResult:
+        logger.info(
+            'Persisting generated markdown result',
+            extra={
+                'template_uuid': str(template_uuid),
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'user_uuid': str(user_uuid),
+                'tenant_uuid': str(tenant_uuid),
+                'debug_markdown_length': len(debug_markdown),
+                'markdown_length': len(markdown),
+            },
+        )
         await self.database.save_result(
             template_uuid,
             knowledge_model_uuid,
@@ -33,6 +47,15 @@ class SaverComponent:
             tenant_uuid,
             debug_markdown,
             markdown,
+        )
+        logger.info(
+            'Generated markdown result persisted',
+            extra={
+                'template_uuid': str(template_uuid),
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'user_uuid': str(user_uuid),
+                'tenant_uuid': str(tenant_uuid),
+            },
         )
 
         return {

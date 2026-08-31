@@ -64,6 +64,7 @@ class SectionGenerationLLM(GenerationLLM):
         messages = self._section_from_qa_messages(prompt)
         response = await call_with_retry(
             lambda: self.client.completion(
+                stats=stats,
                 messages=messages,
                 temperature=self.config.dmp_generation.temperature,
                 max_tokens=self.config.dmp_generation.max_tokens,

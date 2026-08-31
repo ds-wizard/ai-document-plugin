@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import logging
+import time
 from collections.abc import Callable
 from typing import Any, TypedDict
 
@@ -73,10 +74,19 @@ class AssignmentComponent:
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
+        started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
         sections = build_section_records(template_data)
         question_chunks, question_id_to_path = build_question_chunks(data)
+        logger.info(
+            'Starting question-to-section assignment',
+            extra={
+                'section_count': len(sections),
+                'question_chunk_count': len(question_chunks),
+                'question_path_count': len(question_id_to_path),
+            },
+        )
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
@@ -119,6 +129,15 @@ class AssignmentComponent:
             result_mapping,
             km,
         )
+        logger.info(
+            'Completed question-to-section assignment',
+            extra={
+                'assignment_count': len(assignments),
+                'mapped_question_count': len(result_mapping),
+                'llm_call_count': stats.total_calls,
+            },
+        )
+        stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
 
         return {
             'assignments': assignments,

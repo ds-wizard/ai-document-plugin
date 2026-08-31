@@ -1,6 +1,5 @@
 import json
 import logging
-import pathlib
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import TYPE_CHECKING
@@ -78,6 +77,7 @@ class OpenAILayerMatcher(LayerMatcher):
 
         async def call_and_parse() -> dict[str, list[str]]:
             response = await self.client.completion(
+                stats=stats,
                 messages=messages,
                 temperature=self.config.assignment.temperature,
                 max_tokens=self.config.assignment.max_tokens,
@@ -85,9 +85,9 @@ class OpenAILayerMatcher(LayerMatcher):
             )
             choice = response.choices[0]
             if choice.finish_reason != 'stop':
-                logger.debug(
-                    'Model did not stop generating naturally: %s',
-                    choice,
+                logger.error(
+                    'Model did not stop generating naturally',
+                    extra={'finish_reason': choice.finish_reason},
                 )
                 msg = 'Model did not stop generating naturally.'
                 raise ModelDidNotStopError(msg)
@@ -97,6 +97,7 @@ class OpenAILayerMatcher(LayerMatcher):
                 return self._parse_json_question_to_sections(content)
             except JSONDecodeError as e:
                 msg = 'Unable to parse: ' + content
+                logger.exception('Unable to parse LLM assignment response as JSON', exc_info=e)
                 raise UnableToParseResponseError(msg) from e
 
         return await call_with_retry(call_and_parse)
@@ -113,6 +114,7 @@ class OpenAILayerMatcher(LayerMatcher):
 
         if not isinstance(data, dict):
             msg = 'LLM response is not a JSON object.'
+            logger.error('LLM assignment response is not a JSON object')
             raise TypeError(msg)
         result: dict[str, list[str]] = {}
         for id_str, section_list in data.items():
@@ -123,31 +125,3 @@ class OpenAILayerMatcher(LayerMatcher):
             else:
                 result[str(id_str)] = []
         return result
-
-
-class LoggingNoopLayerMatcher(LayerMatcher):
-    """Logs assignment inputs to logger and a JSONL file; returns no mappings."""
-
-    def __init__(self, log_path: str | pathlib.Path) -> None:
-        self._log_path = pathlib.Path(log_path)
-
-    async def match_questions_to_sections(
-        self,
-        sections_xml: str,
-        question_chunk_xml: str,
-        stats: AssignmentStats,
-    ) -> dict[str, list[str]]:
-        record = {
-            'sections_xml': sections_xml,
-            'question_chunk_xml': question_chunk_xml,
-            'stats': stats.to_dict(),
-        }
-        self._log_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._log_path.open('a', encoding='utf-8') as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + '\n')
-        logger.info(
-            'LoggingNoopLayerMatcher appended inputs to %s stats=%s',
-            self._log_path,
-            stats,
-        )
-        return {}

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 JsonValue = Mapping[str, object] | Sequence[object]
-StatsJson = dict[str, dict[str, int]]
+StatsJson = dict[str, dict[str, int | float]]
 
 
 class AssignmentSaverComponentResult(TypedDict):
@@ -55,6 +55,18 @@ class AssignmentSaverComponent:
         stats: AssignmentStats | None = None,
     ) -> AssignmentSaverComponentResult:
         """Save assignments to storage, optionally including token usage stats."""
+        logger.info(
+            'Persisting generated assignments',
+            extra={
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'knowledge_model_version': knowledge_model_version,
+                'template_uuid': str(template_uuid),
+                'template_title': template_title,
+                'tenant_uuid': str(tenant_uuid),
+                'assignment_count': len(assignments),
+                'has_stats': stats is not None,
+            },
+        )
         serializable = [assignment.to_dict() for assignment in assignments]
         stats_payload = _serialize_stats(stats)
 
@@ -150,7 +162,13 @@ class FileSaver(Saver):
                 json.dumps(stats, indent=2, ensure_ascii=False),
                 encoding='utf-8',
             )
-        logger.debug('Saved assignments to %s', output_path)
+        logger.info(
+            'Saved assignments to filesystem',
+            extra={
+                'output_path': str(output_path),
+                'stats_output_path': str(output_path_stats) if stats is not None else None,
+            },
+        )
 
     @staticmethod
     def _build_filename(
@@ -187,6 +205,14 @@ class DBSaver(Saver):
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
+        logger.debug(
+            'Saving assignments through database-backed saver',
+            extra={
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': str(template_uuid),
+                'tenant_uuid': str(tenant_uuid),
+            },
+        )
         await self.database.save_template(
             uuid=template_uuid,
             title=template_title,
@@ -202,6 +228,14 @@ class DBSaver(Saver):
             created_at=created_at,
             template_uuid=template_uuid,
         )
+        logger.info(
+            'Database-backed assignment save completed',
+            extra={
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': str(template_uuid),
+                'tenant_uuid': str(tenant_uuid),
+            },
+        )
 
 
 def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
@@ -212,6 +246,9 @@ def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
             'total_calls': stats.total_calls,
             'total_input_tokens': stats.total_input_tokens,
             'total_output_tokens': stats.total_output_tokens,
+            'total_llm_wait_ms': stats.total_llm_wait_ms,
+            'total_llm_response_ms': stats.total_llm_response_ms,
+            'total_duration_ms': stats.total_duration_ms,
         },
     }
 

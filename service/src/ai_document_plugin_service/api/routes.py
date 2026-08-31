@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -24,6 +25,8 @@ from ai_document_plugin_service.di import (
 )
 from ai_document_plugin_service.service.errors import NotFoundError
 from ai_document_plugin_service.utils.docx_export import DOCX_MEDIA_TYPE
+
+logger = logging.getLogger(__name__)
 
 public_router = fastapi.APIRouter()
 protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authenticated)])
@@ -68,6 +71,7 @@ async def delete_template(template_uuid: UUID, templates: TemplateServiceDI, aut
 
 @protected_router.post('/pipelines/run')
 async def start_pipeline(
+    request: fastapi.Request,
     payload: PipelineRunRequest,
     auth: AuthenticatedDI,
     config: ConfigDI,
@@ -81,6 +85,7 @@ async def start_pipeline(
         template.title,
         auth,
         config,
+        getattr(request.state, 'trace_uuid', '-'),
     )
     status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:
@@ -113,6 +118,15 @@ async def get_pipeline_status(
 async def save_pipeline_result(
     run_id: UUID, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
 ) -> PipelineStatusResponse:
+    logger.info(
+        'Pipeline result update requested',
+        extra={
+            'run_id': run_id,
+            'tenant_uuid': str(auth.tenant_uuid),
+            'user_uuid': str(auth.user_uuid),
+            'result_markdown_length': len(save_request.result_markdown),
+        },
+    )
     return await pipeline.update_pipeline_result(run_id, save_request, auth)
 
 

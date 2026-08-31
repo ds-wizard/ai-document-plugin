@@ -157,7 +157,6 @@ tiktoken==0.13.0
     # via ai-document-plugin-service (pyproject.toml)
 tqdm==4.70.0
     # via
-    #   ai-document-plugin-service (pyproject.toml)
     #   haystack-ai
     #   openai
 truststore==0.10.4

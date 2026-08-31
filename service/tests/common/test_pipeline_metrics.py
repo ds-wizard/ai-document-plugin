@@ -92,4 +92,6 @@ def test_get_stats_returns_json_summary_with_expected_shape() -> None:
         'cost_per_mil_input': 0.25,
         'cost_per_mil_output': 2.0,
         'elapsed_seconds': 12.5,
+        'total_llm_wait_ms': 0.0,
+        'total_llm_response_ms': 0.0,
     }

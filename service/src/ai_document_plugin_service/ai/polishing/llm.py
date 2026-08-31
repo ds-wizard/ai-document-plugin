@@ -48,6 +48,7 @@ class SectionPolishingLLM:
 
         response = await call_with_retry(
             lambda: self.client.completion(
+                stats=stats,
                 messages=messages,
                 temperature=self.config.dmp_polishing.temperature,
                 max_tokens=self.config.dmp_polishing.max_tokens,

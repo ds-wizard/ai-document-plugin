@@ -298,10 +298,20 @@ class PostgresDB(Database):
         self.result_table = schema.result_table
         self.generation_table = schema.generation_table
         self._database_verified = False
+        logger.info(
+            'Initialized Postgres database client',
+            extra={
+                'db.host': config.host,
+                'db.port': config.port,
+                'db.name': config.name,
+                'db.schema': self.schema_name,
+            },
+        )
 
     async def dispose(self) -> None:
         """Close the engine's connection pool. Call on shutdown / when done with this instance."""
         await self.engine.dispose()
+        logger.info('Disposed Postgres database engine', extra={'db.schema': self.schema_name})
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[None]:
@@ -341,6 +351,7 @@ class PostgresDB(Database):
     async def _ensure_schema(self) -> None:
         if self._database_verified:
             return
+        logger.debug('Verifying persistence schema availability', extra={'db.schema': self.schema_name})
 
         async with self.engine.connect() as connection:
             existing_tables = await connection.run_sync(self._list_existing_tables)
@@ -354,9 +365,14 @@ class PostgresDB(Database):
                 'Startup migrations should create or update these tables. Check the application startup logs and '
                 'database configuration.'
             )
+            logger.error(
+                'Database schema is not ready',
+                extra={'db.schema': self.schema_name, 'missing_tables': missing_tables},
+            )
             raise RuntimeError(msg)
 
         self._database_verified = True
+        logger.info('Verified persistence schema', extra={'db.schema': self.schema_name})
 
     async def save_assignments(
         self,
@@ -393,6 +409,15 @@ class PostgresDB(Database):
         async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
+        logger.info(
+            'Saved assignments',
+            extra={
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': str(template_uuid),
+                'assignment_count': len(assignments) if isinstance(assignments, Sequence) else None,
+                'db.schema': self.schema_name,
+            },
+        )
         logger.debug(
             'Saved assignments for KM package id=%s to %s.assignments',
             knowledge_model_uuid,
@@ -420,12 +445,22 @@ class PostgresDB(Database):
             async with self._connect() as connection:
                 await connection.execute(statement)
         except IntegrityError as exc:
+            msg = f'Template with title "{title}" already exists.'
+            logger.warning(
+                'Template insert failed because title already exists',
+                extra={'template_title': title, 'tenant_uuid': str(tenant_uuid), 'db.schema': self.schema_name},
+            )
+            raise ValueError(msg) from exc
             raise TemplateTitleConflictError(title) from exc
 
-        logger.debug(
-            'Created template uuid=%s in %s.template',
-            template_uuid,
-            self.schema_name,
+        logger.info(
+            'Created template in database',
+            extra={
+                'template_uuid': str(template_uuid),
+                'template_title': title,
+                'tenant_uuid': str(tenant_uuid),
+                'db.schema': self.schema_name,
+            },
         )
         return template_uuid
 
@@ -504,10 +539,14 @@ class PostgresDB(Database):
         async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
-        logger.debug(
-            'Saved template uuid=%s to %s.template',
-            uuid,
-            self.schema_name,
+        logger.info(
+            'Saved template definition',
+            extra={
+                'template_uuid': str(uuid),
+                'template_title': title,
+                'tenant_uuid': str(tenant_uuid),
+                'db.schema': self.schema_name,
+            },
         )
 
     async def get_assignments(
@@ -527,10 +566,13 @@ class PostgresDB(Database):
             row = result.fetchone()
 
         if row is None:
-            logger.debug(
-                'No assignments found for KM package id=%s in %s.assignments',
-                knowledge_model_uuid,
-                self.schema_name,
+            logger.info(
+                'Assignments not found',
+                extra={
+                    'knowledge_model_uuid': knowledge_model_uuid,
+                    'template_uuid': str(template_uuid),
+                    'db.schema': self.schema_name,
+                },
             )
             return None
 
@@ -565,6 +607,14 @@ class PostgresDB(Database):
             result = await connection.execute(statement)
             rows = result.fetchall()
 
+        logger.info(
+            'Listed templates from database',
+            extra={
+                'tenant_uuid': str(tenant_uuid),
+                'template_count': len(rows),
+                'db.schema': self.schema_name,
+            },
+        )
         return [TemplateRecord.from_row(row) for row in rows]
 
     async def get_template(
@@ -634,10 +684,17 @@ class PostgresDB(Database):
         async with self._connect() as connection:
             await connection.execute(upsert_statement)
 
-        logger.debug(
-            'Saved result for KM package id=%s to %s.result',
-            knowledge_model_uuid,
-            self.schema_name,
+        logger.info(
+            'Saved pipeline result',
+            extra={
+                'knowledge_model_uuid': knowledge_model_uuid,
+                'template_uuid': str(template_uuid),
+                'user_uuid': str(user_uuid),
+                'tenant_uuid': str(tenant_uuid),
+                'prepolished_markdown_length': len(prepolished_markdown),
+                'markdown_length': len(markdown),
+                'db.schema': self.schema_name,
+            },
         )
 
     async def save_stats(
@@ -667,12 +724,27 @@ class PostgresDB(Database):
 
         if result.rowcount == 0:
             msg = 'Cannot save stats because result row does not exist yet. Save dmp and dmp_pre_polished first.'
+            logger.error(
+                'Stats update failed because result row does not exist',
+                extra={
+                    'knowledge_model_uuid': str(knowledge_model_uuid),
+                    'template_uuid': str(template_uuid),
+                    'user_uuid': str(user_uuid),
+                    'tenant_uuid': str(tenant_uuid),
+                    'db.schema': self.schema_name,
+                },
+            )
             raise ValueError(msg)
 
-        logger.debug(
-            'Saved stats for KM package id=%s to %s.result',
-            knowledge_model_uuid,
-            self.schema_name,
+        logger.info(
+            'Saved pipeline stats',
+            extra={
+                'knowledge_model_uuid': str(knowledge_model_uuid),
+                'template_uuid': str(template_uuid),
+                'user_uuid': str(user_uuid),
+                'tenant_uuid': str(tenant_uuid),
+                'db.schema': self.schema_name,
+            },
         )
 
     async def update_result(
@@ -705,12 +777,28 @@ class PostgresDB(Database):
 
         if result.rowcount == 0:
             msg = 'Cannot save result because result row does not exist yet. Create the row first before updating dmp.'
+            logger.error(
+                'Result update failed because result row does not exist',
+                extra={
+                    'knowledge_model_uuid': str(knowledge_model_uuid),
+                    'template_uuid': str(template_uuid),
+                    'user_uuid': str(user_uuid),
+                    'tenant_uuid': str(tenant_uuid),
+                    'db.schema': self.schema_name,
+                },
+            )
             raise ValueError(msg)
 
-        logger.debug(
-            'Updated result for KM package id=%s in %s.result',
-            knowledge_model_uuid,
-            self.schema_name,
+        logger.info(
+            'Updated stored pipeline result markdown',
+            extra={
+                'knowledge_model_uuid': str(knowledge_model_uuid),
+                'template_uuid': str(template_uuid),
+                'user_uuid': str(user_uuid),
+                'tenant_uuid': str(tenant_uuid),
+                'markdown_length': len(markdown),
+                'db.schema': self.schema_name,
+            },
         )
 
     async def create_generation(

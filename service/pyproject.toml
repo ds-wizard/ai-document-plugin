@@ -34,7 +34,6 @@ dependencies = [
     "sqlalchemy[asyncio]",
     "tabulate",
     "tiktoken",
-    "tqdm",
 ]
 
 [project.scripts]

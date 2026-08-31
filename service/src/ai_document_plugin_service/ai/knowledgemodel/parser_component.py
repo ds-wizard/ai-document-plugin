@@ -39,10 +39,21 @@ class ParserComponent:
     def run(self, data: dict, trigger: bool) -> dict[str, list[QuestionData]]:  # noqa: FBT001, ARG002
         self.km = data['knowledgeModel']
         replies = data['replies']
+        logger.info(
+            'Parsing knowledge model replies into question tree',
+            extra={
+                'chapter_count': len(self.km.get('chapterUuids', [])),
+                'reply_count': len(replies),
+            },
+        )
         top_level_questions: list[QuestionData] = []
         for chapter_dict in self._iterate_km_chapters():
             parsed_chapter = self.parse_chapter(chapter_dict['uuid'], replies)
             top_level_questions.append(parsed_chapter)
+        logger.info(
+            'Finished parsing knowledge model replies',
+            extra={'chapter_count': len(top_level_questions)},
+        )
         return {'data': top_level_questions}
 
     def _iterate_km_chapters(self) -> Iterator[dict]:

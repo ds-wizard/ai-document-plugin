@@ -30,7 +30,6 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "tabulate" },
     { name = "tiktoken" },
-    { name = "tqdm" },
 ]
 
 [package.dev-dependencies]
@@ -59,7 +58,6 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"] },
     { name = "tabulate" },
     { name = "tiktoken" },
-    { name = "tqdm" },
 ]
 
 [package.metadata.requires-dev]

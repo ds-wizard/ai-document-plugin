@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getTemplate } from '@/client'
+import { exportTemplateAsJson, getTemplate } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import styles from '@/components/TemplateManager.module.css'
 import { TemplatePreview } from '@/components/TemplatePreview'
@@ -36,6 +36,7 @@ export function TemplateManager({
     const [isEditing, setIsEditing] = useState(false)
     const [detail, setDetail] = useState<TemplateDetail | null>(null)
     const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
 
     const selected = templates.find((template) => template.uuid === selectedUuid)
     const canManageSelected = selected?.scope === 'personal'
@@ -143,6 +144,35 @@ export function TemplateManager({
         }
     }, [selected, deleteByUuid, onSelectedUuidChange, resetDetail])
 
+    const handleExport = useCallback(async () => {
+        if (!selected) {
+            return
+        }
+
+        setIsExporting(true)
+        try {
+            const blob = await exportTemplateAsJson(selected.uuid)
+            const fileName = `${selected.title}.json`
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = fileName
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            URL.revokeObjectURL(url)
+            toast.success('Template JSON download has started.')
+        } catch (exportError) {
+            toast.error(
+                exportError instanceof Error
+                    ? exportError.message
+                    : 'Failed to export the template as JSON.',
+            )
+        } finally {
+            setIsExporting(false)
+        }
+    }, [selected])
+
     return (
         <>
             {detail && !isEditingSelected ? (
@@ -158,10 +188,19 @@ export function TemplateManager({
                         type="button"
                         className="btn btn-outline-secondary with-icon"
                         onClick={startEditing}
-                        disabled={isDeleting}
+                        disabled={isDeleting || isExporting}
                     >
                         <i className="fas fa-pen" aria-hidden="true" />
                         Edit template
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-outline-secondary with-icon"
+                        onClick={() => void handleExport()}
+                        disabled={isDeleting || isExporting}
+                    >
+                        <i className="fas fa-download" aria-hidden="true" />
+                        {isExporting ? 'Exporting...' : 'Export template'}
                     </button>
                     <button
                         type="button"

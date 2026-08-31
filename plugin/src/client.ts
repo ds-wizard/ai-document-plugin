@@ -268,6 +268,22 @@ export const deleteTemplate = async (templateUuid: string): Promise<void> => {
     }
 }
 
+export const exportTemplateAsJson = async (templateUuid: string): Promise<Blob> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}/export`
+    const response = await apiFetch(url)
+
+    if (!response.ok) {
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(() => ({}))
+        throw new Error(
+            'detail' in data && data.detail
+                ? data.detail
+                : 'Failed to export the template as JSON.',
+        )
+    }
+
+    return response.blob()
+}
+
 export const exportPipelineResultAsDocx = async (
     runId: string,
     resultMarkdown: string,

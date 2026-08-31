@@ -24,6 +24,7 @@ from ai_document_plugin_service.di import (
     TemplateServiceDI,
 )
 from ai_document_plugin_service.service.errors import NotFoundError
+from ai_document_plugin_service.service.export_service import JSON_MEDIA_TYPE
 from ai_document_plugin_service.utils.docx_export import DOCX_MEDIA_TYPE
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,21 @@ async def update_template(
 @protected_router.delete('/templates/{template_uuid}', status_code=204)
 async def delete_template(template_uuid: UUID, templates: TemplateServiceDI, auth: AuthenticatedDI) -> None:
     await templates.delete(auth, template_uuid)
+
+
+@protected_router.get(
+    '/templates/{template_uuid}/export',
+    response_class=fastapi.Response,
+    responses={200: {'content': {JSON_MEDIA_TYPE: {}}}},
+)
+async def export_template_as_json(
+    template_uuid: UUID, exports: ExportServiceDI, auth: AuthenticatedDI
+) -> fastapi.Response:
+    export = await exports.export_template_as_json(template_uuid, auth)
+    return fastapi.Response(
+        content=export.content,
+        media_type=JSON_MEDIA_TYPE
+    )
 
 
 @protected_router.post('/pipelines/run')

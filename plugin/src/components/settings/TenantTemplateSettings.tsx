@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { exportTemplateAsJson } from '@/client'
 import { CustomTemplateSection, type EditingTemplate } from '@/components/CustomTemplateSection'
 import styles from '@/components/settings/TenantTemplateSettings.module.css'
 import { useTemplates } from '@/hooks/useTemplates'
@@ -60,6 +61,31 @@ export function TenantTemplateSection() {
         setBusyUuid(null)
     }
 
+    const handleExport = async (template: TemplateOption) => {
+        setBusyUuid(template.uuid)
+        try {
+            const blob = await exportTemplateAsJson(template.uuid)
+            const fileName = `${template.title}.json`
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = fileName
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            URL.revokeObjectURL(url)
+            toast.success('Template JSON download has started.')
+        } catch (exportError) {
+            toast.error(
+                exportError instanceof Error
+                    ? exportError.message
+                    : 'Failed to export the template as JSON.',
+            )
+        } finally {
+            setBusyUuid(null)
+        }
+    }
+
     if (isLoading) {
         return (
             <section className={styles.root}>
@@ -98,6 +124,17 @@ export function TenantTemplateSection() {
                                     >
                                         <i className="fas fa-pen" aria-hidden="true" />
                                         Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-secondary btn-sm with-icon"
+                                        onClick={() => void handleExport(template)}
+                                        disabled={busyUuid !== null}
+                                    >
+                                        <i className="fas fa-download" aria-hidden="true" />
+                                        {busyUuid === template.uuid
+                                            ? 'Exporting...'
+                                            : 'Export template'}
                                     </button>
                                     <button
                                         type="button"

@@ -9,6 +9,7 @@ class ServiceError(Exception):
 
 class NotFoundError(ServiceError):
     PIPELINE_RUN_MESSAGE = 'Pipeline run not found'
+    TEMPLATE_MESSAGE = 'Template not found'
 
     def __init__(self, detail: str = 'Not found') -> None:
         super().__init__(detail, status_code=404)

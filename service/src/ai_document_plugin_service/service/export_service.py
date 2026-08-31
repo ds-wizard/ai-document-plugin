@@ -1,4 +1,6 @@
 import asyncio
+import json
+import logging
 import re
 from dataclasses import dataclass
 from uuid import UUID
@@ -14,6 +16,9 @@ from ai_document_plugin_service.utils.docx_export import markdown_to_docx
 DEFAULT_EXPORT_FILE_NAME = 'document'
 MAX_EXPORT_FILE_NAME_LENGTH = 80
 _UNSAFE_FILE_NAME_CHARACTERS = re.compile(r'[^A-Za-z0-9._ -]+')
+JSON_MEDIA_TYPE = 'application/json'
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -22,11 +27,25 @@ class DocxExport:
     file_name: str
 
 
-def _docx_file_name(title: str) -> str:
+@dataclass(frozen=True)
+class JsonExport:
+    content: bytes
+    file_name: str
+
+
+def _export_file_name(title: str, extension: str) -> str:
     """Build a filename safe to interpolate into a Content-Disposition header."""
     cleaned = _UNSAFE_FILE_NAME_CHARACTERS.sub(' ', title).strip()
     collapsed = ' '.join(cleaned.split())[:MAX_EXPORT_FILE_NAME_LENGTH].strip()
-    return f'{collapsed or DEFAULT_EXPORT_FILE_NAME}.docx'
+    return f'{collapsed or DEFAULT_EXPORT_FILE_NAME}.{extension}'
+
+
+def _docx_file_name(title: str) -> str:
+    return _export_file_name(title, 'docx')
+
+
+def _json_file_name(title: str) -> str:
+    return _export_file_name(title, 'json')
 
 
 class ExportService:
@@ -60,3 +79,14 @@ class ExportService:
             title=record.title,
         )
         return DocxExport(content=content, file_name=_docx_file_name(record.title))
+
+    async def export_template_as_json(self, template_uuid: UUID, auth: AuthenticatedUser) -> JsonExport:
+        record = await self.database.get_template(template_uuid, auth.tenant_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
+
+        if record.user_uuid is not None and record.user_uuid != auth.user_uuid:
+            raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
+
+        content = json.dumps(record.content, ensure_ascii=False, indent=2).encode('utf-8') + b'\n'
+        return JsonExport(content=content, file_name=_json_file_name(record.title))

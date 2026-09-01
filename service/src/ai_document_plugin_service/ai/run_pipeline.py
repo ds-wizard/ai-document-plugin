@@ -147,6 +147,16 @@ async def run_pipeline(
         'questionnaire_detail_loaded',
         duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
+    project_versions_fetch_started = time.perf_counter()
+    try:
+        project_versions = await dsw_client.get_project_versions(project_uuid=questionnaire_uuid)
+    except Exception:
+        logger.exception('Failed to load project versions', extra={'questionnaire_uuid': str(questionnaire_uuid)})
+        raise
+    log_timing_event(
+        'project_versions_loaded',
+        duration_ms=round((time.perf_counter() - project_versions_fetch_started) * 1000, 3),
+    )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -184,6 +194,7 @@ async def run_pipeline(
                     'replies': replies,
                     'km': km,
                     'questionnaire_detail': km_data,
+                    'project_versions': project_versions,
                     'on_progress': on_progress,
                 },
                 'dmp_polisher_component': {

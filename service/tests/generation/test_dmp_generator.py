@@ -113,6 +113,21 @@ def _km_with_phase_fixture() -> dict:
     }
 
 
+def _project_versions_fixture() -> list[dict]:
+    return [
+        {
+            'name': 'Version 1',
+            'updatedAt': '2018-01-21T00:00:00Z',
+            'description': 'First version',
+        },
+        {
+            'name': 'Version 2',
+            'updatedAt': '2018-02-21T00:00:00Z',
+            'description': 'Latest version',
+        },
+    ]
+
+
 class StubGenerationLLM(GenerationLLM):
     """Deterministic LLM stub that records calls."""
 
@@ -249,11 +264,21 @@ def test_resolve_knowledge_model_returns_name_and_version() -> None:
     assert knowledge_model == 'DSW Knowledge Model, 1.2.0'
 
 
+def test_build_history_of_changes_rows_orders_versions_by_updated_at() -> None:
+    rows = _component()._build_history_of_changes_rows(_project_versions_fixture())
+
+    assert rows == [
+        '| Version 2 | 21.02.2018 | Latest version |',
+        '| Version 1 | 21.01.2018 | First version |',
+    ]
+
+
 def test_build_document_header_includes_requested_fields() -> None:
     header = _component()._build_document_header(
         _questionnaire_detail_fixture(),
         _km_with_phase_fixture(),
         generated_on=date(2026, 9, 1),
+        project_versions=_project_versions_fixture(),
     )
 
     assert header.startswith('# Data Management Plan')
@@ -262,11 +287,15 @@ def test_build_document_header_includes_requested_fields() -> None:
     assert '| Based On | DSW Knowledge Model, 1.2.0 |' in header
     assert '| Project Phase | Before Submitting the Proposal |' in header
     assert '| Created By |  |' in header
-    assert '| Generated On | 2026-09-01 |' in header
+    assert '| Generated On | 01.09.2026 |' in header
     assert (
         'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
         'using AI document generation plugin'
     ) in header
+    assert '## History of Changes' in header
+    assert '| version | date | changes |' in header
+    assert '| --- | --- | --- |' in header
+    assert header.index('| Version 2 |') < header.index('| Version 1 |')
 
 
 async def test_document_header_component_adds_header_after_polishing() -> None:

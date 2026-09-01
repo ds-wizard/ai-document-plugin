@@ -52,6 +52,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         questionnaire_detail: dict[str, Any] | None = None,
+        project_versions: list[dict[str, Any]] | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
@@ -118,7 +119,7 @@ class DmpGeneratorComponent:
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
-        document_header = self._build_document_header(questionnaire_detail, km)
+        document_header = self._build_document_header(questionnaire_detail, km, project_versions=project_versions)
         logger.info(
             'Completed DMP generation',
             extra={
@@ -142,6 +143,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         questionnaire_detail: dict[str, Any] | None = None,
+        project_versions: list[dict[str, Any]] | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
@@ -744,11 +746,42 @@ class DmpGeneratorComponent:
         return ', '.join(values)
 
     @classmethod
+    def _build_history_of_changes_rows(cls, project_versions: list[dict[str, Any]] | None) -> list[str]:
+        if not project_versions:
+            return []
+
+        def updated_at(version: dict[str, Any]) -> str:
+            value = version.get('updatedAt')
+            return value if isinstance(value, str) else ''
+
+        sorted_versions = sorted(project_versions, key=updated_at, reverse=True)
+        return [
+            '| {name} | {date} | {changes} |'.format(
+                name=cls._sanitize_table_cell(version.get('name')),
+                date=cls._format_history_date(version.get('updatedAt')),
+                changes=cls._sanitize_table_cell(version.get('description')),
+            )
+            for version in sorted_versions
+        ]
+
+    @staticmethod
+    def _format_history_date(updated_at: object | None) -> str:
+        if not isinstance(updated_at, str):
+            return ''
+
+        try:
+            parsed = datetime.fromisoformat(updated_at)
+        except ValueError:
+            return DmpGeneratorComponent._sanitize_table_cell(updated_at)
+        return parsed.strftime('%d.%m.%Y')
+
+    @classmethod
     def _build_document_header(
         cls,
         questionnaire_detail: dict[str, Any] | None,
         km: dict[str, Any],
         generated_on: date | None = None,
+        project_versions: list[dict[str, Any]] | None = None,
     ) -> str:
         if questionnaire_detail is None:
             return ''
@@ -758,7 +791,7 @@ class DmpGeneratorComponent:
             project_name = ''
 
         phase_title = cls._resolve_phase_title(questionnaire_detail, km)
-        generated_on_value = (generated_on or datetime.now().astimezone().date()).isoformat()
+        generated_on_value = (generated_on or datetime.now().astimezone().date()).strftime('%d.%m.%Y')
         project_name = project_name.replace('|', '\\|')
         phase_title = phase_title.replace('|', '\\|')
         based_on = cls._resolve_knowledge_model(questionnaire_detail).replace('|', '\\|')
@@ -778,6 +811,12 @@ class DmpGeneratorComponent:
                 'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
                 'using AI document generation plugin'
             ),
+            '',
+            '## History of Changes',
+            '',
+            '| version | date | changes |',
+            '| --- | --- | --- |',
+            *cls._build_history_of_changes_rows(project_versions),
         ]
         return '\n'.join(lines)
 

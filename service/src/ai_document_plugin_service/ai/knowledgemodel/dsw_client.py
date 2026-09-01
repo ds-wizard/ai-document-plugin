@@ -52,3 +52,35 @@ class DSWClient:
             },
         )
         return payload
+
+    async def get_project_versions(self, project_uuid: str | UUID) -> list[dict]:
+        url = f'{self.api_url}/projects/{project_uuid}/versions'
+        logger.info(
+            'Fetching project versions from DSW',
+            extra={'url.full': url, 'project_uuid': str(project_uuid)},
+        )
+
+        headers: dict[str, str] = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+            response.raise_for_status()
+        except httpx.HTTPError:
+            logger.exception(
+                'Failed to fetch project versions from DSW',
+                extra={'url.full': url, 'project_uuid': str(project_uuid)},
+            )
+            raise
+
+        payload = response.json()
+        if not isinstance(payload, list):
+            logger.warning(
+                'Project versions response was not a list',
+                extra={'url.full': url, 'project_uuid': str(project_uuid)},
+            )
+            return []
+
+        return [version for version in payload if isinstance(version, dict)]

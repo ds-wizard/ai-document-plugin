@@ -39,3 +39,23 @@
 .languageControl {
     width: min(100%, 28rem);
 }
+
+.metadataOption {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    max-width: 38rem;
+    color: var(--ai-doc-color-slate-700);
+    cursor: pointer;
+    line-height: 1.45;
+}
+
+.metadataOption input {
+    margin-top: 0.25rem;
+    accent-color: var(--ai-doc-color-blue-700);
+}
+
+.metadataOption:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.65;
+}

@@ -32,6 +32,7 @@ export default function ProjectTab({
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
     const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
+    const [generateDmpMetadata, setGenerateDmpMetadata] = useState(false)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
@@ -122,6 +123,21 @@ export default function ProjectTab({
                                     </div>
                                 }
                             />
+
+                            <label className={styles.metadataOption}>
+                                <input
+                                    type="checkbox"
+                                    checked={generateDmpMetadata}
+                                    onChange={(event) =>
+                                        setGenerateDmpMetadata(event.target.checked)
+                                    }
+                                    disabled={history.isStarting}
+                                />
+                                <span>
+                                    Automatically generate DMP metadata and project information on
+                                    the first page
+                                </span>
+                            </label>
 
                             <button
                                 type="button"

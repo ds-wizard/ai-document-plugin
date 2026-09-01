@@ -12,9 +12,13 @@ from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 
 
-def _component(gen_llm: GenerationLLM | None = None) -> DmpGeneratorComponent:
+def _component(
+    gen_llm: GenerationLLM | None = None,
+    projects_generation_prompt: str = '',
+) -> DmpGeneratorComponent:
     return DmpGeneratorComponent(
         dmp_generator_llm=gen_llm or StubGenerationLLM(),
+        projects_generation_prompt=projects_generation_prompt,
     )
 
 
@@ -654,7 +658,58 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
     assert 'Generated section body' in markdown
     assert '<details>' in debug_markdown
     assert 'Source questions' in debug_markdown
-    assert stats is not None
+
+
+async def test_run_moves_projects_table_to_document_header() -> None:
+    stub = StubGenerationLLM(
+        section_response=(
+            '### Potato project\n\n'
+            '- Project title: Potato project\n'
+            '- Project acronym: PP\n'
+            '- Project number/code: 123'
+        ),
+    )
+    component = _component(stub, projects_generation_prompt='Use the answered project title as each subsection heading.')
+    assignments = [
+        SectionAssignment(
+            id='projects',
+            title='Projects',
+            assignments={
+                'itemQ': {
+                    'question_path': 'ch.itemQ',
+                    'question_title': 'Item',
+                    'question_text': 'Item text',
+                    'children': {},
+                },
+            },
+        ),
+        SectionAssignment(
+            id='document',
+            title='Document section',
+            assignments={
+                'itemQ': {
+                    'question_path': 'ch.itemQ',
+                    'question_title': 'Item',
+                    'question_text': 'Item text',
+                    'children': {},
+                },
+            },
+        ),
+    ]
+    replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
+
+    result = await component.run_async(
+        replies=replies,
+        km=_km_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        new_assignments=_serialize_assignments(assignments),
+    )
+
+    assert '# Projects' in result['document_header']
+    assert '### Potato project' in result['document_header']
+    assert '# Projects' not in result['markdown']
+    assert '# Document section' in result['markdown']
+    assert any('Use the answered project title' in prompt for prompt in stub.section_calls)
 
 
 async def test_run_handles_empty_section() -> None:

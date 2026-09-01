@@ -59,6 +59,7 @@ class Config:
     assignment: SystemAndUserPrompt
     section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
+    projects_generation: str
     dmp_polishing: SystemAndUserPrompt
     max_parallel_executions: int
 
@@ -251,6 +252,7 @@ def load_config(config_path: str | None = None) -> Config:
             max_tokens=int(_get(prompts, 'dmp_generation', 'max_tokens')),
             system_message=_get(prompts, 'dmp_generation', 'system_message'),
         ),
+        projects_generation=_get(prompts, 'projects_generation', 'instruction'),
         dmp_polishing=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'dmp_polishing', 'temperature')),
             max_tokens=int(_get(prompts, 'dmp_polishing', 'max_tokens')),

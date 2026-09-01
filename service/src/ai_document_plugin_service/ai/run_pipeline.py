@@ -11,6 +11,7 @@ from haystack import AsyncPipeline
 from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
+from ai_document_plugin_service.ai.assignment.projects_section import build_assignment_template
 from ai_document_plugin_service.ai.common import (
     Config,
     PipelineMetricsCollector,
@@ -60,10 +61,11 @@ def build_pipeline(
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent(llm_client, config)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
-    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config, language))
+    dmp_generator_component = DmpGeneratorComponent(
+        SectionGenerationLLM(llm_client, config, language),
+        projects_generation_prompt=config.projects_generation,
+    )
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
-    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config))
-    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config))
     document_header_component = DocumentHeaderComponent()
     saver_component = SaverComponent(database=database)
 
@@ -160,6 +162,7 @@ async def run_pipeline(
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
+    assignment_template = build_assignment_template(template_data)
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
@@ -174,10 +177,11 @@ async def run_pipeline(
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
                     'template_uuid': template_uuid,
+                    'expected_first_section_title': 'Projects',
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
-                    'template_data': template_data,
+                    'template_data': assignment_template,
                     'km': km,
                     'on_progress': on_progress,
                 },

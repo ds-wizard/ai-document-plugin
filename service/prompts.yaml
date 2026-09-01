@@ -52,6 +52,12 @@ dmp_generation:
     
     The output language should be {language}. Keep proper names, official project names, abbreviations, identifiers, filenames, repository names, standards, licences, and technical terms that are conventionally left untranslated in their original form.
 
+projects_generation:
+  instruction: |
+    Return a structured Markdown list with one `### <Project title>` subsection per project.
+    Use the answered project title as each subsection heading. For each project, include `Project title` and, when answered, `Project acronym`, `Project number/code`, `Funding`, `Project duration`, and `Project abstract`.
+    Do not include the top-level Projects heading or add facts not present in the answers.
+
 dmp_polishing:
   max_tokens: 16384
   temperature: 0.3

@@ -43,8 +43,9 @@ class _ScheduledSection:
 
 @component
 class DmpGeneratorComponent:
-    def __init__(self, dmp_generator_llm: GenerationLLM) -> None:
+    def __init__(self, dmp_generator_llm: GenerationLLM, projects_generation_prompt: str = '') -> None:
         self.dmp_generator_llm = dmp_generator_llm
+        self.projects_generation_prompt = projects_generation_prompt
 
     @component.output_types(markdown=str, debug_markdown=str, document_header=str, stats=AssignmentStats)
     async def run_async(
@@ -65,11 +66,12 @@ class DmpGeneratorComponent:
         """
         logger.debug('Step 2: Generating DMP markdown...')
         assignments = db_assignments or new_assignments or []
+        projects_assignment, document_assignments = self._split_projects_assignment(assignments)
         replies = self._filter_reachable_replies(replies, km)
         logger.info(
             'Starting DMP generation',
             extra={
-                'assignment_count': len(assignments),
+                'assignment_count': len(document_assignments),
                 'reply_count': len(replies),
             },
         )
@@ -85,11 +87,25 @@ class DmpGeneratorComponent:
                 llm=self.dmp_generator_llm,
                 stats=stats,
             )
-            for node in assignments
+            for node in document_assignments
         ]
+        projects_section = (
+            self._schedule_section(
+                node=projects_assignment,
+                depth=0,
+                replies=replies,
+                km=km,
+                llm=self.dmp_generator_llm,
+                stats=stats,
+            )
+            if projects_assignment is not None
+            else None
+        )
         leaf_sections: list[_ScheduledSection] = []
         for scheduled in scheduled_sections:
             self._collect_leaf_sections(scheduled, leaf_sections)
+        if projects_section is not None:
+            self._collect_leaf_sections(projects_section, leaf_sections)
 
         total_sections = len(leaf_sections)
         logger.info(
@@ -120,6 +136,10 @@ class DmpGeneratorComponent:
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
         document_header = self._build_document_header(questionnaire_detail, km, project_versions=project_versions)
+        if projects_section is not None:
+            projects_markdown, projects_debug_markdown = self._render_scheduled_section(projects_section)
+            document_header = f'{document_header}\n\n{projects_markdown}'
+            debug_markdown = f'{projects_debug_markdown}\n\n{debug_markdown}'
         logger.info(
             'Completed DMP generation',
             extra={
@@ -192,6 +212,14 @@ class DmpGeneratorComponent:
                 )
 
         return {key: value for key, value in replies.items() if key in reachable_paths}
+
+    @staticmethod
+    def _split_projects_assignment(
+        assignments: list[SerializedSectionAssignment],
+    ) -> tuple[SerializedSectionAssignment | None, list[SerializedSectionAssignment]]:
+        if assignments and assignments[0].get('title') == 'Projects':
+            return assignments[0], assignments[1:]
+        return None, assignments
 
     @staticmethod
     def _walk_reachable_options_question(
@@ -814,7 +842,7 @@ class DmpGeneratorComponent:
             '',
             '## History of Changes',
             '',
-            '| version | date | changes |',
+            '| Version | Date | Changes |',
             '| --- | --- | --- |',
             *cls._build_history_of_changes_rows(project_versions),
         ]
@@ -925,6 +953,8 @@ class DmpGeneratorComponent:
         rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
         prompt = self.construct_chapter_prompt(title, matches)
+        if prompt and title == 'Projects' and self.projects_generation_prompt:
+            prompt += f'\n\n{self.projects_generation_prompt}'
         content = await llm.section_from_qa(prompt, stats) if prompt else 'No data'
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content

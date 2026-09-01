@@ -19,6 +19,7 @@ from ai_document_plugin_service.ai.common import (
 )
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
+from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
@@ -61,6 +62,9 @@ def build_pipeline(
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
     dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config, language))
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
+    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config))
+    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config))
+    document_header_component = DocumentHeaderComponent()
     saver_component = SaverComponent(database=database)
 
     # ROUTES
@@ -88,6 +92,7 @@ def build_pipeline(
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
+    pipeline.add_component('document_header_component', document_header_component)
     pipeline.add_component('saver_component', saver_component)
 
     # CONNECTIONS
@@ -107,10 +112,12 @@ def build_pipeline(
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> prepolished_saver_component
     pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
-    # prepolisher_saver_component -> dmp_polisher_component
+    # dmp_generator_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
-    # dmp_polisher_component -> polished_saver_component
-    pipeline.connect('dmp_polisher_component.markdown', 'saver_component.markdown')
+    # Add fixed metadata only after the LLM has polished the document body.
+    pipeline.connect('dmp_generator_component.document_header', 'document_header_component.document_header')
+    pipeline.connect('dmp_polisher_component.markdown', 'document_header_component.markdown')
+    pipeline.connect('document_header_component.markdown', 'saver_component.markdown')
 
     return pipeline
 
@@ -176,6 +183,7 @@ async def run_pipeline(
                 'dmp_generator_component': {
                     'replies': replies,
                     'km': km,
+                    'questionnaire_detail': km_data,
                     'on_progress': on_progress,
                 },
                 'dmp_polisher_component': {

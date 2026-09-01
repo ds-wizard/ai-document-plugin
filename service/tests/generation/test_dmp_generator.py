@@ -1,7 +1,9 @@
 from typing import Optional
+from datetime import date
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
 )
@@ -23,6 +25,7 @@ def _serialize_assignments(assignments: list[SectionAssignment]) -> list[Seriali
 def _km_fixture() -> dict:
     return {
         'entities': {
+            'phases': {},
             'questions': {
                 'listQ': {'title': 'List', 'text': 'List text', 'questionType': 'ListQuestion'},
                 'itemQ': {'title': 'Item', 'text': 'Item text', 'questionType': 'ValueQuestion'},
@@ -49,6 +52,7 @@ def _reachable_km_fixture() -> dict:
                     'questionUuids': ['rootQ', 'datasetsQ'],
                 },
             },
+            'phases': {},
             'questions': {
                 'rootQ': {
                     'questionType': 'OptionsQuestion',
@@ -77,6 +81,33 @@ def _reachable_km_fixture() -> dict:
                 'yes': {'label': 'Yes', 'advice': None, 'followUpUuids': ['childQ']},
                 'no': {'label': 'No', 'advice': None, 'followUpUuids': []},
             },
+            'choices': {},
+        },
+    }
+
+
+def _questionnaire_detail_fixture() -> dict:
+    return {
+        'name': 'Potato project',
+        'phaseUuid': 'phase-1',
+        'knowledgeModelPackage': {
+            'name': 'DSW Knowledge Model',
+            'version': '1.2.0',
+        },
+    }
+
+
+def _km_with_phase_fixture() -> dict:
+    return {
+        'entities': {
+            'phases': {
+                'phase-1': {
+                    'title': 'Before Submitting the Proposal',
+                },
+            },
+            'questions': {},
+            'answers': {},
+            'chapters': {},
             'choices': {},
         },
     }
@@ -202,6 +233,49 @@ def test_construct_chapter_prompt_formats_questions() -> None:
     assert 'Chapter name: Data' in prompt
     assert 'Q1' in prompt
     assert 'A1' in prompt
+
+
+def test_resolve_phase_title_returns_phase_title() -> None:
+    phase_title = _component()._resolve_phase_title(
+        _questionnaire_detail_fixture(),
+        _km_with_phase_fixture(),
+    )
+    assert phase_title == 'Before Submitting the Proposal'
+
+
+def test_resolve_knowledge_model_returns_name_and_version() -> None:
+    knowledge_model = _component()._resolve_knowledge_model(_questionnaire_detail_fixture())
+
+    assert knowledge_model == 'DSW Knowledge Model, 1.2.0'
+
+
+def test_build_document_header_includes_requested_fields() -> None:
+    header = _component()._build_document_header(
+        _questionnaire_detail_fixture(),
+        _km_with_phase_fixture(),
+        generated_on=date(2026, 9, 1),
+    )
+
+    assert header.startswith('# Data Management Plan')
+    assert '| Field | Value |' in header
+    assert '| Project Name | Potato project |' in header
+    assert '| Based On | DSW Knowledge Model, 1.2.0 |' in header
+    assert '| Project Phase | Before Submitting the Proposal |' in header
+    assert '| Created By |  |' in header
+    assert '| Generated On | 2026-09-01 |' in header
+    assert (
+        'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
+        'using AI document generation plugin'
+    ) in header
+
+
+async def test_document_header_component_adds_header_after_polishing() -> None:
+    result = await DocumentHeaderComponent().run_async(
+        markdown='# Polished section',
+        document_header='# Data Management Plan',
+    )
+
+    assert result['markdown'] == '# Data Management Plan\n\n# Polished section'
 
 
 def test_match_replies_selection_handles_multianswer_groups() -> None:

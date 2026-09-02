@@ -154,6 +154,7 @@ type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
     language: string
+    generateDmpMetadata: boolean
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
@@ -164,6 +165,7 @@ export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
     language,
+    generateDmpMetadata,
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
@@ -179,6 +181,7 @@ export const runPipeline = async ({
             questionnaireUuid,
             templateUuid,
             language,
+            generateDmpMetadata,
             llmModel,
             llmApiKey,
             llmApiUrl,

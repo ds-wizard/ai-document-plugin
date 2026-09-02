@@ -135,6 +135,8 @@ async def run_pipeline(
     database: Database,
     dsw_client: DSWClient,
     model_name: str,
+    *,
+    generate_dmp_metadata: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[UUID, str]:
     t1 = time.time()
@@ -149,20 +151,22 @@ async def run_pipeline(
         'questionnaire_detail_loaded',
         duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
-    project_versions_fetch_started = time.perf_counter()
-    try:
-        project_versions = await dsw_client.get_project_versions(project_uuid=questionnaire_uuid)
-    except Exception:
-        logger.exception('Failed to load project versions', extra={'questionnaire_uuid': str(questionnaire_uuid)})
-        raise
-    log_timing_event(
-        'project_versions_loaded',
-        duration_ms=round((time.perf_counter() - project_versions_fetch_started) * 1000, 3),
-    )
+    project_versions: list[dict] = []
+    if generate_dmp_metadata:
+        project_versions_fetch_started = time.perf_counter()
+        try:
+            project_versions = await dsw_client.get_project_versions(project_uuid=questionnaire_uuid)
+        except Exception:
+            logger.exception('Failed to load project versions', extra={'questionnaire_uuid': str(questionnaire_uuid)})
+            raise
+        log_timing_event(
+            'project_versions_loaded',
+            duration_ms=round((time.perf_counter() - project_versions_fetch_started) * 1000, 3),
+        )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    assignment_template = build_assignment_template(template_data)
+    assignment_template = build_assignment_template(template_data) if generate_dmp_metadata else dict(template_data)
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
@@ -177,7 +181,8 @@ async def run_pipeline(
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
                     'template_uuid': template_uuid,
-                    'expected_first_section_title': 'Projects',
+                    'expected_first_section_title': 'Projects' if generate_dmp_metadata else None,
+                    'excluded_first_section_title': None if generate_dmp_metadata else 'Projects',
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
@@ -199,6 +204,7 @@ async def run_pipeline(
                     'km': km,
                     'questionnaire_detail': km_data,
                     'project_versions': project_versions,
+                    'generate_dmp_metadata': generate_dmp_metadata,
                     'on_progress': on_progress,
                 },
                 'dmp_polisher_component': {

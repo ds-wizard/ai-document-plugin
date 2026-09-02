@@ -23,6 +23,7 @@ class AssignmentLoaderComponent:
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
         expected_first_section_title: str | None = None,
+        excluded_first_section_title: str | None = None,
     ) -> dict[str, Any]:
         logger.debug(
             'Loading stored assignments for pipeline',
@@ -32,6 +33,11 @@ class AssignmentLoaderComponent:
         if expected_first_section_title is not None and not self._has_expected_first_section(
             assignments,
             expected_first_section_title,
+        ):
+            assignments = None
+        if excluded_first_section_title is not None and self._has_expected_first_section(
+            assignments,
+            excluded_first_section_title,
         ):
             assignments = None
         logger.info(
@@ -64,6 +70,7 @@ class AssignmentLoaderComponent:
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
         expected_first_section_title: str | None = None,
+        excluded_first_section_title: str | None = None,
     ) -> dict[str, Any]:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'

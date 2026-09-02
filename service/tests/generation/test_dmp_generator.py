@@ -703,6 +703,7 @@ async def test_run_moves_projects_table_to_document_header() -> None:
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
         new_assignments=_serialize_assignments(assignments),
+        generate_dmp_metadata=True,
     )
 
     assert '# Projects' in result['document_header']

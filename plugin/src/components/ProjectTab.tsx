@@ -83,7 +83,7 @@ export default function ProjectTab({
     }
 
     const handleRunPipeline = async () => {
-        const started = await history.startRun(selectedUuid, language)
+        const started = await history.startRun(selectedUuid, language, generateDmpMetadata)
         if (started) {
             setSelectedRunId(started.runId)
         }

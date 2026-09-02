@@ -152,6 +152,14 @@ class PipelineService:
         trace_id: str,
     ) -> UUID:
         """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
+        logger.info(
+            'Queueing pipeline job',
+            extra={
+                'questionnaire_uuid': str(payload.questionnaire_uuid),
+                'template_uuid': str(payload.template_uuid),
+                'generate_dmp_metadata': payload.generate_dmp_metadata,
+            },
+        )
         run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
@@ -175,9 +183,10 @@ class PipelineService:
                 payload.questionnaire_uuid,
                 payload.template_uuid,
                 payload.language,
-                auth,
-                llm_config,
-                config,
+                generate_dmp_metadata=payload.generate_dmp_metadata,
+                auth=auth,
+                llm_config=llm_config,
+                config=config,
             ),
             trace_id=trace_id
         )
@@ -217,6 +226,8 @@ class PipelineService:
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         language: str,
+        *,
+        generate_dmp_metadata: bool,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
@@ -227,9 +238,10 @@ class PipelineService:
                 questionnaire_uuid,
                 template_uuid,
                 language,
-                auth,
-                llm_config,
-                config,
+                generate_dmp_metadata=generate_dmp_metadata,
+                auth=auth,
+                llm_config=llm_config,
+                config=config,
             )
         except Exception as error:
             logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
@@ -255,6 +267,8 @@ class PipelineService:
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         language: str,
+        *,
+        generate_dmp_metadata: bool,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
@@ -320,6 +334,7 @@ class PipelineService:
             on_progress=on_progress,
             model_name=llm_client.get_model_name(),
             dsw_client=DSWClient(auth.token, auth.api_url),
+            generate_dmp_metadata=generate_dmp_metadata,
         )
         log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(knowledge_model_uuid))
 

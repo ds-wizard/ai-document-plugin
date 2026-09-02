@@ -54,6 +54,8 @@ class DmpGeneratorComponent:
         km: dict,
         questionnaire_detail: dict[str, Any] | None = None,
         project_versions: list[dict[str, Any]] | None = None,
+        *,
+        generate_dmp_metadata: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
@@ -66,7 +68,9 @@ class DmpGeneratorComponent:
         """
         logger.debug('Step 2: Generating DMP markdown...')
         assignments = db_assignments or new_assignments or []
-        projects_assignment, document_assignments = self._split_projects_assignment(assignments)
+        projects_assignment, document_assignments = (
+            self._split_projects_assignment(assignments) if generate_dmp_metadata else (None, assignments)
+        )
         replies = self._filter_reachable_replies(replies, km)
         logger.info(
             'Starting DMP generation',
@@ -135,11 +139,23 @@ class DmpGeneratorComponent:
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
-        document_header = self._build_document_header(questionnaire_detail, km, project_versions=project_versions)
+        document_header = (
+            self._build_document_header(questionnaire_detail, km, project_versions=project_versions)
+            if generate_dmp_metadata
+            else ''
+        )
         if projects_section is not None:
             projects_markdown, projects_debug_markdown = self._render_scheduled_section(projects_section)
             document_header = f'{document_header}\n\n{projects_markdown}'
             debug_markdown = f'{projects_debug_markdown}\n\n{debug_markdown}'
+        logger.info(
+            'Prepared document header',
+            extra={
+                'generate_dmp_metadata': generate_dmp_metadata,
+                'document_header_length': len(document_header),
+                'has_projects_section': projects_section is not None,
+            },
+        )
         logger.info(
             'Completed DMP generation',
             extra={
@@ -164,6 +180,8 @@ class DmpGeneratorComponent:
         km: dict,
         questionnaire_detail: dict[str, Any] | None = None,
         project_versions: list[dict[str, Any]] | None = None,
+        *,
+        generate_dmp_metadata: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,

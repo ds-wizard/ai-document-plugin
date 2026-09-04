@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 class AssignmentComponentResult(TypedDict):
     assignments: list[SectionAssignment]
+    header_assignments: list[SectionAssignment] | None
     stats: AssignmentStats
 
 
@@ -66,18 +67,24 @@ class AssignmentComponent:
                 continue
             result_mapping[question_path] = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(
+        assignments=list[SectionAssignment],
+        header_assignments=list[SectionAssignment],
+        stats=AssignmentStats,
+    )
     async def run_async(
         self,
         data: list[QuestionData],
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        header_template_data: dict[str, Any] | None = None,
     ) -> AssignmentComponentResult:
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
-        sections = build_section_records(template_data)
+        header_sections = build_section_records(header_template_data) if header_template_data is not None else []
+        sections = [*header_sections, *build_section_records(template_data)]
         question_chunks, question_id_to_path = build_question_chunks(data)
         logger.info(
             'Starting question-to-section assignment',
@@ -140,17 +147,23 @@ class AssignmentComponent:
         stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
 
         return {
-            'assignments': assignments,
+            'assignments': assignments[len(header_sections) :],
+            'header_assignments': assignments[: len(header_sections)] or None,
             'stats': stats,
         }
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(
+        assignments=list[SectionAssignment],
+        header_assignments=list[SectionAssignment],
+        stats=AssignmentStats,
+    )
     def run(
         self,
         data: list[QuestionData],
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        header_template_data: dict[str, Any] | None = None,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'

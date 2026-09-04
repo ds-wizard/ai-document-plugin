@@ -670,7 +670,7 @@ async def test_run_moves_projects_table_to_document_header() -> None:
         ),
     )
     component = _component(stub, projects_generation_prompt='Use the answered project title as each subsection heading.')
-    assignments = [
+    header_assignments = [
         SectionAssignment(
             id='projects',
             title='Projects',
@@ -682,7 +682,9 @@ async def test_run_moves_projects_table_to_document_header() -> None:
                     'children': {},
                 },
             },
-        ),
+        )
+    ]
+    assignments = [
         SectionAssignment(
             id='document',
             title='Document section',
@@ -703,6 +705,7 @@ async def test_run_moves_projects_table_to_document_header() -> None:
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
         new_assignments=_serialize_assignments(assignments),
+        new_header_assignments=_serialize_assignments(header_assignments),
         generate_dmp_metadata=True,
     )
 

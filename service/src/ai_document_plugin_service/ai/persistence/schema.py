@@ -72,7 +72,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             nullable=False,
             server_default=func.now(),
         ),
-        Column('assignments', JSON, nullable=False),
+        Column('content_assignments', JSON, nullable=True),
+        Column('header_assignments', JSON, nullable=True),
         Column('stats', JSON, nullable=True),
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),
     )

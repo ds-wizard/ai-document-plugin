@@ -11,7 +11,7 @@ from haystack import AsyncPipeline
 from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
-from ai_document_plugin_service.ai.assignment.projects_section import build_assignment_template
+from ai_document_plugin_service.ai.assignment.projects_section import build_header_assignment_template
 from ai_document_plugin_service.ai.common import (
     Config,
     PipelineMetricsCollector,
@@ -101,6 +101,7 @@ def build_pipeline(
     # loader_component -> router
     pipeline.connect('loader_component.assignments', 'router.assignments')
     pipeline.connect('loader_component.found', 'router.found')
+    pipeline.connect('loader_component.header_assignments', 'dmp_generator_component.db_header_assignments')
     # no assignments saved -> continue to parser_component
     pipeline.connect('router.missing_assignment', 'parser_component.trigger')
     # assignments already done -> continue to dmp_generator_component
@@ -109,9 +110,11 @@ def build_pipeline(
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
+    pipeline.connect('assignment_component.header_assignments', 'assignment_saver_component.header_assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
+    pipeline.connect('assignment_saver_component.header_assignments', 'dmp_generator_component.new_header_assignments')
     # dmp_generator_component -> prepolished_saver_component
     pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
     # dmp_generator_component -> dmp_polisher_component
@@ -166,7 +169,7 @@ async def run_pipeline(
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    assignment_template = build_assignment_template(template_data) if generate_dmp_metadata else dict(template_data)
+    header_assignment_template = build_header_assignment_template() if generate_dmp_metadata else None
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
@@ -181,12 +184,12 @@ async def run_pipeline(
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
                     'template_uuid': template_uuid,
-                    'expected_first_section_title': 'Projects' if generate_dmp_metadata else None,
-                    'excluded_first_section_title': None if generate_dmp_metadata else 'Projects',
+                    'include_header_assignments': generate_dmp_metadata,
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
-                    'template_data': assignment_template,
+                    'template_data': dict(template_data),
+                    'header_template_data': header_assignment_template,
                     'km': km,
                     'on_progress': on_progress,
                 },

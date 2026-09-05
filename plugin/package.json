@@ -32,22 +32,22 @@
         "typecheck": "tsc --noEmit"
     },
     "devDependencies": {
-        "@types/node": "^25.9.3",
+        "@types/node": "^26.4.1",
         "@types/react": "^19.2.17",
         "@types/react-dom": "^19.2.3",
         "@typescript-eslint/eslint-plugin": "^8.61.0",
         "@typescript-eslint/parser": "^8.59.1",
         "@vitejs/plugin-react": "^6.0.2",
-        "concurrently": "^9.2.1",
-        "eslint": "^9.39.2",
+        "concurrently": "^10.0.5",
+        "eslint": "^10.9.1",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^7.1.1",
-        "eslint-plugin-simple-import-sort": "^12.1.1",
+        "eslint-plugin-simple-import-sort": "^14.0.0",
         "globals": "^17.6.0",
         "prettier": "^3.8.4",
         "terser": "^5.48.0",
-        "typescript": "^6.0.3",
+        "typescript": "^7.0.2",
         "vite": "^8.0.16"
     },
     "dependencies": {

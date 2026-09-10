@@ -14,6 +14,7 @@ from haystack import component
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.generation.header_translation import HEADER_LABELS, HeaderTranslator
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
 )
@@ -43,9 +44,13 @@ class _ScheduledSection:
 
 @component
 class DmpGeneratorComponent:
-    def __init__(self, dmp_generator_llm: GenerationLLM, header_generation_prompt: str = '') -> None:
+    def __init__(
+        self, dmp_generator_llm: GenerationLLM, header_generation_prompt: str = '',
+        header_translator: HeaderTranslator | None = None,
+    ) -> None:
         self.dmp_generator_llm = dmp_generator_llm
         self.header_generation_prompt = header_generation_prompt
+        self.header_translator = header_translator
 
     @component.output_types(markdown=str, debug_markdown=str, document_header=str, stats=AssignmentStats)
     async def run_async(
@@ -81,6 +86,20 @@ class DmpGeneratorComponent:
         )
 
         stats = AssignmentStats()
+        header_labels = dict(HEADER_LABELS)
+        header_instruction = self.header_generation_prompt
+        if self.header_translator is not None and (generate_dmp_metadata or header_assignments):
+            if on_progress is not None:
+                on_progress('Preparing header labels')
+            header_labels, header_assignments = await self.header_translator.translate(header_assignments, stats)
+            field_keys = (
+                'project_title', 'project_acronym', 'project_code', 'funding', 'project_duration', 'project_abstract',
+            )
+            field_labels = '\n'.join(f'{HEADER_LABELS[key]}: {header_labels[key]}' for key in field_keys)
+            header_instruction += (
+                '\n\nUse these exact field labels instead of their English equivalents:\n' + field_labels
+                + '\nPreserve the original project names in subsection headings.'
+            )
         max_workers = self.dmp_generator_llm.get_max_workers()
         scheduled_sections = [
             self._schedule_section(
@@ -101,7 +120,7 @@ class DmpGeneratorComponent:
                 km=km,
                 llm=self.dmp_generator_llm,
                 stats=stats,
-                generation_instruction=self.header_generation_prompt,
+                generation_instruction=header_instruction,
             )
             for assignment in header_assignments
         ]
@@ -140,7 +159,9 @@ class DmpGeneratorComponent:
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
         document_header = (
-            self._build_document_header(questionnaire_detail, km, project_versions=project_versions)
+            self._build_document_header(
+                questionnaire_detail, km, project_versions=project_versions, labels=header_labels,
+            )
             if generate_dmp_metadata
             else ''
         )
@@ -821,6 +842,7 @@ class DmpGeneratorComponent:
         km: dict[str, Any],
         generated_on: date | None = None,
         project_versions: list[dict[str, Any]] | None = None,
+        labels: dict[str, str] | None = None,
     ) -> str:
         if questionnaire_detail is None:
             return ''
@@ -835,25 +857,26 @@ class DmpGeneratorComponent:
         phase_title = phase_title.replace('|', '\\|')
         based_on = cls._resolve_knowledge_model(questionnaire_detail).replace('|', '\\|')
 
+        labels = {**HEADER_LABELS, **(labels or {})}
         lines = [
-            '# Data Management Plan',
+            f"# {labels['document_title']}",
             '',
-            '| Field | Value |',
+            f"| {labels['field']} | {labels['value']} |",
             '| --- | --- |',
-            f'| Project Name | {project_name} |',
-            f'| Based On | {based_on} |',
-            f'| Project Phase | {phase_title} |',
-            '| Created By |  |',
-            f'| Generated On | {generated_on_value} |',
+            f"| {labels['project_name']} | {project_name} |",
+            f"| {labels['based_on']} | {based_on} |",
+            f"| {labels['project_phase']} | {phase_title} |",
+            f"| {labels['created_by']} |  |",
+            f"| {labels['generated_on']} | {generated_on_value} |",
             '',
             (
                 'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
                 'using AI document generation plugin'
             ),
             '',
-            '## History of Changes',
+            f"## {labels['history_title']}",
             '',
-            '| Version | Date | Changes |',
+            f"| {labels['version']} | {labels['date']} | {labels['changes']} |",
             '| --- | --- | --- |',
             *cls._build_history_of_changes_rows(project_versions),
         ]

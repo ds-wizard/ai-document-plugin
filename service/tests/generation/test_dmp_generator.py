@@ -1,3 +1,4 @@
+from ai_document_plugin_service.ai.common.config import load_config
 from typing import Optional
 from datetime import date
 
@@ -299,7 +300,7 @@ def test_build_document_header_includes_requested_fields() -> None:
         'using AI document generation plugin'
     ) in header
     assert '## History of Changes' in header
-    assert '| version | date | changes |' in header
+    assert '| Version | Date | Changes |' in header
     assert '| --- | --- | --- |' in header
     assert header.index('| Version 2 |') < header.index('| Version 1 |')
 
@@ -791,3 +792,47 @@ async def test_run_handles_empty_section() -> None:
 async def test_header_boundary_requires_both_parts(header: str, body: str) -> None:
     result = await DocumentHeaderComponent().run_async(markdown=body, document_header=header)
     assert '<!-- ai-document-header-end -->' not in result['markdown']
+
+
+async def test_localized_header_keeps_project_values_and_body_assignments():
+    import json
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from ai_document_plugin_service.ai.generation.header_translation import HEADER_LABELS, HeaderTranslator
+
+    translations = {**HEADER_LABELS, 'document_title': 'Plán správy dat', 'project_name': 'Název projektu',
+                    'history_title': 'Historie změn', 'section_0': 'Přehled výzkumu', 'funding': 'Financování'}
+    client = SimpleNamespace(completion=AsyncMock(return_value=SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(translations)))], usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+    )))
+    stub = StubGenerationLLM()
+    component = DmpGeneratorComponent(stub, header_translator=HeaderTranslator(client, 'cs', load_config().header_translation))
+    header = [SectionAssignment(id='h', title='Research overview', assignments={
+        'itemQ': {'question_path': 'ch.itemQ', 'question_title': 'Item', 'question_text': 'Item text', 'children': {}},
+    }).to_dict()]
+    original = deepcopy(header)
+    result = await component.run_async(
+        replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
+        km=_km_fixture(), questionnaire_detail=_questionnaire_detail_fixture(),
+        db_assignments=[SectionAssignment(id='body', title='Research overview').to_dict()],
+        db_header_assignments=header, generate_dmp_metadata=True,
+    )
+    assert '# Plán správy dat' in result['document_header']
+    assert '| Název projektu | Potato project |' in result['document_header']
+    assert '## Historie změn' in result['document_header']
+    assert '# Přehled výzkumu' in result['document_header']
+    assert '# Research overview' in result['markdown']
+    assert 'Funding: Financování' in stub.section_calls[0]
+    assert header == original
+    client.completion.assert_awaited_once()
+
+
+async def test_no_header_skips_translation():
+    from unittest.mock import AsyncMock
+
+    translator = AsyncMock()
+    component = DmpGeneratorComponent(StubGenerationLLM(), header_translator=translator)
+    await component.run_async(replies={}, km=_km_fixture(), new_assignments=[])
+    translator.translate.assert_not_called()

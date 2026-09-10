@@ -21,6 +21,7 @@ from ai_document_plugin_service.ai.common import (
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
+from ai_document_plugin_service.ai.generation.header_translation import HeaderTranslator
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
@@ -64,6 +65,7 @@ def build_pipeline(
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
         header_generation_prompt=config.header_generation,
+        header_translator=HeaderTranslator(llm_client, language, config.header_translation),
     )
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
     document_header_component = DocumentHeaderComponent()

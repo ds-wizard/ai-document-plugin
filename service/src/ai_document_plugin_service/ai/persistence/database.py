@@ -14,6 +14,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
+from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.config import DatabaseConfig
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
@@ -156,12 +157,13 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: JsonValue,
+        content_assignments: list[SerializedSectionAssignment] | None,
+        header_assignments: list[SerializedSectionAssignment] | None,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist assignments in a database backend."""
+        """Persist content or header assignments in a database backend."""
 
     @abstractmethod
     async def save_template(
@@ -178,8 +180,10 @@ class Database(ABC):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> JsonValue | None:
-        """Get assignments from a database backend."""
+        *,
+        include_header_assignments: bool = False,
+    ) -> list[SerializedSectionAssignment] | None:
+        """Get content assignments or DMP-header assignments from a database backend."""
 
     @abstractmethod
     async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
@@ -382,7 +386,8 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: JsonValue,
+        content_assignments: list[SerializedSectionAssignment] | None,
+        header_assignments: list[SerializedSectionAssignment] | None,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -394,7 +399,8 @@ class PostgresDB(Database):
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
-            assignments=assignments,
+            content_assignments=content_assignments,
+            header_assignments=header_assignments,
             stats=stats,
             template_uuid=template_uuid,
         )
@@ -405,7 +411,14 @@ class PostgresDB(Database):
             ],
             set_={
                 'created_at': statement.excluded.created_at,
-                'assignments': statement.excluded.assignments,
+                **(
+                    {'content_assignments': statement.excluded.content_assignments}
+                    if content_assignments is not None else {}
+                ),
+                **(
+                    {'header_assignments': statement.excluded.header_assignments}
+                    if header_assignments is not None else {}
+                ),
             },
         )
 
@@ -417,12 +430,17 @@ class PostgresDB(Database):
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'assignment_count': len(assignments) if isinstance(assignments, Sequence) else None,
+                'content_assignment_count': (
+                    len(content_assignments) if content_assignments is not None else None
+                ),
+                'header_assignment_count': (
+                    len(header_assignments) if header_assignments is not None else None
+                ),
                 'db.schema': self.schema_name,
             },
         )
         logger.debug(
-            'Saved assignments for KM package id=%s to %s.assignments',
+            'Saved assignments for KM package id=%s to %s.assignment columns',
             knowledge_model_uuid,
             self.schema_name,
         )
@@ -556,7 +574,9 @@ class PostgresDB(Database):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> JsonValue | None:
+        *,
+        include_header_assignments: bool = False,
+    ) -> list[SerializedSectionAssignment] | None:
         await self._ensure_schema()
 
         statement = self.assignment_table.select().where(
@@ -580,12 +600,13 @@ class PostgresDB(Database):
             return None
 
         logger.debug(
-            'Loaded assignments for KM package id=%s from %s.assignments',
+            'Loaded %s assignments for KM package id=%s from %s.assignment',
+            'header' if include_header_assignments else 'content',
             knowledge_model_uuid,
             self.schema_name,
         )
 
-        return row.assignments
+        return row.header_assignments if include_header_assignments else row.content_assignments
 
     def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""

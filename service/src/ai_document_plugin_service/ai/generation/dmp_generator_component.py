@@ -43,9 +43,9 @@ class _ScheduledSection:
 
 @component
 class DmpGeneratorComponent:
-    def __init__(self, dmp_generator_llm: GenerationLLM, projects_generation_prompt: str = '') -> None:
+    def __init__(self, dmp_generator_llm: GenerationLLM, header_generation_prompt: str = '') -> None:
         self.dmp_generator_llm = dmp_generator_llm
-        self.projects_generation_prompt = projects_generation_prompt
+        self.header_generation_prompt = header_generation_prompt
 
     @component.output_types(markdown=str, debug_markdown=str, document_header=str, stats=AssignmentStats)
     async def run_async(
@@ -57,7 +57,9 @@ class DmpGeneratorComponent:
         *,
         generate_dmp_metadata: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
+        new_header_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
+        db_header_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         started = time.perf_counter()
@@ -67,10 +69,8 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        assignments = db_assignments or new_assignments or []
-        projects_assignment, document_assignments = (
-            self._split_projects_assignment(assignments) if generate_dmp_metadata else (None, assignments)
-        )
+        document_assignments = db_assignments if db_assignments is not None else new_assignments or []
+        header_assignments = (db_header_assignments if db_assignments is not None else new_header_assignments) or []
         replies = self._filter_reachable_replies(replies, km)
         logger.info(
             'Starting DMP generation',
@@ -93,23 +93,23 @@ class DmpGeneratorComponent:
             )
             for node in document_assignments
         ]
-        projects_section = (
+        header_sections = [
             self._schedule_section(
-                node=projects_assignment,
+                node=assignment,
                 depth=0,
                 replies=replies,
                 km=km,
                 llm=self.dmp_generator_llm,
                 stats=stats,
+                generation_instruction=self.header_generation_prompt,
             )
-            if projects_assignment is not None
-            else None
-        )
+            for assignment in header_assignments
+        ]
         leaf_sections: list[_ScheduledSection] = []
         for scheduled in scheduled_sections:
             self._collect_leaf_sections(scheduled, leaf_sections)
-        if projects_section is not None:
-            self._collect_leaf_sections(projects_section, leaf_sections)
+        for header_section in header_sections:
+            self._collect_leaf_sections(header_section, leaf_sections)
 
         total_sections = len(leaf_sections)
         logger.info(
@@ -144,16 +144,18 @@ class DmpGeneratorComponent:
             if generate_dmp_metadata
             else ''
         )
-        if projects_section is not None:
-            projects_markdown, projects_debug_markdown = self._render_scheduled_section(projects_section)
-            document_header = f'{document_header}\n\n{projects_markdown}'
-            debug_markdown = f'{projects_debug_markdown}\n\n{debug_markdown}'
+        if header_sections:
+            header_parts = [self._render_scheduled_section(section) for section in header_sections]
+            header_markdown = '\n\n'.join(markdown for markdown, _ in header_parts)
+            header_debug_markdown = '\n\n'.join(debug_markdown for _, debug_markdown in header_parts)
+            document_header = f'{document_header}\n\n{header_markdown}'
+            debug_markdown = f'{header_debug_markdown}\n\n{debug_markdown}'
         logger.info(
             'Prepared document header',
             extra={
                 'generate_dmp_metadata': generate_dmp_metadata,
                 'document_header_length': len(document_header),
-                'has_projects_section': projects_section is not None,
+                'header_assignment_count': len(header_assignments),
             },
         )
         logger.info(
@@ -183,7 +185,9 @@ class DmpGeneratorComponent:
         *,
         generate_dmp_metadata: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
+        new_header_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
+        db_header_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
@@ -230,14 +234,6 @@ class DmpGeneratorComponent:
                 )
 
         return {key: value for key, value in replies.items() if key in reachable_paths}
-
-    @staticmethod
-    def _split_projects_assignment(
-        assignments: list[SerializedSectionAssignment],
-    ) -> tuple[SerializedSectionAssignment | None, list[SerializedSectionAssignment]]:
-        if assignments and assignments[0].get('title') == 'Projects':
-            return assignments[0], assignments[1:]
-        return None, assignments
 
     @staticmethod
     def _walk_reachable_options_question(
@@ -785,10 +781,7 @@ class DmpGeneratorComponent:
 
         name = package.get('name')
         version = package.get('version')
-        km_id = package.get('kmId')
-        organization_id = package.get('organizationId')
-        km_id_version = f'({organization_id}:{km_id}:{version})'
-        values = [value for value in (name, version, km_id_version) if isinstance(value, str) and value]
+        values = [value for value in (name, version) if isinstance(value, str) and value]
         return ', '.join(values)
 
     @classmethod
@@ -886,14 +879,15 @@ class DmpGeneratorComponent:
         km: dict,
         llm: GenerationLLM,
         stats: AssignmentStats | None = None,
+        generation_instruction: str = '',
     ) -> _ScheduledSection:
         """Recursively schedule leaf-section generation coroutines."""
         title = node['title']
         heading = self._heading(depth, title)
 
         if self._is_leaf_section(node):
-            return self._handle_leaf_section(heading, km, llm, node, replies, stats)
-        return self._handle_children_section(depth, heading, km, llm, node, replies, stats)
+            return self._handle_leaf_section(heading, km, llm, node, replies, stats, generation_instruction)
+        return self._handle_children_section(depth, heading, km, llm, node, replies, stats, generation_instruction)
 
     def _handle_children_section(
         self,
@@ -904,6 +898,7 @@ class DmpGeneratorComponent:
         node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
+        generation_instruction: str,
     ) -> _ScheduledSection:
         return _ScheduledSection(
             heading=heading,
@@ -915,6 +910,7 @@ class DmpGeneratorComponent:
                     km=km,
                     llm=llm,
                     stats=stats,
+                    generation_instruction=generation_instruction,
                 )
                 for child in (node.get('children') or [])
             ],
@@ -928,6 +924,7 @@ class DmpGeneratorComponent:
         node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
+        generation_instruction: str,
     ) -> _ScheduledSection:
         if node.get('assignments') is not None:
             return _ScheduledSection(
@@ -939,6 +936,7 @@ class DmpGeneratorComponent:
                     km,
                     llm,
                     stats,
+                    generation_instruction,
                 ),
             )
         return _ScheduledSection(heading=heading, no_data=True)
@@ -955,6 +953,7 @@ class DmpGeneratorComponent:
         km: dict,
         llm: GenerationLLM,
         stats: AssignmentStats | None = None,
+        generation_instruction: str = '',
     ) -> tuple[str, str]:
         """Generate markdown/debug markdown for a leaf node with assignments.
 
@@ -971,8 +970,8 @@ class DmpGeneratorComponent:
         rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
         prompt = self.construct_chapter_prompt(title, matches)
-        if prompt and title == 'Projects' and self.projects_generation_prompt:
-            prompt += f'\n\n{self.projects_generation_prompt}'
+        if prompt and generation_instruction:
+            prompt += f'\n\n{generation_instruction}'
         content = await llm.section_from_qa(prompt, stats) if prompt else 'No data'
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content

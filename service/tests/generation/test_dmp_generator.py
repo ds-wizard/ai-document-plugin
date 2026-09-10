@@ -1,6 +1,8 @@
 from typing import Optional
 from datetime import date
 
+import pytest
+
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
@@ -14,11 +16,11 @@ from ai_document_plugin_service.ai.knowledgemodel.parser_component import Parser
 
 def _component(
     gen_llm: GenerationLLM | None = None,
-    projects_generation_prompt: str = '',
+    header_generation_prompt: str = '',
 ) -> DmpGeneratorComponent:
     return DmpGeneratorComponent(
         dmp_generator_llm=gen_llm or StubGenerationLLM(),
-        projects_generation_prompt=projects_generation_prompt,
+        header_generation_prompt=header_generation_prompt,
     )
 
 
@@ -660,7 +662,9 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
     assert 'Source questions' in debug_markdown
 
 
-async def test_run_moves_projects_table_to_document_header() -> None:
+@pytest.mark.parametrize('cached', [False, True])
+@pytest.mark.parametrize('nested', [False, True])
+async def test_run_uses_header_assignments_regardless_of_title(cached: bool, nested: bool) -> None:
     stub = StubGenerationLLM(
         section_response=(
             '### Potato project\n\n'
@@ -669,10 +673,24 @@ async def test_run_moves_projects_table_to_document_header() -> None:
             '- Project number/code: 123'
         ),
     )
-    component = _component(stub, projects_generation_prompt='Use the answered project title as each subsection heading.')
+    component = _component(stub, header_generation_prompt='Use the answered project title as each subsection heading.')
+    header_assignments = [
+        SectionAssignment(
+            id='header-details',
+            title='Research overview',
+            assignments={
+                'itemQ': {
+                    'question_path': 'ch.itemQ',
+                    'question_title': 'Item',
+                    'question_text': 'Item text',
+                    'children': {},
+                },
+            },
+        )
+    ]
     assignments = [
         SectionAssignment(
-            id='projects',
+            id='document',
             title='Projects',
             assignments={
                 'itemQ': {
@@ -683,6 +701,37 @@ async def test_run_moves_projects_table_to_document_header() -> None:
                 },
             },
         ),
+    ]
+    if nested:
+        header_assignments = [SectionAssignment(id='header-root', title='Overview', children=header_assignments)]
+    replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
+
+    result = await component.run_async(
+        replies=replies,
+        km=_km_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        new_assignments=None if cached else _serialize_assignments(assignments),
+        new_header_assignments=None if cached else _serialize_assignments(header_assignments),
+        db_assignments=_serialize_assignments(assignments) if cached else None,
+        db_header_assignments=_serialize_assignments(header_assignments) if cached else None,
+        generate_dmp_metadata=True,
+    )
+
+    assert 'Research overview' in result['document_header']
+    assert '### Potato project' in result['document_header']
+    assert 'Research overview' not in result['markdown']
+    assert '# Projects' in result['markdown']
+    assert len(stub.section_calls) == 2
+    header_prompt = next(prompt for prompt in stub.section_calls if 'Research overview' in prompt)
+    body_prompt = next(prompt for prompt in stub.section_calls if 'Projects' in prompt)
+    assert 'Use the answered project title' in header_prompt
+    assert 'Use the answered project title' not in body_prompt
+
+
+async def test_run_reuses_assignments_without_header() -> None:
+    stub = StubGenerationLLM()
+    component = _component(stub, header_generation_prompt='Header-only instruction')
+    assignments = _serialize_assignments([
         SectionAssignment(
             id='document',
             title='Document section',
@@ -695,22 +744,27 @@ async def test_run_moves_projects_table_to_document_header() -> None:
                 },
             },
         ),
-    ]
+    ])
     replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
 
-    result = await component.run_async(
+    first = await component.run_async(
         replies=replies,
         km=_km_fixture(),
-        questionnaire_detail=_questionnaire_detail_fixture(),
-        new_assignments=_serialize_assignments(assignments),
-        generate_dmp_metadata=True,
+        new_assignments=assignments,
+        new_header_assignments=None,
+    )
+    repeated = await component.run_async(
+        replies=replies,
+        km=_km_fixture(),
+        db_assignments=assignments,
+        db_header_assignments=None,
     )
 
-    assert '# Projects' in result['document_header']
-    assert '### Potato project' in result['document_header']
-    assert '# Projects' not in result['markdown']
-    assert '# Document section' in result['markdown']
-    assert any('Use the answered project title' in prompt for prompt in stub.section_calls)
+    assert repeated['markdown'] == first['markdown']
+    assert '# Document section' in repeated['markdown']
+    assert repeated['document_header'] == first['document_header'] == ''
+    assert len(stub.section_calls) == 2
+    assert all('Header-only instruction' not in prompt for prompt in stub.section_calls)
 
 
 async def test_run_handles_empty_section() -> None:

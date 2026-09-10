@@ -310,7 +310,7 @@ async def test_document_header_component_adds_header_after_polishing() -> None:
         document_header='# Data Management Plan',
     )
 
-    assert result['markdown'] == '# Data Management Plan\n\n# Polished section'
+    assert result['markdown'] == '# Data Management Plan\n\n<!-- ai-document-header-end -->\n\n# Polished section'
 
 
 def test_match_replies_selection_handles_multianswer_groups() -> None:
@@ -785,3 +785,9 @@ async def test_run_handles_empty_section() -> None:
     assert '# Empty' in markdown
     assert 'No data' in markdown
     assert len(stub.section_calls) == 0
+
+
+@pytest.mark.parametrize(('header', 'body'), [('', '# Body'), ('# Header', ''), ('   ', '# Body')])
+async def test_header_boundary_requires_both_parts(header: str, body: str) -> None:
+    result = await DocumentHeaderComponent().run_async(markdown=body, document_header=header)
+    assert '<!-- ai-document-header-end -->' not in result['markdown']

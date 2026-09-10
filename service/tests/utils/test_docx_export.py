@@ -254,3 +254,23 @@ def test_empty_markdown_still_produces_a_readable_file(markdown: str) -> None:
     document = _render(markdown)
 
     assert all(not paragraph.text for paragraph in document.paragraphs)
+
+
+async def test_header_ends_with_page_break_in_word() -> None:
+    from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
+
+    result = await DocumentHeaderComponent().run_async(
+        document_header='# Custom header\n\nHeader details',
+        markdown='# Main content\n\nBody text',
+    )
+    document = _render(result['markdown'])
+    breaks = document.element.xpath('//w:br[@w:type="page"]')
+    assert len(breaks) == 1
+    paragraphs = document.paragraphs
+    assert [p.text for p in paragraphs] == ['Custom header', 'Header details', '', 'Main content', 'Body text']
+    assert paragraphs[2]._p.xpath('.//w:br[@w:type="page"]')
+
+
+def test_no_header_does_not_add_page_break() -> None:
+    document = _render('# Main content\n\nBody text')
+    assert not document.element.xpath('//w:br[@w:type="page"]')

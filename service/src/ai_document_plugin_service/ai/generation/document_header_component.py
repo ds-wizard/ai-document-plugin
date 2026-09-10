@@ -2,6 +2,8 @@ from typing import TypedDict
 
 from haystack import component
 
+from ai_document_plugin_service.utils.document_markers import DOCUMENT_HEADER_END
+
 
 class DocumentHeaderComponentResult(TypedDict):
     markdown: str
@@ -17,7 +19,8 @@ class DocumentHeaderComponent:
         markdown: str,
         document_header: str = '',
     ) -> DocumentHeaderComponentResult:
-        combined_markdown = '\n\n'.join(part for part in (document_header, markdown) if part)
+        separator = f'\n\n{DOCUMENT_HEADER_END}\n\n'
+        combined_markdown = separator.join(part for part in (document_header, markdown) if part.strip())
         return {'markdown': combined_markdown}
 
     @component.output_types(markdown=str)

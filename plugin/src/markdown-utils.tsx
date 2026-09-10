@@ -11,6 +11,7 @@ export function MarkdownRenderer({ markdown }: MarkdownRendererProps) {
     return (
         <div className={styles.root}>
             <ReactMarkdown
+                skipHtml
                 remarkPlugins={[remarkGfm]}
                 components={{
                     a: ({ node: _node, ...props }) => (

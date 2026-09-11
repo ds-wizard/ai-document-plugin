@@ -12,11 +12,7 @@ class ExtraFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         formatted = super().format(record)
-        extra = {
-            key: value
-            for key, value in record.__dict__.items()
-            if key not in _STANDARD_LOG_RECORD_FIELDS
-        }
+        extra = {key: value for key, value in record.__dict__.items() if key not in _STANDARD_LOG_RECORD_FIELDS}
         return f'{formatted} | extra={extra!r}' if extra else formatted
 
 
@@ -68,5 +64,6 @@ def _install_trace_log_record_factory() -> None:
 
 def _trace_log_record_factory(*args: object, **kwargs: object) -> logging.LogRecord:
     record = _ORIGINAL_LOG_RECORD_FACTORY(*args, **kwargs)
-    record.traceId = get_trace_id()
+    trace_id = get_trace_id()
+    record.traceId = '-' if trace_id is None else str(trace_id)
     return record

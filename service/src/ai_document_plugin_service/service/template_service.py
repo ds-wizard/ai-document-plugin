@@ -120,7 +120,7 @@ class TemplateService:
     @staticmethod
     def _to_list_item(record: TemplateRecord) -> TemplateListItem:
         return TemplateListItem(
-            uuid=str(record.uuid),
+            uuid=record.uuid,
             title=record.title,
             scope=record.scope,
         )

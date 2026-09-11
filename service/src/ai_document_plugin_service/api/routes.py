@@ -79,10 +79,7 @@ async def export_template_as_json(
     template_uuid: UUID, exports: ExportServiceDI, auth: AuthenticatedDI
 ) -> fastapi.Response:
     export = await exports.export_template_as_json(template_uuid, auth)
-    return fastapi.Response(
-        content=export.content,
-        media_type=JSON_MEDIA_TYPE
-    )
+    return fastapi.Response(content=export.content, media_type=JSON_MEDIA_TYPE)
 
 
 @protected_router.post('/pipelines/run')
@@ -101,7 +98,7 @@ async def start_pipeline(
         template.title,
         auth,
         config,
-        getattr(request.state, 'trace_uuid', '-'),
+        getattr(request.state, 'trace_uuid', None),
     )
     status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:

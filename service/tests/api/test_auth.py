@@ -15,12 +15,13 @@ from ai_document_plugin_service.app import create_app
 TEST_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'config.test.yaml'
 
 ALLOWED_URL = 'https://your-dsw-instance.example.com/wizard-api'
-ALLOWED_TENANT_UUID = '123e4567-e89b-12d3-a456-426614174000'
-OTHER_TENANT_UUID = '00000000-0000-0000-0000-000000000000'
+ALLOWED_TENANT_UUID = UUID('123e4567-e89b-12d3-a456-426614174000')
+OTHER_TENANT_UUID = UUID('00000000-0000-0000-0000-000000000000')
 
 
-def _make_token(*, user_uuid: str, tenant_uuid: str) -> str:
-    payload = base64.urlsafe_b64encode(json.dumps({'user_uuid': user_uuid, 'tenant_uuid': tenant_uuid}).encode()).decode()
+def _make_token(*, user_uuid: UUID, tenant_uuid: UUID) -> str:
+    claims = {'user_uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)}
+    payload = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode()
     return f'header.{payload}'
 
 
@@ -44,17 +45,17 @@ def test_normalize_project_url_strips_trailing_slash() -> None:
 
 def test_is_allowed_request_matches_normalized_url_and_tenant() -> None:
     allowed_api = (AllowedApi(url=ALLOWED_URL, tenant_uuid=ALLOWED_TENANT_UUID),AllowedApi(url="https://some-other-url.com", tenant_uuid=OTHER_TENANT_UUID))
-    assert is_allowed_request(f'{ALLOWED_URL}/', UUID(ALLOWED_TENANT_UUID), allowed_api)
-    assert not is_allowed_request('https://other.example.com', UUID(ALLOWED_TENANT_UUID), allowed_api)
-    assert not is_allowed_request(ALLOWED_URL, UUID(OTHER_TENANT_UUID), allowed_api)
+    assert is_allowed_request(f'{ALLOWED_URL}/', ALLOWED_TENANT_UUID, allowed_api)
+    assert not is_allowed_request('https://other.example.com', ALLOWED_TENANT_UUID, allowed_api)
+    assert not is_allowed_request(ALLOWED_URL, OTHER_TENANT_UUID, allowed_api)
 
 
 def test_is_allowed_request_allows_wildcard_url_or_tenant() -> None:
     wildcard_url = (AllowedApi(url='*', tenant_uuid=ALLOWED_TENANT_UUID),)
     wildcard_tenant = (AllowedApi(url=ALLOWED_URL, tenant_uuid='*'),)
 
-    assert is_allowed_request('https://anything.example.com', UUID(ALLOWED_TENANT_UUID), wildcard_url)
-    assert is_allowed_request(ALLOWED_URL, UUID(OTHER_TENANT_UUID), wildcard_tenant)
+    assert is_allowed_request('https://anything.example.com', ALLOWED_TENANT_UUID, wildcard_url)
+    assert is_allowed_request(ALLOWED_URL, OTHER_TENANT_UUID, wildcard_tenant)
 
 
 def test_health_check_does_not_require_auth(monkeypatch) -> None:
@@ -128,7 +129,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
                 uuid=template_uuid,
                 title='Template 1',
                 content={'sections': []},
-                tenant_uuid=UUID(ALLOWED_TENANT_UUID),
+                tenant_uuid=ALLOWED_TENANT_UUID,
                 user_uuid=None,
             ),
         ],
@@ -164,7 +165,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
                 uuid=template_uuid,
                 title='Template 1',
                 content={'sections': []},
-                tenant_uuid=UUID(ALLOWED_TENANT_UUID),
+                tenant_uuid=ALLOWED_TENANT_UUID,
                 user_uuid=None,
             ),
         ],

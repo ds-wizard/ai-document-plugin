@@ -1,6 +1,7 @@
 import logging
 import typing
 from abc import ABC, abstractmethod
+from uuid import UUID
 
 from ai_document_plugin_service.ai.assignment.types import LeafSection
 from ai_document_plugin_service.ai.common.config import Config
@@ -20,7 +21,7 @@ class SectionIdGenerator(ABC):
         self,
         leaf_sections: list[LeafSection],
         stats: AssignmentStats,
-    ) -> dict[str, str]:
+    ) -> dict[UUID, str]:
         """Return record_id -> sid (short LLM-facing id) for every leaf section.
 
         The `LeafSection.id` is the dictionary key; the human `title` is used only inside
@@ -38,7 +39,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
         self,
         leaf_sections: list[LeafSection],
         stats: AssignmentStats,
-    ) -> dict[str, str]:
+    ) -> dict[UUID, str]:
         """Generate one short unique sid per leaf section.
 
         Returns:
@@ -46,7 +47,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
         """
         system_msg = self.config.section_id.system_message
         user_tpl = self.config.section_id.user_message
-        result: dict[str, str] = {}
+        result: dict[UUID, str] = {}
         used_ids: set[str] = set()
         total_sections = len(leaf_sections)
 
@@ -82,9 +83,9 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
             logger.info(
                 'Generating section identifiers progress',
                 extra={
-                        'completed_sections': index,
-                        'total_sections': total_sections,
-                    }
+                    'completed_sections': index,
+                    'total_sections': total_sections,
+                },
             )
 
         return result
@@ -105,16 +106,16 @@ class LoggingNoopSectionIdGenerator(SectionIdGenerator):
         self,
         leaf_sections: list[LeafSection],
         _: AssignmentStats,
-    ) -> dict[str, str]:
-        res = {}
+    ) -> dict[UUID, str]:
+        res: dict[UUID, str] = {}
         total_sections = len(leaf_sections)
         for index, leaf in enumerate(leaf_sections, start=1):
             res[leaf.id] = f'{leaf.id}_{index - 1}'
             logger.info(
                 'Generating section identifiers progress',
                 extra={
-                        'completed_sections': index,
-                        'total_sections': total_sections,
-                    }
+                    'completed_sections': index,
+                    'total_sections': total_sections,
+                },
             )
         return res

@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from ai_document_plugin_service.ai.assignment.types import (
     AssignmentQuestionNode,
@@ -14,7 +15,7 @@ class UnexpectedAssignmentPathError(ValueError):
 
 def convert_mappings_to_assignment_tree(
     sections: list[SectionRecord],
-    path_to_sections_mappings: dict[str, list[str]],
+    path_to_sections_mappings: dict[str, list[UUID]],
     km: dict[str, Any],
 ) -> list[SectionAssignment]:
     """Build the assignment tree from question-path -> section-id mappings.
@@ -22,7 +23,7 @@ def convert_mappings_to_assignment_tree(
     Keys in `path_to_sections_mappings` values are the synthetic record ids
     (`SectionRecord.id`), not titles, so duplicate-titled leaves stay distinct.
     """
-    section_id_to_paths: dict[str, list[str]] = {}
+    section_id_to_paths: dict[UUID, list[str]] = {}
     for path, section_ids in path_to_sections_mappings.items():
         for section_id in section_ids:
             if section_id not in section_id_to_paths:
@@ -37,7 +38,7 @@ def convert_mappings_to_assignment_tree(
 
 def convert_mappings_to_assignment_tree_recursive(
     sections: list[SectionRecord],
-    section_id_to_paths: dict[str, list[str]],
+    section_id_to_paths: dict[UUID, list[str]],
     km: dict[str, Any],
 ) -> list[SectionAssignment]:
     """Convert flat leaf assignments into the section hierarchy."""

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, TypedDict
+from uuid import UUID
 
 
 class AssignmentQuestionNode(TypedDict, total=False):
@@ -38,7 +39,7 @@ class SectionNode:
 class LeafSection:
     """Flattened view of a leaf `SectionRecord` used for ID generation and prompt building."""
 
-    id: str
+    id: UUID
     title: str
     text: str
 
@@ -51,7 +52,7 @@ class SectionRecord:
     `title` is the human-readable label and may collide with sibling/cousin titles.
     """
 
-    id: str
+    id: UUID
     title: str
     section: SectionNode
     text: str | None = None  # leaf: formatted content for matching
@@ -66,14 +67,14 @@ class SectionAssignment:
     authoritative key for downstream processing. `title` is kept alongside for human-readable output.
     """
 
-    id: str
+    id: UUID
     title: str
     assignments: AssignmentTree | None = None  # leaf: matched questions
     children: list['SectionAssignment'] | None = None  # non-leaf: nested section assignments
 
     def to_dict(self) -> SerializedSectionAssignment:
         return {
-            'id': self.id,
+            'id': str(self.id),
             'title': self.title,
             'assignments': self.assignments or None,
             'children': [c.to_dict() for c in self.children] if self.children else None,

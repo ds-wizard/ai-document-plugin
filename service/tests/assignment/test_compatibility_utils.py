@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 
 import pytest
 
@@ -145,15 +146,17 @@ def test_convert_mappings_real_km():
     with open(resource_path, encoding='utf-8', mode='r') as f:
         km = json.load(f)
 
+    dmp_section_id = uuid.uuid4()
+    project_section_id = uuid.uuid4()
     sections = [
         SectionRecord(
-            id='s0',
+            id=dmp_section_id,
             title='Data management plan',
             section=SectionNode({'title': 'Data management plan'}),
             text=None,
             children=[
                 SectionRecord(
-                    id='s1',
+                    id=project_section_id,
                     title='Project',
                     section=SectionNode({'title': 'Project'}),
                     text="[PARENT SECTION]\nTitle: Data management plan\n\n[MOST SPECIFIC SECTION]\nTitle: Project\nContent:\nIt contains project number, project acronym, project name.'",
@@ -164,7 +167,7 @@ def test_convert_mappings_real_km():
     ]
     result_mapping = {
         '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b':
-            ['s1']
+            [project_section_id]
     }
 
     mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km)

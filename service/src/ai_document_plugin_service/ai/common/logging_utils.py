@@ -68,5 +68,6 @@ def _install_trace_log_record_factory() -> None:
 
 def _trace_log_record_factory(*args: object, **kwargs: object) -> logging.LogRecord:
     record = _ORIGINAL_LOG_RECORD_FACTORY(*args, **kwargs)
-    record.traceId = get_trace_id()
+    trace_id = get_trace_id()
+    record.traceId = '-' if trace_id is None else str(trace_id)
     return record

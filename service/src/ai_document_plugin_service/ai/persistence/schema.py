@@ -96,6 +96,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
 
         # Columns used for analysis only:
         Column('dmp_pre_polished', Text, nullable=True),
+        # at start same as result_markdown, but not editable. Older rows don't have the original value saved
+        Column('dmp_polished', Text, nullable=True),
         Column('llm_calls', Integer, nullable=True),
         Column('input_tokens', Integer, nullable=True),
         Column('output_tokens', Integer, nullable=True),

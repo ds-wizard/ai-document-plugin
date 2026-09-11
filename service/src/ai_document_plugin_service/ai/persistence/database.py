@@ -62,6 +62,7 @@ class GenerationUpdate(TypedDict, total=False):
     result_markdown: str | None
     progress_message: str | None
     dmp_pre_polished: str | None
+    dmp_polished: str | None
     llm_calls: int | None
     input_tokens: int | None
     output_tokens: int | None

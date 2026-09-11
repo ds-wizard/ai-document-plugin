@@ -307,6 +307,7 @@ class PipelineService:
             knowledge_model_uuid=output.knowledge_model_uuid,
             result_markdown=output.markdown,
             dmp_pre_polished=output.dmp_pre_polished,
+            dmp_polished=output.markdown,
             llm_calls=output.stats.llm_calls,
             input_tokens=output.stats.input_tokens,
             output_tokens=output.stats.output_tokens,

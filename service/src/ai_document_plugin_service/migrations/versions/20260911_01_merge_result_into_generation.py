@@ -33,6 +33,7 @@ def upgrade() -> None:
     schema = context.get_context().version_table_schema
 
     op.add_column('generation', sa.Column('dmp_pre_polished', sa.Text(), nullable=True), schema=schema)
+    op.add_column('generation', sa.Column('dmp_polished', sa.Text(), nullable=True), schema=schema)
     op.add_column('generation', sa.Column('llm_calls', sa.Integer(), nullable=True), schema=schema)
     op.add_column('generation', sa.Column('input_tokens', sa.Integer(), nullable=True), schema=schema)
     op.add_column('generation', sa.Column('output_tokens', sa.Integer(), nullable=True), schema=schema)

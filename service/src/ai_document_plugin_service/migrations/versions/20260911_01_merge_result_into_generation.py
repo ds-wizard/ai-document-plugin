@@ -80,8 +80,3 @@ def upgrade() -> None:
     )
 
     op.drop_table('result', schema=schema)
-
-
-def downgrade() -> None:
-    msg = 'Merging result into generation is irreversible.'
-    raise NotImplementedError(msg)

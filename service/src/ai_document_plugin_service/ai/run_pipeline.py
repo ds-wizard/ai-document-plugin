@@ -4,6 +4,7 @@ import argparse
 import logging
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -14,6 +15,8 @@ from ai_document_plugin_service.ai.assignment.assignment_component import Assign
 from ai_document_plugin_service.ai.common import (
     Config,
     PipelineMetricsCollector,
+    PipelineStats,
+    StepUsage,
     get_component_markdown,
     get_component_stats,
 )
@@ -27,7 +30,6 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
     DBSaver,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
@@ -38,13 +40,18 @@ if TYPE_CHECKING:
     from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
 
-# Cost per million tokens (USD) - adjust for your model
-COST_PER_MIL_INPUT = 0.25
-COST_PER_MIL_OUTPUT = 2.0
-
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str], None]
+
+
+@dataclass(frozen=True)
+class PipelineOutput:
+    knowledge_model_uuid: UUID
+    markdown: str
+    # Generator output before polishing (the text fed into the polisher).
+    dmp_pre_polished: str
+    stats: PipelineStats
 
 
 def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_client: LLMClient) -> AsyncPipeline:
@@ -55,7 +62,6 @@ def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_clien
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
     dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config))
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config))
-    saver_component = SaverComponent(database=database)
 
     # ROUTES
     routes: list[Route] = [
@@ -82,7 +88,6 @@ def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_clien
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
-    pipeline.add_component('saver_component', saver_component)
 
     # CONNECTIONS
     # loader_component -> router
@@ -99,12 +104,8 @@ def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_clien
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
-    # dmp_generator_component -> prepolished_saver_component
-    pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
-    # prepolisher_saver_component -> dmp_polisher_component
+    # dmp_generator_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
-    # dmp_polisher_component -> polished_saver_component
-    pipeline.connect('dmp_polisher_component.markdown', 'saver_component.markdown')
 
     return pipeline
 
@@ -114,15 +115,11 @@ async def run_pipeline(
     template_uuid: UUID,
     template_title: str,
     template_data: Mapping[str, object],
-    user_uuid: UUID,
     tenant_uuid: UUID,
     pipeline: AsyncPipeline,
-    database: Database,
     dsw_client: DSWClient,
-    model_name: str,
     on_progress: ProgressCallback | None = None,
-) -> tuple[UUID, str]:
-    t1 = time.time()
+) -> PipelineOutput:
     pipeline_total_started = time.perf_counter()
     questionnaire_fetch_started = time.perf_counter()
     try:
@@ -176,18 +173,11 @@ async def run_pipeline(
                     'template_data': template_data,
                     'on_progress': on_progress,
                 },
-                'saver_component': {
-                    'template_uuid': template_uuid,
-                    'knowledge_model_uuid': knowledge_model_uuid,
-                    'user_uuid': user_uuid,
-                    'tenant_uuid': tenant_uuid,
-                },
             },
             include_outputs_from={
                 'assignment_saver_component',
                 'dmp_generator_component',
                 'dmp_polisher_component',
-                'saver_component',
             },
         )
     except Exception:
@@ -200,10 +190,18 @@ async def run_pipeline(
         'pipeline_components_finished',
         duration_ms=round((time.perf_counter() - pipeline_started) * 1000, 3),
     )
+    total_time = time.perf_counter() - pipeline_total_started
 
-    result_markdown = get_component_markdown(result, 'saver_component')
+    result_markdown = get_component_markdown(result, 'dmp_polisher_component')
     if result_markdown is None:
-        msg = 'Missing markdown output from saver_component'
+        msg = 'Missing markdown output from dmp_polisher_component'
+        logger.error(msg, extra={'template_uuid': str(template_uuid)})
+        raise RuntimeError(msg)
+
+    # The clean generator output, not its debug_markdown (which embeds the source-question tables).
+    dmp_pre_polished = get_component_markdown(result, 'dmp_generator_component')
+    if dmp_pre_polished is None:
+        msg = 'Missing markdown output from dmp_generator_component'
         logger.error(msg, extra={'template_uuid': str(template_uuid)})
         raise RuntimeError(msg)
 
@@ -211,33 +209,12 @@ async def run_pipeline(
     generation_stats = get_component_stats(result, 'dmp_generator_component')
     polishing_stats = get_component_stats(result, 'dmp_polisher_component')
 
-    metrics_started = time.perf_counter()
-    try:
-        await write_metrics(
-            database,
-            template_uuid,
-            knowledge_model_uuid,
-            user_uuid,
-            tenant_uuid,
-            result,
-            model_name,
-            t1,
-        )
-    except Exception:
-        logger.exception(
-            'Failed to persist pipeline metrics',
-            extra={'template_uuid': str(template_uuid), 'knowledge_model_uuid': str(knowledge_model_uuid)},
-        )
-        raise
-    log_timing_event(
-        'pipeline_metrics_saved',
-        duration_ms=round((time.perf_counter() - metrics_started) * 1000, 3),
-    )
+    pipeline_stats = collect_stats(result, total_time)
     log_timing_event(
         'pipeline_summary',
         generation_ms=generation_stats.total_duration_ms if generation_stats is not None else None,
         polishing_ms=polishing_stats.total_duration_ms if polishing_stats is not None else None,
-        total_pipeline_ms=round((time.perf_counter() - pipeline_total_started) * 1000, 3),
+        total_pipeline_ms=round(total_time * 1000, 3),
         total_llm_wait_ms=round(
             sum(
                 stats.total_llm_wait_ms
@@ -255,50 +232,32 @@ async def run_pipeline(
             3,
         ),
     )
-    return knowledge_model_uuid, result_markdown
-
-
-async def write_metrics(
-    database: Database,
-    template_uuid: UUID,
-    knowledge_model_uuid: UUID,
-    user_uuid: UUID,
-    tenant_uuid: UUID,
-    result: Mapping[str, object],
-    model_name: str,
-    t1: float,
-) -> None:
-    metrics = PipelineMetricsCollector(
-        model_name=model_name,
-        cost_per_mil_input=COST_PER_MIL_INPUT,
-        cost_per_mil_output=COST_PER_MIL_OUTPUT,
-    )
-    metrics.add_step(
-        '1. Hierarchical assignment',
-        get_component_stats(result, 'assignment_saver_component'),
-    )
-    metrics.add_step(
-        '2. DMP generator',
-        get_component_stats(result, 'dmp_generator_component'),
-    )
-    metrics.add_step(
-        '3. DMP polisher',
-        get_component_stats(result, 'dmp_polisher_component'),
-    )
-
-    t2 = time.time()
-
-    stats = metrics.get_stats(elapsed_seconds=t2 - t1)
-    await database.save_stats(
-        template_uuid=template_uuid,
+    return PipelineOutput(
         knowledge_model_uuid=knowledge_model_uuid,
-        user_uuid=user_uuid,
-        tenant_uuid=tenant_uuid,
-        stats=stats,
+        markdown=result_markdown,
+        dmp_pre_polished=dmp_pre_polished,
+        stats=pipeline_stats,
     )
 
-    logger.debug('Saved DMP stats')
+
+def collect_stats(result: Mapping[str, object], total_time: float) -> PipelineStats:
+    """Collect per-step LLM usage. Pure, so it can never fail a finished run."""
+    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    generation_stats = get_component_stats(result, 'dmp_generator_component')
+    polishing_stats = get_component_stats(result, 'dmp_polisher_component')
+
+    metrics = PipelineMetricsCollector()
+    metrics.add_step('1. Hierarchical assignment', assignment_stats)
+    metrics.add_step('2. DMP generator', generation_stats)
+    metrics.add_step('3. DMP polisher', polishing_stats)
     metrics.log_summary(logger)
+
+    return PipelineStats(
+        assignment=StepUsage.from_stats(assignment_stats),
+        generation=StepUsage.from_stats(generation_stats),
+        polishing=StepUsage.from_stats(polishing_stats),
+        elapsed_seconds=total_time,
+    )
 
 
 def _parse_args() -> argparse.Namespace:

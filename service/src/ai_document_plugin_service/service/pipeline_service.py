@@ -16,8 +16,8 @@ from ai_document_plugin_service.ai.common.execution_logging import (
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
-from ai_document_plugin_service.ai.persistence.database import Database, GenerationRecord
-from ai_document_plugin_service.ai.run_pipeline import build_pipeline, run_pipeline
+from ai_document_plugin_service.ai.persistence.database import Database, GenerationRecord, GenerationUpdate
+from ai_document_plugin_service.ai.run_pipeline import PipelineOutput, build_pipeline, run_pipeline
 from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
     ErrorType,
@@ -28,7 +28,7 @@ from ai_document_plugin_service.api.types import (
     PipelineStatusResponse,
     PipelineSummaryResponse,
 )
-from ai_document_plugin_service.service.errors import InternalError, NotFoundError
+from ai_document_plugin_service.service.errors import ConflictError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
@@ -83,6 +83,30 @@ def _generation_record_to_summary_response(record: GenerationRecord) -> Pipeline
         created_at=record.created_at.isoformat(),
         updated_at=record.updated_at.isoformat(),
     )
+
+
+def _succeeded_update(output: PipelineOutput) -> GenerationUpdate:
+    """Everything a finished run writes, as one update. Per-step usage stays NULL for steps that did not run."""
+    stats = output.stats
+    assignment, generation, polishing = stats.assignment, stats.generation, stats.polishing
+    return {
+        'status': PipelineStatus.SUCCEEDED,
+        'knowledge_model_uuid': output.knowledge_model_uuid,
+        'result_markdown': output.markdown,
+        'dmp_pre_polished': output.dmp_pre_polished,
+        'dmp_polished': output.markdown,
+        'progress_message': None,
+        'assignment_llm_calls': assignment.llm_calls if assignment else None,
+        'assignment_input_tokens': assignment.input_tokens if assignment else None,
+        'assignment_output_tokens': assignment.output_tokens if assignment else None,
+        'generation_llm_calls': generation.llm_calls if generation else None,
+        'generation_input_tokens': generation.input_tokens if generation else None,
+        'generation_output_tokens': generation.output_tokens if generation else None,
+        'polishing_llm_calls': polishing.llm_calls if polishing else None,
+        'polishing_input_tokens': polishing.input_tokens if polishing else None,
+        'polishing_output_tokens': polishing.output_tokens if polishing else None,
+        'elapsed_seconds': stats.elapsed_seconds,
+    }
 
 
 class LlmClientTenantStore:
@@ -177,7 +201,7 @@ class PipelineService:
                 llm_config,
                 config,
             ),
-            trace_id=trace_id
+            trace_id=trace_id,
         )
         return run_id
 
@@ -188,16 +212,8 @@ class PipelineService:
         if record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
 
-        if record.knowledge_model_uuid is None:
-            raise InternalError(InternalError.MISSING_KNOWLEDGE_MODEL_MESSAGE)
-
-        await self.database.update_result(
-            template_uuid=record.template_uuid,
-            knowledge_model_uuid=record.knowledge_model_uuid,
-            user_uuid=auth.user_uuid,
-            tenant_uuid=auth.tenant_uuid,
-            markdown=save_request.result_markdown,
-        )
+        if record.status != PipelineStatus.SUCCEEDED:
+            raise ConflictError(ConflictError.PIPELINE_RUN_NOT_FINISHED_MESSAGE)
 
         updated_record = await self.database.update_generation(
             run_id,
@@ -295,35 +311,26 @@ class PipelineService:
             )
             task.add_done_callback(_log_background_update_failure)
 
-        knowledge_model_uuid, result = await run_pipeline(
+        output = await run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
             template_title=template.title,
             template_data=template.content,
-            user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
             pipeline=pipeline,
-            database=self.database,
             on_progress=on_progress,
-            model_name=llm_client.get_model_name(),
             dsw_client=DSWClient(auth.token, auth.api_url),
         )
-        log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(knowledge_model_uuid))
+        log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
 
-        await self.database.update_generation(
-            run_id,
-            auth.tenant_uuid,
-            status=PipelineStatus.SUCCEEDED,
-            knowledge_model_uuid=knowledge_model_uuid,
-            result_markdown=result,
-            progress_message=None,
-        )
+        # Everything the run produced is written in this one update, so it lands atomically.
+        await self.database.update_generation(run_id, auth.tenant_uuid, **_succeeded_update(output))
         logger.info(
             'Pipeline run status updated to succeeded',
             extra={
                 'run_id': run_id,
                 'tenant_uuid': str(auth.tenant_uuid),
-                'knowledge_model_uuid': str(knowledge_model_uuid),
-                'result_markdown_length': len(result),
+                'knowledge_model_uuid': str(output.knowledge_model_uuid),
+                'result_markdown_length': len(output.markdown),
             },
         )

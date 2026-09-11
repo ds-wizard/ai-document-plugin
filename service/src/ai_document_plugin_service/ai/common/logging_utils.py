@@ -12,11 +12,7 @@ class ExtraFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         formatted = super().format(record)
-        extra = {
-            key: value
-            for key, value in record.__dict__.items()
-            if key not in _STANDARD_LOG_RECORD_FIELDS
-        }
+        extra = {key: value for key, value in record.__dict__.items() if key not in _STANDARD_LOG_RECORD_FIELDS}
         return f'{formatted} | extra={extra!r}' if extra else formatted
 
 

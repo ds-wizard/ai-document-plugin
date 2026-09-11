@@ -83,9 +83,9 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
             logger.info(
                 'Generating section identifiers progress',
                 extra={
-                        'completed_sections': index,
-                        'total_sections': total_sections,
-                    }
+                    'completed_sections': index,
+                    'total_sections': total_sections,
+                },
             )
 
         return result
@@ -114,8 +114,8 @@ class LoggingNoopSectionIdGenerator(SectionIdGenerator):
             logger.info(
                 'Generating section identifiers progress',
                 extra={
-                        'completed_sections': index,
-                        'total_sections': total_sections,
-                    }
+                    'completed_sections': index,
+                    'total_sections': total_sections,
+                },
             )
         return res

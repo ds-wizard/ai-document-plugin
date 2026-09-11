@@ -33,7 +33,7 @@ def collect_leaf_section_texts(
 
 def render_section_tree_as_xml(
     sections: list[SectionRecord],
-    record_id_to_sid: dict[str, str] | None = None,
+    record_id_to_sid: dict[uuid.UUID, str] | None = None,
 ) -> str:
     """Render the section tree as XML.
 
@@ -66,7 +66,7 @@ def _build_records_recursively(
     for section_dict in sections:
         node = SectionNode(section_dict)
         title = node.title
-        record_id = str(uuid.uuid4())
+        record_id = uuid.uuid4()
         if not node.subsections:
             records.append(
                 SectionRecord(
@@ -106,7 +106,7 @@ def _section_index_to_letter_id(index: int) -> str:
 def _section_record_to_xml_node(
     section: SectionRecord,
     leaf_index: list[int],
-    record_id_to_sid: dict[str, str] | None,
+    record_id_to_sid: dict[uuid.UUID, str] | None,
 ) -> dict[str, Any]:
     if section.children is not None:
         node: dict[str, Any] = {

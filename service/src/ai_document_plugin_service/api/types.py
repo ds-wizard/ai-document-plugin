@@ -37,7 +37,7 @@ class TemplateScope(StrEnum):
 
 
 class TemplateListItem(ApiModel):
-    uuid: str
+    uuid: UUID
     title: str
     scope: TemplateScope
 

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from ai_document_plugin_service.ai.assignment.section_tree import (
     collect_leaf_section_texts,
     render_section_tree_as_xml,
@@ -13,8 +15,8 @@ class SectionFormatter:
     def __init__(self, sections: list[SectionRecord]) -> None:
         self.sections = sections
         self.leaf_sections = collect_leaf_section_texts(sections)
-        self.id_to_sid: dict[str, str] | None = None
-        self.sid_to_id: dict[str, str] | None = None
+        self.id_to_sid: dict[UUID, str] | None = None
+        self.sid_to_id: dict[str, UUID] | None = None
 
     async def create_mappings(
         self,
@@ -27,7 +29,7 @@ class SectionFormatter:
         )
         self.id_to_sid = id_to_sid
         # Forward keys (record ids) and sid values are both unique by construction:
-        # record ids come from _build_records_recursively (monotonic counter) and the
+        # record ids come from _build_records_recursively (uuid4) and the
         # sid generator de-duplicates via its own `used_ids` set. So a clean inverse exists.
         self.sid_to_id = {sid: rec_id for rec_id, sid in id_to_sid.items()}
 
@@ -41,12 +43,11 @@ class SectionFormatter:
             record_id_to_sid=self.id_to_sid,
         )
 
-    def record_id_for_sid(self, sid: str) -> str:
+    def record_id_for_sid(self, sid: str) -> UUID | None:
         """Resolve an LLM-facing sid back to the synthetic record id.
 
-        Falls back to returning the input unchanged when no mapping is registered yet,
-        matching the previous lenient behaviour.
+        Returns ``None`` when the sid is unknown (e.g. hallucinated by the LLM)
         """
         if self.sid_to_id is None:
-            return sid
-        return self.sid_to_id.get(sid, sid)
+            return None
+        return self.sid_to_id.get(sid)

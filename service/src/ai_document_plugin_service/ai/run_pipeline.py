@@ -311,7 +311,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='Run the AI document pipeline from the command line.',
     )
-    parser.add_argument('--questionnaire-uuid', required=True, help='DSW questionnaire UUID to process.')
+    parser.add_argument('--questionnaire-uuid', required=True, type=UUID, help='DSW questionnaire UUID to process.')
     parser.add_argument('--token', required=True, help='DSW bearer token used to fetch the questionnaire.')
-    parser.add_argument('--template-uuid', required=True, help='Template UUID stored in the database.')
+    parser.add_argument('--template-uuid', required=True, type=UUID, help='Template UUID stored in the database.')
     return parser.parse_args()

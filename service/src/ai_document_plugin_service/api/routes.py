@@ -114,7 +114,7 @@ async def start_pipeline(
         template.title,
         auth,
         config,
-        getattr(request.state, 'trace_uuid', '-'),
+        getattr(request.state, 'trace_uuid', None),
     )
     status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:

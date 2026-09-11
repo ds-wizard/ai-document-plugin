@@ -13,7 +13,7 @@ class DSWClient:
         self.token = token
         self.api_url = api_url.rstrip('/')
 
-    async def get_questionnaire_detail(self, questionnaire_uuid: str | UUID) -> dict:
+    async def get_questionnaire_detail(self, questionnaire_uuid: UUID) -> dict:
         url = f'{self.api_url}/projects/{questionnaire_uuid}/questionnaire'
         logger.info(
             'Fetching questionnaire detail from DSW',

@@ -2,7 +2,7 @@ import logging
 import os
 import pathlib
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final, Literal
 from uuid import UUID
 
 import yaml
@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = 'config.yaml'
 CONFIG_PATH_ENV_VAR = 'AI_DOCUMENT_PLUGIN_CONFIG_PATH'
-WILDCARD = '*'
+WILDCARD: Final = '*'
+Wildcard = Literal['*']
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,7 @@ class FilePaths:
 @dataclass(frozen=True)
 class AllowedApi:
     url: str
-    tenant_uuid: str
+    tenant_uuid: UUID | Wildcard
 
 
 @dataclass(frozen=True)
@@ -147,11 +148,12 @@ def _get_allowed_apis(config: dict[str, Any]) -> tuple[AllowedApi, ...]:
             raise ValueError(msg)
 
         url = raw_url.strip()
-        tenant_uuid = raw_tenant_uuid.strip()
+        stripped_tenant_uuid = raw_tenant_uuid.strip()
         normalized_url = url if url == WILDCARD else normalize_project_url(url)
-        if tenant_uuid != WILDCARD:
+        tenant_uuid: UUID | Wildcard = WILDCARD
+        if stripped_tenant_uuid != WILDCARD:
             try:
-                tenant_uuid = str(UUID(tenant_uuid))
+                tenant_uuid = UUID(stripped_tenant_uuid)
             except ValueError as error:
                 msg = f"Invalid config value: 'auth.allowed_apis[{index}].tenant_uuid' must be a UUID or '*'"
                 raise ValueError(msg) from error

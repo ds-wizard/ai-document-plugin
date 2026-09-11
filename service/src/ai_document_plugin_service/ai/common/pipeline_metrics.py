@@ -12,12 +12,31 @@ class PipelineMetricStep:
 
 
 @dataclass(frozen=True)
-class PipelineStats:
-    """Totals across all pipeline steps for a single run."""
+class StepUsage:
+    """LLM usage of one pipeline step in a single run."""
 
     llm_calls: int
     input_tokens: int
     output_tokens: int
+
+    @classmethod
+    def from_stats(cls, stats: AssignmentStats | None) -> 'StepUsage | None':
+        if stats is None:
+            return None
+        return cls(
+            llm_calls=stats.total_calls,
+            input_tokens=stats.total_input_tokens,
+            output_tokens=stats.total_output_tokens,
+        )
+
+
+@dataclass(frozen=True)
+class PipelineStats:
+    """Per-step LLM usage for a single run. A step is None when it did not run (e.g. cached assignments)."""
+
+    assignment: StepUsage | None
+    generation: StepUsage | None
+    polishing: StepUsage | None
     elapsed_seconds: float
 
 
@@ -29,14 +48,6 @@ class PipelineMetricsCollector:
         if stats is None:
             return
         self.steps.append(PipelineMetricStep(name=step_name, stats=stats))
-
-    def get_totals(self, elapsed_seconds: float) -> PipelineStats:
-        return PipelineStats(
-            llm_calls=self.total_llm_calls,
-            input_tokens=self.total_input_tokens,
-            output_tokens=self.total_output_tokens,
-            elapsed_seconds=elapsed_seconds,
-        )
 
     def log_summary(self, logger: logging.Logger) -> None:
         if not self.steps:

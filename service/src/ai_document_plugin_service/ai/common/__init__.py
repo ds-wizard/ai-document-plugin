@@ -4,6 +4,7 @@ from .logging_utils import configure_logging
 from .pipeline_metrics import (
     PipelineMetricsCollector,
     PipelineStats,
+    StepUsage,
     get_component_markdown,
     get_component_stats,
 )
@@ -14,6 +15,7 @@ __all__ = [
     'Config',
     'PipelineMetricsCollector',
     'PipelineStats',
+    'StepUsage',
     'call_with_retry',
     'configure_logging',
     'extract_usage_tokens',

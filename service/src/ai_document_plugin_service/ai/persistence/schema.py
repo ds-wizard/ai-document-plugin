@@ -98,9 +98,17 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('dmp_pre_polished', Text, nullable=True),
         # at start same as result_markdown, but not editable. Older rows don't have the original value saved
         Column('dmp_polished', Text, nullable=True),
-        Column('llm_calls', Integer, nullable=True),
-        Column('input_tokens', Integer, nullable=True),
-        Column('output_tokens', Integer, nullable=True),
+        # LLM usage per pipeline step. NULL when the step did not run (assignment is skipped
+        # when cached assignments are reused) or the run has no stats (failed or old runs).
+        Column('assignment_llm_calls', Integer, nullable=True),
+        Column('assignment_input_tokens', Integer, nullable=True),
+        Column('assignment_output_tokens', Integer, nullable=True),
+        Column('generation_llm_calls', Integer, nullable=True),
+        Column('generation_input_tokens', Integer, nullable=True),
+        Column('generation_output_tokens', Integer, nullable=True),
+        Column('polishing_llm_calls', Integer, nullable=True),
+        Column('polishing_input_tokens', Integer, nullable=True),
+        Column('polishing_output_tokens', Integer, nullable=True),
         Column('elapsed_seconds', Float, nullable=True),
         Column(
             'created_at',

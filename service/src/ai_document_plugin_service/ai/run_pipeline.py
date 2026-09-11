@@ -16,6 +16,7 @@ from ai_document_plugin_service.ai.common import (
     Config,
     PipelineMetricsCollector,
     PipelineStats,
+    StepUsage,
     get_component_markdown,
     get_component_stats,
 )
@@ -119,7 +120,6 @@ async def run_pipeline(
     dsw_client: DSWClient,
     on_progress: ProgressCallback | None = None,
 ) -> PipelineOutput:
-    t1 = time.time()
     pipeline_total_started = time.perf_counter()
     questionnaire_fetch_started = time.perf_counter()
     try:
@@ -190,6 +190,7 @@ async def run_pipeline(
         'pipeline_components_finished',
         duration_ms=round((time.perf_counter() - pipeline_started) * 1000, 3),
     )
+    total_time = time.perf_counter() - pipeline_total_started
 
     result_markdown = get_component_markdown(result, 'dmp_polisher_component')
     if result_markdown is None:
@@ -208,17 +209,12 @@ async def run_pipeline(
     generation_stats = get_component_stats(result, 'dmp_generator_component')
     polishing_stats = get_component_stats(result, 'dmp_polisher_component')
 
-    metrics_started = time.perf_counter()
-    pipeline_stats = collect_stats(result, t1)
-    log_timing_event(
-        'pipeline_metrics_collected',
-        duration_ms=round((time.perf_counter() - metrics_started) * 1000, 3),
-    )
+    pipeline_stats = collect_stats(result, total_time)
     log_timing_event(
         'pipeline_summary',
         generation_ms=generation_stats.total_duration_ms if generation_stats is not None else None,
         polishing_ms=polishing_stats.total_duration_ms if polishing_stats is not None else None,
-        total_pipeline_ms=round((time.perf_counter() - pipeline_total_started) * 1000, 3),
+        total_pipeline_ms=round(total_time * 1000, 3),
         total_llm_wait_ms=round(
             sum(
                 stats.total_llm_wait_ms
@@ -244,23 +240,24 @@ async def run_pipeline(
     )
 
 
-def collect_stats(result: Mapping[str, object], t1: float) -> PipelineStats:
-    """Sum the per-step stats into run totals. Pure, so it can never fail a finished run."""
+def collect_stats(result: Mapping[str, object], total_time: float) -> PipelineStats:
+    """Collect per-step LLM usage. Pure, so it can never fail a finished run."""
+    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    generation_stats = get_component_stats(result, 'dmp_generator_component')
+    polishing_stats = get_component_stats(result, 'dmp_polisher_component')
+
     metrics = PipelineMetricsCollector()
-    metrics.add_step(
-        '1. Hierarchical assignment',
-        get_component_stats(result, 'assignment_saver_component'),
-    )
-    metrics.add_step(
-        '2. DMP generator',
-        get_component_stats(result, 'dmp_generator_component'),
-    )
-    metrics.add_step(
-        '3. DMP polisher',
-        get_component_stats(result, 'dmp_polisher_component'),
-    )
+    metrics.add_step('1. Hierarchical assignment', assignment_stats)
+    metrics.add_step('2. DMP generator', generation_stats)
+    metrics.add_step('3. DMP polisher', polishing_stats)
     metrics.log_summary(logger)
-    return metrics.get_totals(elapsed_seconds=time.time() - t1)
+
+    return PipelineStats(
+        assignment=StepUsage.from_stats(assignment_stats),
+        generation=StepUsage.from_stats(generation_stats),
+        polishing=StepUsage.from_stats(polishing_stats),
+        elapsed_seconds=total_time,
+    )
 
 
 def _parse_args() -> argparse.Namespace:

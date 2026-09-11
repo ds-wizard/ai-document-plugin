@@ -4,9 +4,10 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    Float,
     ForeignKey,
-    ForeignKeyConstraint,
     Index,
+    Integer,
     MetaData,
     Table,
     Text,
@@ -21,7 +22,6 @@ class PersistenceSchema:
     metadata: MetaData
     assignment_table: Table
     template_table: Table
-    result_table: Table
     generation_table: Table
 
 
@@ -77,46 +77,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),
     )
 
-    result_table = Table(
-        'result',
-        metadata,
-        Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
-        Column('template_uuid', UUID(as_uuid=True), primary_key=True),
-        Column(
-            'user_uuid',
-            UUID(as_uuid=True),
-            primary_key=True,
-            nullable=False,
-        ),
-        Column(
-            'tenant_uuid',
-            UUID(as_uuid=True),
-            primary_key=True,
-            nullable=False,
-        ),
-        Column(
-            'created_at',
-            DateTime(timezone=True),
-            nullable=False,
-            server_default=func.now(),
-        ),
-        Column(
-            'updated_at',
-            DateTime(timezone=True),
-            nullable=False,
-            server_default=func.now(),
-        ),
-        Column('dmp', Text, nullable=False),
-        Column('dmp_pre_polished', Text, nullable=False),
-        Column('stats', JSON, nullable=True),
-        ForeignKeyConstraint(['template_uuid'], ['template.uuid'], name='fk_result_template_uuid'),
-        ForeignKeyConstraint(
-            ['knowledge_model_uuid', 'template_uuid'],
-            ['assignment.knowledge_model_uuid', 'assignment.template_uuid'],
-            name='fk_result_assignment',
-        ),
-    )
-
     generation_table = Table(
         'generation',
         metadata,
@@ -133,6 +93,13 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('error_message', Text, nullable=True),
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
+
+        # Columns used for analysis only:
+        Column('dmp_pre_polished', Text, nullable=True),
+        Column('llm_calls', Integer, nullable=True),
+        Column('input_tokens', Integer, nullable=True),
+        Column('output_tokens', Integer, nullable=True),
+        Column('elapsed_seconds', Float, nullable=True),
         Column(
             'created_at',
             DateTime(timezone=True),
@@ -158,6 +125,5 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         metadata=metadata,
         assignment_table=assignment_table,
         template_table=template_table,
-        result_table=result_table,
         generation_table=generation_table,
     )

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any, TypedDict, Unpack
 from uuid import UUID, uuid4
 
-from sqlalchemy import ColumnElement, Connection, Row, and_, inspect, or_
+from sqlalchemy import Column, ColumnElement, Connection, Row, and_, inspect, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
@@ -61,6 +61,11 @@ class GenerationUpdate(TypedDict, total=False):
     error_message: str | None
     result_markdown: str | None
     progress_message: str | None
+    dmp_pre_polished: str | None
+    llm_calls: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+    elapsed_seconds: float | None
 
 
 @dataclass(frozen=True)
@@ -198,40 +203,6 @@ class Database(ABC):
         """
 
     @abstractmethod
-    async def save_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        prepolished_markdown: str,
-        markdown: str,
-    ) -> None:
-        """Persist a markdown result in a database backend."""
-
-    @abstractmethod
-    async def save_stats(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        stats: JsonValue,
-    ) -> None:
-        """Persist a stats result in a database backend."""
-
-    @abstractmethod
-    async def update_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        markdown: str,
-    ) -> None:
-        """Persist a markdown result in a database backend."""
-
-    @abstractmethod
     async def create_generation(
         self,
         questionnaire_uuid: UUID,
@@ -295,7 +266,6 @@ class PostgresDB(Database):
         self.metadata = schema.metadata
         self.assignment_table = schema.assignment_table
         self.template_table = schema.template_table
-        self.result_table = schema.result_table
         self.generation_table = schema.generation_table
         self._database_verified = False
         logger.info(
@@ -345,6 +315,10 @@ class PostgresDB(Database):
         async with self.engine.begin() as connection:
             yield connection
 
+    def _generation_record_columns(self) -> list[Column[Any]]:
+        """Generation columns read into ``GenerationRecord``; skips the large write-only ones."""
+        return [column for column in self.generation_table.c if column.name in GenerationRecord.__dataclass_fields__]
+
     def _list_existing_tables(self, connection: Connection) -> set[str]:
         return set(inspect(connection).get_table_names(schema=self.schema_name))
 
@@ -356,7 +330,7 @@ class PostgresDB(Database):
         async with self.engine.connect() as connection:
             existing_tables = await connection.run_sync(self._list_existing_tables)
 
-        required_tables = {'alembic_version', 'template', 'assignment', 'result', 'generation'}
+        required_tables = {'alembic_version', 'template', 'assignment', 'generation'}
         missing_tables = sorted(required_tables - existing_tables)
 
         if missing_tables:
@@ -649,158 +623,6 @@ class PostgresDB(Database):
             return None
         return TemplateRecord.from_row(row)
 
-    async def save_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        prepolished_markdown: str,
-        markdown: str,
-    ) -> None:
-        await self._ensure_schema()
-        now = datetime.now(tz=UTC)
-
-        statement = postgresql_insert(self.result_table).values(
-            template_uuid=template_uuid,
-            knowledge_model_uuid=knowledge_model_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            dmp_pre_polished=prepolished_markdown,
-            dmp=markdown,
-            created_at=now,
-            updated_at=now,
-        )
-
-        upsert_statement = statement.on_conflict_do_update(
-            constraint='pk_result',
-            set_={
-                'dmp_pre_polished': statement.excluded.dmp_pre_polished,
-                'dmp': statement.excluded.dmp,
-                'updated_at': statement.excluded.updated_at,
-            },
-        )
-
-        async with self._connect() as connection:
-            await connection.execute(upsert_statement)
-
-        logger.info(
-            'Saved pipeline result',
-            extra={
-                'knowledge_model_uuid': knowledge_model_uuid,
-                'template_uuid': str(template_uuid),
-                'user_uuid': str(user_uuid),
-                'tenant_uuid': str(tenant_uuid),
-                'prepolished_markdown_length': len(prepolished_markdown),
-                'markdown_length': len(markdown),
-                'db.schema': self.schema_name,
-            },
-        )
-
-    async def save_stats(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        stats: JsonValue,
-    ) -> None:
-        await self._ensure_schema()
-        now = datetime.now(tz=UTC)
-
-        statement = (
-            self.result_table.update()
-            .where(
-                (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
-                & (self.result_table.c.template_uuid == template_uuid)
-                & (self.result_table.c.user_uuid == user_uuid)
-                & (self.result_table.c.tenant_uuid == tenant_uuid)
-            )
-            .values(stats=stats, updated_at=now)
-        )
-
-        async with self._connect() as connection:
-            result = await connection.execute(statement)
-
-        if result.rowcount == 0:
-            msg = 'Cannot save stats because result row does not exist yet. Save dmp and dmp_pre_polished first.'
-            logger.error(
-                'Stats update failed because result row does not exist',
-                extra={
-                    'knowledge_model_uuid': str(knowledge_model_uuid),
-                    'template_uuid': str(template_uuid),
-                    'user_uuid': str(user_uuid),
-                    'tenant_uuid': str(tenant_uuid),
-                    'db.schema': self.schema_name,
-                },
-            )
-            raise ValueError(msg)
-
-        logger.info(
-            'Saved pipeline stats',
-            extra={
-                'knowledge_model_uuid': str(knowledge_model_uuid),
-                'template_uuid': str(template_uuid),
-                'user_uuid': str(user_uuid),
-                'tenant_uuid': str(tenant_uuid),
-                'db.schema': self.schema_name,
-            },
-        )
-
-    async def update_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        markdown: str,
-    ) -> None:
-        await self._ensure_schema()
-        now = datetime.now(tz=UTC)
-
-        statement = (
-            self.result_table.update()
-            .where(
-                (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
-                & (self.result_table.c.template_uuid == template_uuid)
-                & (self.result_table.c.user_uuid == user_uuid)
-                & (self.result_table.c.tenant_uuid == tenant_uuid)
-            )
-            .values(
-                dmp=markdown,
-                updated_at=now,
-            )
-        )
-
-        async with self._connect() as connection:
-            result = await connection.execute(statement)
-
-        if result.rowcount == 0:
-            msg = 'Cannot save result because result row does not exist yet. Create the row first before updating dmp.'
-            logger.error(
-                'Result update failed because result row does not exist',
-                extra={
-                    'knowledge_model_uuid': str(knowledge_model_uuid),
-                    'template_uuid': str(template_uuid),
-                    'user_uuid': str(user_uuid),
-                    'tenant_uuid': str(tenant_uuid),
-                    'db.schema': self.schema_name,
-                },
-            )
-            raise ValueError(msg)
-
-        logger.info(
-            'Updated stored pipeline result markdown',
-            extra={
-                'knowledge_model_uuid': str(knowledge_model_uuid),
-                'template_uuid': str(template_uuid),
-                'user_uuid': str(user_uuid),
-                'tenant_uuid': str(tenant_uuid),
-                'markdown_length': len(markdown),
-                'db.schema': self.schema_name,
-            },
-        )
-
     async def create_generation(
         self,
         questionnaire_uuid: UUID,
@@ -850,7 +672,7 @@ class PostgresDB(Database):
             self.generation_table.update()
             .where((self.generation_table.c.run_id == run_id) & (self.generation_table.c.tenant_uuid == tenant_uuid))
             .values(**updates, updated_at=now)
-            .returning(*self.generation_table.c)
+            .returning(*self._generation_record_columns())
         )
 
         async with self._connect() as connection:
@@ -874,7 +696,7 @@ class PostgresDB(Database):
         user_uuid: UUID,
     ) -> GenerationRecord | None:
         await self._ensure_schema()
-        statement = self.generation_table.select().where(
+        statement = select(*self._generation_record_columns()).where(
             and_(
                 self.generation_table.c.run_id == run_id,
                 self.generation_table.c.tenant_uuid == tenant_uuid,
@@ -896,7 +718,7 @@ class PostgresDB(Database):
     ) -> list[GenerationRecord]:
         await self._ensure_schema()
         statement = (
-            self.generation_table.select()
+            select(*self._generation_record_columns())
             .where(
                 and_(
                     self.generation_table.c.questionnaire_uuid == questionnaire_uuid,

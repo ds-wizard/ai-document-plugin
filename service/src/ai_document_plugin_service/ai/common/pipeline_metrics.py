@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import JsonValue
 
 
 @dataclass(frozen=True)
@@ -12,11 +11,18 @@ class PipelineMetricStep:
     stats: AssignmentStats
 
 
+@dataclass(frozen=True)
+class PipelineStats:
+    """Totals across all pipeline steps for a single run."""
+
+    llm_calls: int
+    input_tokens: int
+    output_tokens: int
+    elapsed_seconds: float
+
+
 @dataclass
 class PipelineMetricsCollector:
-    model_name: str
-    cost_per_mil_input: float
-    cost_per_mil_output: float
     steps: list[PipelineMetricStep] = field(default_factory=list)
 
     def add_step(self, step_name: str, stats: AssignmentStats | None) -> None:
@@ -24,32 +30,39 @@ class PipelineMetricsCollector:
             return
         self.steps.append(PipelineMetricStep(name=step_name, stats=stats))
 
-    def get_stats(self, elapsed_seconds: float) -> JsonValue:
-        return self._build_summary_section(elapsed_seconds)
+    def get_totals(self, elapsed_seconds: float) -> PipelineStats:
+        return PipelineStats(
+            llm_calls=self.total_llm_calls,
+            input_tokens=self.total_input_tokens,
+            output_tokens=self.total_output_tokens,
+            elapsed_seconds=elapsed_seconds,
+        )
 
     def log_summary(self, logger: logging.Logger) -> None:
         if not self.steps:
             logger.debug('No pipeline metrics were collected.')
             return
 
-        logger.debug('Token usage and cost:')
+        logger.debug('Token usage:')
         for step in self.steps:
-            _, _, total_cost = self._price(step.stats)
             logger.debug(
-                '%s: %s calls, %s in / %s out tokens, %.2f USD',
+                '%s: %s calls, %s in / %s out tokens',
                 step.name,
                 f'{step.stats.total_calls:,}',
                 f'{step.stats.total_input_tokens:,}',
                 f'{step.stats.total_output_tokens:,}',
-                total_cost,
             )
 
         logger.debug(
-            'Total: %s in / %s out tokens, %.2f USD',
+            'Total: %s calls, %s in / %s out tokens',
+            f'{self.total_llm_calls:,}',
             f'{self.total_input_tokens:,}',
             f'{self.total_output_tokens:,}',
-            self.total_cost,
         )
+
+    @property
+    def total_llm_calls(self) -> int:
+        return sum(step.stats.total_calls for step in self.steps)
 
     @property
     def total_input_tokens(self) -> int:
@@ -58,58 +71,6 @@ class PipelineMetricsCollector:
     @property
     def total_output_tokens(self) -> int:
         return sum(step.stats.total_output_tokens for step in self.steps)
-
-    @property
-    def total_cost(self) -> float:
-        return sum(self._price(step.stats)[2] for step in self.steps)
-
-    @property
-    def total_llm_wait_ms(self) -> float:
-        return round(sum(step.stats.total_llm_wait_ms for step in self.steps), 3)
-
-    @property
-    def total_llm_response_ms(self) -> float:
-        return round(sum(step.stats.total_llm_response_ms for step in self.steps), 3)
-
-    def _price(self, stats: AssignmentStats) -> tuple[float, float, float]:
-        input_cost = stats.total_input_tokens * self.cost_per_mil_input / 1_000_000
-        output_cost = stats.total_output_tokens * self.cost_per_mil_output / 1_000_000
-        return input_cost, output_cost, input_cost + output_cost
-
-    def _build_summary_section(self, elapsed_seconds: float) -> JsonValue:
-        return {
-            'title': 'Pipeline token usage and cost',
-            'headers': [
-                'Step',
-                'LLM calls',
-                'Input tokens',
-                'Output tokens',
-                'Cost (USD)',
-            ],
-            'rows': [
-                {
-                    'step': step.name,
-                    'llm_calls': step.stats.total_calls,
-                    'input_tokens': step.stats.total_input_tokens,
-                    'output_tokens': step.stats.total_output_tokens,
-                    'cost_usd': round(self._price(step.stats)[2], 2),
-                }
-                for step in self.steps
-            ],
-            'totals': {
-                'input_tokens': self.total_input_tokens,
-                'output_tokens': self.total_output_tokens,
-                'cost_usd': round(self.total_cost, 2),
-            },
-            'meta': {
-                'model_name': self.model_name,
-                'cost_per_mil_input': self.cost_per_mil_input,
-                'cost_per_mil_output': self.cost_per_mil_output,
-                'elapsed_seconds': elapsed_seconds,
-                'total_llm_wait_ms': self.total_llm_wait_ms,
-                'total_llm_response_ms': self.total_llm_response_ms,
-            },
-        }
 
 
 def _get_component_dict(

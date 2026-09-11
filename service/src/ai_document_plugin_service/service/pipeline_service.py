@@ -28,7 +28,7 @@ from ai_document_plugin_service.api.types import (
     PipelineStatusResponse,
     PipelineSummaryResponse,
 )
-from ai_document_plugin_service.service.errors import InternalError, NotFoundError
+from ai_document_plugin_service.service.errors import ConflictError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
@@ -188,16 +188,8 @@ class PipelineService:
         if record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
 
-        if record.knowledge_model_uuid is None:
-            raise InternalError(InternalError.MISSING_KNOWLEDGE_MODEL_MESSAGE)
-
-        await self.database.update_result(
-            template_uuid=record.template_uuid,
-            knowledge_model_uuid=record.knowledge_model_uuid,
-            user_uuid=auth.user_uuid,
-            tenant_uuid=auth.tenant_uuid,
-            markdown=save_request.result_markdown,
-        )
+        if record.status != PipelineStatus.SUCCEEDED:
+            raise ConflictError(ConflictError.PIPELINE_RUN_NOT_FINISHED_MESSAGE)
 
         updated_record = await self.database.update_generation(
             run_id,
@@ -295,27 +287,30 @@ class PipelineService:
             )
             task.add_done_callback(_log_background_update_failure)
 
-        knowledge_model_uuid, result = await run_pipeline(
+        output = await run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
             template_title=template.title,
             template_data=template.content,
-            user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
             pipeline=pipeline,
-            database=self.database,
             on_progress=on_progress,
-            model_name=llm_client.get_model_name(),
             dsw_client=DSWClient(auth.token, auth.api_url),
         )
-        log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(knowledge_model_uuid))
+        log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
 
+        # Everything the run produced is written in this one update, so it lands atomically.
         await self.database.update_generation(
             run_id,
             auth.tenant_uuid,
             status=PipelineStatus.SUCCEEDED,
-            knowledge_model_uuid=knowledge_model_uuid,
-            result_markdown=result,
+            knowledge_model_uuid=output.knowledge_model_uuid,
+            result_markdown=output.markdown,
+            dmp_pre_polished=output.dmp_pre_polished,
+            llm_calls=output.stats.llm_calls,
+            input_tokens=output.stats.input_tokens,
+            output_tokens=output.stats.output_tokens,
+            elapsed_seconds=output.stats.elapsed_seconds,
             progress_message=None,
         )
         logger.info(
@@ -323,7 +318,7 @@ class PipelineService:
             extra={
                 'run_id': run_id,
                 'tenant_uuid': str(auth.tenant_uuid),
-                'knowledge_model_uuid': str(knowledge_model_uuid),
-                'result_markdown_length': len(result),
+                'knowledge_model_uuid': str(output.knowledge_model_uuid),
+                'result_markdown_length': len(output.markdown),
             },
         )

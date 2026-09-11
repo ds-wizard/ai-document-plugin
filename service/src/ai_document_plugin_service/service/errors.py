@@ -28,12 +28,12 @@ class ValidationError(ServiceError):
 
 
 class ConflictError(ServiceError):
+    PIPELINE_RUN_NOT_FINISHED_MESSAGE = 'Pipeline run has not finished successfully'
+
     def __init__(self, detail: str) -> None:
         super().__init__(detail, status_code=409)
 
 
 class InternalError(ServiceError):
-    MISSING_KNOWLEDGE_MODEL_MESSAGE = 'Missing knowledge_model_uuid'
-
     def __init__(self, detail: str = 'Internal server error') -> None:
         super().__init__(detail, status_code=500)

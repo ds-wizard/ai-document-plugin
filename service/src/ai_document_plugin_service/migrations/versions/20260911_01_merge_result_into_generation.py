@@ -69,16 +69,16 @@ def upgrade() -> None:
                 elapsed_seconds          = (r.stats -> 'meta' ->> 'elapsed_seconds')::double precision
             FROM {result_reference} AS r
             LEFT JOIN LATERAL (
-                SELECT step FROM json_array_elements(r.stats -> 'rows') AS step
-                WHERE step ->> 'step' = '1. Hierarchical assignment' LIMIT 1
+                SELECT e.step FROM json_array_elements(r.stats -> 'rows') AS e(step)
+                WHERE e.step ->> 'step' = '1. Hierarchical assignment' LIMIT 1
             ) AS asg ON true
             LEFT JOIN LATERAL (
-                SELECT step FROM json_array_elements(r.stats -> 'rows') AS step
-                WHERE step ->> 'step' = '2. DMP generator' LIMIT 1
+                SELECT e.step FROM json_array_elements(r.stats -> 'rows') AS e(step)
+                WHERE e.step ->> 'step' = '2. DMP generator' LIMIT 1
             ) AS gen ON true
             LEFT JOIN LATERAL (
-                SELECT step FROM json_array_elements(r.stats -> 'rows') AS step
-                WHERE step ->> 'step' = '3. DMP polisher' LIMIT 1
+                SELECT e.step FROM json_array_elements(r.stats -> 'rows') AS e(step)
+                WHERE e.step ->> 'step' = '3. DMP polisher' LIMIT 1
             ) AS pol ON true
             WHERE g.run_id = (
                 SELECT g2.run_id FROM {generation_reference} AS g2

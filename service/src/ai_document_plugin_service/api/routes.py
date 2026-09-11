@@ -79,10 +79,7 @@ async def export_template_as_json(
     template_uuid: UUID, exports: ExportServiceDI, auth: AuthenticatedDI
 ) -> fastapi.Response:
     export = await exports.export_template_as_json(template_uuid, auth)
-    return fastapi.Response(
-        content=export.content,
-        media_type=JSON_MEDIA_TYPE
-    )
+    return fastapi.Response(content=export.content, media_type=JSON_MEDIA_TYPE)
 
 
 @protected_router.post('/pipelines/run')

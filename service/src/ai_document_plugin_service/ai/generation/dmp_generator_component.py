@@ -101,11 +101,11 @@ class DmpGeneratorComponent:
             logger.info(
                 'Generating sections progress',
                 extra={
-                        'completed_sections': i,
-                        'total_sections': total_sections,
-                        'progress_percent': progress_percent(i, total_sections),
-                        'max_workers': max_workers,
-                    }
+                    'completed_sections': i,
+                    'total_sections': total_sections,
+                    'progress_percent': progress_percent(i, total_sections),
+                    'max_workers': max_workers,
+                },
             )
             if on_progress is not None:
                 on_progress(

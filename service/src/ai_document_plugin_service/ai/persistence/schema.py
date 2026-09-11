@@ -93,7 +93,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('error_message', Text, nullable=True),
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
-
         # Columns used for analysis only:
         Column('dmp_pre_polished', Text, nullable=True),
         # at start same as result_markdown, but not editable. Older rows don't have the original value saved

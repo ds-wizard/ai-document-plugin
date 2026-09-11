@@ -39,15 +39,9 @@ export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
 export const getQuestionnaireLanguage = async (
     questionnaireUuid: string,
 ): Promise<string | null> => {
-    const { apiUrl, token } = getApiUrlAndToken()
-    if (!apiUrl) {
-        throw new Error('Failed to retrieve the DSW API URL.')
-    }
-
-    const url = `${apiUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(questionnaireUuid)}/questionnaire`
-    const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    })
+    const encodedUuid = encodeURIComponent(questionnaireUuid)
+    const url = `${getApiBaseUrl()}/language/${encodedUuid}`
+    const response = await apiFetch(url)
     const data = await readApiResponse<unknown>(response, url)
 
     if (!response.ok) {

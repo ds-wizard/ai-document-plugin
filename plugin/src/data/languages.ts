@@ -1,4 +1,4 @@
-import languageDefinitions from '@/data/languages.json'
+import languageDefinitions from '../../../service/src/ai_document_plugin_service/data/languages.json'
 
 export type LanguageOption = {
     code: string
@@ -19,6 +19,7 @@ type LanguageDefinition = {
 const normalizeSearchValue = (value: string): string =>
     value
         .normalize('NFD')
+        // Enable search without diacritical marks
         .replace(/[\u0300-\u036f]/g, '')
         .toLocaleLowerCase()
 

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from ai_document_plugin_service.ai.common import AssignmentStats, Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage, call_with_retry
+from ai_document_plugin_service.data.languages import get_language_name
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -15,7 +16,7 @@ class SectionPolishingLLM:
     def __init__(self, llm_client: LLMClient, config: Config, language: str) -> None:
         self.config = config
         self.client = llm_client
-        self.language = language
+        self.language = get_language_name(language)
 
     def get_max_workers(self) -> int:
         return self.client.get_max_workers()

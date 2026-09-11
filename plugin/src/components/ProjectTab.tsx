@@ -1,11 +1,10 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { getQuestionnaireLanguage } from '@/client'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
-import { LanguageDropdown } from '@/components/LanguageDropdown'
 import styles from '@/components/ProjectTab.module.css'
 import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
 import { RunDetailPanel } from '@/components/RunDetailPanel'
@@ -31,32 +30,40 @@ export default function ProjectTab({
 
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-    const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
+    const [language, setLanguage] = useState('')
+    const userSelectedLanguage = useRef(false)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
     }, [])
 
+    const handleLanguageChange = useCallback((nextLanguage: string) => {
+        userSelectedLanguage.current = true
+        setLanguage(nextLanguage)
+    }, [])
+
     useEffect(() => {
-        setLanguage(DEFAULT_LANGUAGE)
+        userSelectedLanguage.current = false
+        setLanguage('')
 
         if (!projectUuid) {
+            setLanguage(DEFAULT_LANGUAGE)
             return
         }
 
         let cancelled = false
         void getQuestionnaireLanguage(projectUuid)
             .then((questionnaireLanguage) => {
-                if (
-                    !cancelled &&
-                    questionnaireLanguage &&
-                    getLanguageOption(questionnaireLanguage)
-                ) {
-                    setLanguage(questionnaireLanguage)
+                if (!cancelled && !userSelectedLanguage.current) {
+                    setLanguage(
+                        getLanguageOption(questionnaireLanguage ?? '')?.code ?? DEFAULT_LANGUAGE,
+                    )
                 }
             })
             .catch(() => {
-                // Keep the default language when the questionnaire cannot be loaded.
+                if (!cancelled && !userSelectedLanguage.current) {
+                    setLanguage(DEFAULT_LANGUAGE)
+                }
             })
 
         return () => {
@@ -112,22 +119,18 @@ export default function ProjectTab({
                                 templates={templates}
                                 disabled={history.isStarting}
                                 onSelectedUuidChange={handleSelectedUuidChange}
-                                languageControl={
-                                    <div className={styles.languageControl}>
-                                        <LanguageDropdown
-                                            value={language}
-                                            onChange={setLanguage}
-                                            disabled={history.isStarting}
-                                        />
-                                    </div>
-                                }
+                                language={language}
+                                onLanguageChange={handleLanguageChange}
                             />
 
                             <button
                                 type="button"
                                 onClick={() => void handleRunPipeline()}
                                 disabled={
-                                    templates.isLoading || history.isStarting || !selectedUuid
+                                    templates.isLoading ||
+                                    history.isStarting ||
+                                    !selectedUuid ||
+                                    !language
                                 }
                                 className={`btn btn-primary btn-wide ${styles.runButton}`}
                             >

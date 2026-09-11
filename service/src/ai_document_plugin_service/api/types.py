@@ -60,6 +60,10 @@ class TemplateUpdateRequest(ApiModel):
     content: dict
 
 
+class QuestionnaireLanguageResponse(ApiModel):
+    language: str | None
+
+
 class PipelineRunRequest(ApiModel):
     questionnaire_uuid: UUID
     template_uuid: UUID

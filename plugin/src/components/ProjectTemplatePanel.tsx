@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 
+import { LanguageDropdown } from '@/components/LanguageDropdown'
 import styles from '@/components/ProjectTemplatePanel.module.css'
 import { TemplateDropdown } from '@/components/TemplateDropdown'
 import { TemplateManager } from '@/components/TemplateManager'
@@ -10,7 +10,8 @@ type ProjectTemplatePanelProps = {
     templates: UseTemplatesResult
     disabled: boolean
     onSelectedUuidChange: (uuid: string) => void
-    languageControl?: ReactNode
+    language: string
+    onLanguageChange: (language: string) => void
 }
 
 /**
@@ -21,7 +22,8 @@ export function ProjectTemplatePanel({
     templates,
     disabled,
     onSelectedUuidChange,
-    languageControl,
+    language,
+    onLanguageChange,
 }: ProjectTemplatePanelProps) {
     const { templates: options, isLoading, isDeleting, upsertSaved, deleteByUuid } = templates
 
@@ -39,7 +41,13 @@ export function ProjectTemplatePanel({
         <>
             <div className={styles.selector}>
                 <h4>Generate DMP from your questionnaire</h4>
-                {languageControl}
+                <div className={styles.languageControl}>
+                    <LanguageDropdown
+                        value={language}
+                        onChange={onLanguageChange}
+                        disabled={disabled}
+                    />
+                </div>
                 <TemplateDropdown
                     value={selectedUuid}
                     onChange={select}

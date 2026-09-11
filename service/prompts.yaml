@@ -64,7 +64,6 @@ dmp_polishing:
     - Consolidate related information that is scattered across sections.
     - Remove or shorten redundant mentions when the same information appears in multiple places (keep it in the most appropriate location).
     - Improve flow and logical structure so each section focuses on its intended theme.
-    - Use the same language as the section titles.
     
     # Language rules:
     - Write all section content exclusively in {language}.

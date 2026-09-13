@@ -74,10 +74,10 @@ async def log_http_request_response(
 
 
 def _restore_request_body(request: fastapi.Request, body: bytes) -> None:
-    async def receive() -> Message:  # noqa: RUF029
+    async def receive() -> Message:  # ruff: ignore[unused-async]
         return {
             'type': 'http.request',
             'body': body,
         }
 
-    request._receive = receive  # type: ignore[method-assign]  # noqa: SLF001
+    request._receive = receive  # type: ignore[method-assign]  # ruff: ignore[private-member-access]

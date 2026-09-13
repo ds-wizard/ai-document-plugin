@@ -79,7 +79,7 @@ def _normalize_path(path: str) -> str:
     return str(pathlib.Path(_expand_env_vars(path).strip()).expanduser())
 
 
-def _get(config: dict[str, Any], *path: str, allow_empty_string: bool = False) -> Any:  # noqa: ANN401
+def _get(config: dict[str, Any], *path: str, allow_empty_string: bool = False) -> Any:  # ruff: ignore[any-type]
     current = config
     for key in path:
         if not isinstance(current, dict) or key not in current:

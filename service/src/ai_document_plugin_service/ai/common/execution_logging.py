@@ -40,7 +40,7 @@ def log_llm_event(record: dict[str, Any]) -> None:
     _emit_event(_LLM_EVENT_LOGGER, record)
 
 
-def log_timing_event(event: str, **fields: Any) -> None:  # noqa: ANN401
+def log_timing_event(event: str, **fields: Any) -> None:  # ruff: ignore[any-type]
     _emit_event(_PIPELINE_EVENT_LOGGER, {'event': event, **fields})
 
 

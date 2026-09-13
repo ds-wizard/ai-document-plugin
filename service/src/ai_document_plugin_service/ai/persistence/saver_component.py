@@ -1,5 +1,4 @@
 import logging
-import typing
 from typing import TypedDict
 from uuid import UUID
 
@@ -62,7 +61,6 @@ class SaverComponent:
             'markdown': markdown,
         }
 
-    @typing.override
     @component.output_types(markdown=str)
     def run(
         self,

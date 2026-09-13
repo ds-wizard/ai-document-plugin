@@ -12,11 +12,7 @@ class ExtraFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         formatted = super().format(record)
-        extra = {
-            key: value
-            for key, value in record.__dict__.items()
-            if key not in _STANDARD_LOG_RECORD_FIELDS
-        }
+        extra = {key: value for key, value in record.__dict__.items() if key not in _STANDARD_LOG_RECORD_FIELDS}
         return f'{formatted} | extra={extra!r}' if extra else formatted
 
 
@@ -28,7 +24,7 @@ def configure_logging(level: int | str = logging.DEBUG) -> None:
 
 def _normalize_level(level: int | str) -> int:
     if isinstance(level, str):
-        normalized_level = logging.getLevelName(level.upper())
+        normalized_level = logging.getLevelNamesMapping().get(level.upper())
         if not isinstance(normalized_level, int):
             msg = f'Unsupported log level: {level}'
             raise TypeError(msg)

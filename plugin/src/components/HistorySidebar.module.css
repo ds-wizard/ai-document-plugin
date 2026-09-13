@@ -1,0 +1,245 @@
+.root {
+    /* Content height of a two-line run item (title + timestamp) — every item matches it. */
+    --ai-doc-history-item-body: calc(1.5 * 0.9rem + 0.1rem + 1.5 * 0.75rem);
+    --ai-doc-history-radius: var(--bs-border-radius);
+    --ai-doc-history-line: var(--ai-doc-color-slate-250);
+    /* Doubles as the list's inset, so nothing is faded until it actually scrolls. */
+    --ai-doc-history-fade: 0.75rem;
+
+    display: flex;
+    flex-direction: column;
+    width: 17rem;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100%;
+    padding: 1.5rem 0 1.5rem 0.75rem;
+    /* Anchors the negative z-index of the divider below. */
+    isolation: isolate;
+}
+
+/*
+ * Divider towards the main panel. It sits behind everything in the sidebar:
+ * items leave their last pixel transparent so it shows through, and the
+ * selected one paints over it. It cannot ride above the list instead — the
+ * list is a stacking context (mask), so the selected item's z-index could
+ * never escape it.
+ */
+.root::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--ai-doc-history-line);
+    z-index: -1;
+}
+
+.item,
+.newButton {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    position: relative;
+    width: 100%;
+    min-height: calc(var(--ai-doc-history-item-body) + 0.9rem + 2px);
+    padding: 0.45rem 0.7rem;
+    /* Keep focus/scrollIntoView from parking an item flush against the clip edge. */
+    scroll-margin-block: calc(var(--ai-doc-history-radius) + 2px);
+    border: 1px solid var(--ai-doc-color-slate-200);
+    /* Last pixel is left to the divider until the item is selected. */
+    border-right-color: transparent;
+    border-radius: var(--ai-doc-history-radius) 0 0 var(--ai-doc-history-radius);
+    background: var(--ai-doc-color-slate-50);
+    background-clip: padding-box;
+    color: var(--ai-doc-color-slate-800);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: left;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+.item:hover:not(.itemActive),
+.newButton:hover:not(:disabled) {
+    background: var(--ai-doc-color-slate-100);
+    border-color: var(--ai-doc-color-slate-300);
+    border-right-color: transparent;
+}
+
+/* Selected item reads as the open page: white and merged with the main panel. */
+.itemActive,
+.newButton:disabled {
+    background: var(--ai-doc-color-white);
+    /* Border box, so the white runs under the transparent right border and hides the divider. */
+    background-clip: border-box;
+    border-color: var(--ai-doc-history-line);
+    border-right-color: transparent;
+    color: var(--ai-doc-color-slate-950);
+    font-weight: 600;
+    z-index: 1;
+}
+
+/* Two class selectors, to outrank the host's `button` cursor rule. */
+.item.itemActive,
+.newButton.itemActive,
+.newButton:disabled {
+    cursor: default;
+}
+
+/*
+ * Concave corners that carry the divider into the selected item's top and
+ * bottom edge, so the tab flows into the content instead of butting against it.
+ * Each is a white patch over the divider with the arc drawn by a radial
+ * gradient centred on the corner the curve turns around.
+ */
+.itemActive::before,
+.itemActive::after,
+.newButton:disabled::before,
+.newButton:disabled::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    width: var(--ai-doc-history-radius);
+    height: calc(var(--ai-doc-history-radius) + 1px);
+}
+
+.itemActive::before,
+.newButton:disabled::before {
+    top: calc(-1px - var(--ai-doc-history-radius));
+    background: radial-gradient(
+        circle at 0 0,
+        var(--ai-doc-color-white) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) var(--ai-doc-history-radius),
+        var(--ai-doc-color-white) var(--ai-doc-history-radius)
+    );
+}
+
+.itemActive::after,
+.newButton:disabled::after {
+    bottom: calc(-1px - var(--ai-doc-history-radius));
+    background: radial-gradient(
+        circle at 0 100%,
+        var(--ai-doc-color-white) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-line) var(--ai-doc-history-radius),
+        var(--ai-doc-color-white) var(--ai-doc-history-radius)
+    );
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    /* Room for the selected item's concave corners between neighbours. */
+    gap: calc(var(--ai-doc-history-radius) + 2px);
+    padding: var(--ai-doc-history-fade) 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /*
+     * The scrollbar would sit exactly where the items meet the divider, so it is
+     * hidden and overflow is signalled by fading both ends instead. The fade also
+     * softens concave corners clipped at the container edge.
+     */
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--ai-doc-history-fade),
+        #000 calc(100% - var(--ai-doc-history-fade)),
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--ai-doc-history-fade),
+        #000 calc(100% - var(--ai-doc-history-fade)),
+        transparent 100%
+    );
+}
+
+.list::-webkit-scrollbar {
+    display: none;
+}
+
+/*
+ * Overlay scrollbar replacing the hidden native one. It sits in the sidebar's
+ * left gutter rather than on the right, where it would land on the divider and
+ * the selected item. Position and size are set from the list's scroll metrics.
+ */
+.scrollThumb {
+    position: absolute;
+    right: 4px;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--ai-doc-color-slate-300);
+    opacity: 0;
+    z-index: 2;
+    touch-action: none;
+    transition:
+        opacity 120ms ease,
+        background-color 120ms ease;
+}
+
+/* Only shown while the pointer is over the list itself (or the thumb). */
+.list:hover ~ .scrollThumb,
+.scrollThumb:hover,
+.scrollThumb:active {
+    opacity: 1;
+}
+
+.scrollThumb:hover,
+.scrollThumb:active {
+    background: var(--ai-doc-color-slate-400);
+}
+
+.itemBody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.itemTitle {
+    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itemTime {
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--ai-doc-color-slate-500);
+}
+
+.statusIcon {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: var(--ai-doc-color-slate-500);
+}
+
+.statusIcon.queued,
+.statusIcon.running {
+    color: var(--bs-primary);
+}
+
+.statusIcon.succeeded {
+    color: var(--ai-doc-color-emerald-700);
+}
+
+.statusIcon.failed {
+    color: var(--ai-doc-color-red-700);
+}
+
+.emptyState {
+    padding: 0.5rem 0.7rem;
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.85rem;
+}

@@ -4,13 +4,6 @@
     min-width: 0;
 }
 
-.content {
-    max-height: 36rem;
-    overflow-y: auto;
-    min-height: 0;
-    padding-right: 0.15rem;
-}
-
 .hint {
     margin: 0;
     color: var(--ai-doc-color-slate-500);

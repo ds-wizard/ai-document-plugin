@@ -75,6 +75,22 @@ export function TemplateDropdown({
         setIsOpen(false)
     }
 
+    const personalTemplates = templates.filter((template) => template.scope === 'personal')
+    const tenantTemplates = templates.filter((template) => template.scope === 'tenant')
+
+    const renderOption = (template: TemplateOption) => (
+        <button
+            key={template.uuid}
+            type="button"
+            role="option"
+            aria-selected={value === template.uuid}
+            className={`${styles.item} ${value === template.uuid ? styles.itemActive : ''}`}
+            onClick={() => handleSelect(template.uuid)}
+        >
+            {template.title}
+        </button>
+    )
+
     return (
         <div className={styles.root} ref={rootRef}>
             <button
@@ -93,30 +109,35 @@ export function TemplateDropdown({
 
             {isOpen ? (
                 <div className={styles.menu} role="listbox">
-                    {templates.map((template) => (
-                        <button
-                            key={template.uuid}
-                            type="button"
-                            role="option"
-                            aria-selected={value === template.uuid}
-                            className={`${styles.item} ${
-                                value === template.uuid ? styles.itemActive : ''
-                            }`}
-                            onClick={() => handleSelect(template.uuid)}
-                        >
-                            {template.title}
-                        </button>
-                    ))}
+                    {personalTemplates.length > 0 ? (
+                        <div className={styles.group} role="group" aria-label="My templates">
+                            <div className={styles.groupLabel}>
+                                <i
+                                    className={`fas fa-user ${styles.groupIcon}`}
+                                    aria-hidden="true"
+                                />
+                                My templates
+                            </div>
+                            {personalTemplates.map(renderOption)}
+                        </div>
+                    ) : null}
 
-                    <button
-                        type="button"
-                        role="option"
-                        aria-selected={isCustomOption}
-                        className={`${styles.item} ${isCustomOption ? styles.itemActive : ''}`}
-                        onClick={() => handleSelect(CUSTOM_TEMPLATE_OPTION)}
-                    >
-                        {customOptionLabel}
-                    </button>
+                    {tenantTemplates.length > 0 ? (
+                        <div className={styles.group} role="group" aria-label="Common templates">
+                            <div className={styles.groupLabel}>
+                                <i
+                                    className={`fas fa-building ${styles.groupIcon}`}
+                                    aria-hidden="true"
+                                />
+                                Common templates
+                            </div>
+                            {tenantTemplates.map(renderOption)}
+                        </div>
+                    ) : null}
+
+                    {templates.length === 0 ? (
+                        <div className={styles.emptyState}>No templates available yet.</div>
+                    ) : null}
                 </div>
             ) : null}
         </div>

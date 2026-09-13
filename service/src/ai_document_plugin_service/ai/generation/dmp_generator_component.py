@@ -1,22 +1,20 @@
+import asyncio
 import logging
 import math
 import re
-from collections.abc import Callable, Iterable
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+import time
+from collections.abc import Callable, Coroutine, Iterable
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 import pandas as pd
 from haystack import component
-from tqdm import tqdm
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
-from ai_document_plugin_service.ai.common import Config
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
-    OpenAIGenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 
@@ -35,27 +33,27 @@ class DmpGeneratorComponentResult(TypedDict):
 @dataclass
 class _ScheduledSection:
     heading: str
-    future: Future[tuple[str, str]] | None = None
+    leaf_coro: Coroutine[Any, Any, tuple[str, str]] | None = None
+    result: tuple[str, str] | None = None
     children: list['_ScheduledSection'] = field(default_factory=list)
     no_data: bool = False
 
 
 @component
 class DmpGeneratorComponent:
-    def __init__(self, llm: GenerationLLM | None = None) -> None:
-        self.llm = llm
+    def __init__(self, dmp_generator_llm: GenerationLLM) -> None:
+        self.dmp_generator_llm = dmp_generator_llm
 
     @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
-    def run(
+    async def run_async(
         self,
         replies: dict,
         km: dict,
-        config: Config,
-        llm: GenerationLLM | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
+        started = time.perf_counter()
         """Generate full DMP markdown from nested assignments tree.
 
         Returns (markdown, debug_markdown, stats). Use markdown for the polished DMP;
@@ -64,47 +62,89 @@ class DmpGeneratorComponent:
         logger.debug('Step 2: Generating DMP markdown...')
         assignments = db_assignments or new_assignments or []
         replies = self._filter_reachable_replies(replies, km)
+        logger.info(
+            'Starting DMP generation',
+            extra={
+                'assignment_count': len(assignments),
+                'reply_count': len(replies),
+            },
+        )
 
         stats = AssignmentStats()
+        max_workers = self.dmp_generator_llm.get_max_workers()
+        scheduled_sections = [
+            self._schedule_section(
+                node=node,
+                depth=0,
+                replies=replies,
+                km=km,
+                llm=self.dmp_generator_llm,
+                stats=stats,
+            )
+            for node in assignments
+        ]
+        leaf_sections: list[_ScheduledSection] = []
+        for scheduled in scheduled_sections:
+            self._collect_leaf_sections(scheduled, leaf_sections)
 
-        active_llm = llm or self.llm or OpenAIGenerationLLM(config)
-
-        worker_count = max(1, config.parallel_workers)
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            scheduled_sections = [
-                self._schedule_section(
-                    node=node,
-                    depth=0,
-                    replies=replies,
-                    km=km,
-                    llm=active_llm,
-                    stats=stats,
-                    executor=executor,
+        total_sections = len(leaf_sections)
+        logger.info(
+            'Prepared leaf sections for DMP generation',
+            extra={'leaf_section_count': total_sections, 'max_workers': max_workers},
+        )
+        section_semaphore = asyncio.Semaphore(max_workers)
+        tasks = [
+            asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
+        ]
+        for i, task in enumerate(asyncio.as_completed(tasks), start=1):
+            await task
+            logger.info(
+                'Generating sections progress',
+                extra={
+                    'completed_sections': i,
+                    'total_sections': total_sections,
+                    'progress_percent': progress_percent(i, total_sections),
+                    'max_workers': max_workers,
+                },
+            )
+            if on_progress is not None:
+                on_progress(
+                    f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
                 )
-                for node in assignments
-            ]
-            leaf_futures = []
-            for scheduled in scheduled_sections:
-                leaf_futures.extend(self._collect_leaf_futures(scheduled))
-            total_sections = len(leaf_futures)
-            for i, future in tqdm(
-                enumerate(as_completed(leaf_futures), start=1),
-                total=total_sections,
-                desc=f'Generating sections ({worker_count} workers)',
-            ):
-                future.result()
-                if on_progress is not None:
-                    on_progress(
-                        f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
-                    )
-            parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
+
+        parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
+        logger.info(
+            'Completed DMP generation',
+            extra={
+                'leaf_section_count': total_sections,
+                'markdown_length': len(markdown),
+                'debug_markdown_length': len(debug_markdown),
+                'llm_call_count': stats.total_calls,
+            },
+        )
+        stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
         return {
             'markdown': markdown,
             'debug_markdown': debug_markdown,
             'stats': stats,
         }
+
+    @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
+    def run(
+        self,
+        replies: dict,
+        km: dict,
+        new_assignments: list[SerializedSectionAssignment] | None = None,
+        db_assignments: list[SerializedSectionAssignment] | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> DmpGeneratorComponentResult:
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        raise NotImplementedError(
+            msg,
+        )
 
     @staticmethod
     def _filter_reachable_replies(
@@ -608,20 +648,6 @@ class DmpGeneratorComponent:
         return system_prompt + '\n'.join(qs) + '\n'
 
     @staticmethod
-    def llm_section_from_qa(
-        llm: GenerationLLM,
-        prompt: str,
-        stats: AssignmentStats | None = None,
-        previously_generated: str = '',
-    ) -> str:
-        """Generate DMP section content from questions and answers."""
-        return llm.section_from_qa(
-            prompt=prompt,
-            stats=stats,
-            previously_generated=previously_generated,
-        )
-
-    @staticmethod
     def _heading(depth: int, title: str) -> str:
         """Markdown heading with # count based on depth (depth 0 -> #, depth 1 -> ##, ...)."""
         return '#' * (depth + 1) + ' ' + title
@@ -679,6 +705,18 @@ class DmpGeneratorComponent:
         table_md = df.to_markdown(index=False)
         return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
 
+    @staticmethod
+    async def _execute_leaf_section(
+        section: _ScheduledSection,
+        semaphore: asyncio.Semaphore,
+    ) -> None:
+        async with semaphore:
+            if section.leaf_coro is None:
+                msg = 'Leaf section has no generation coroutine'
+                logger.error('Leaf section execution failed: generation coroutine is missing')
+                raise RuntimeError(msg)
+            section.result = await section.leaf_coro
+
     def _schedule_section(
         self,
         node: SerializedSectionAssignment,
@@ -686,21 +724,19 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM,
-        executor: ThreadPoolExecutor,
         stats: AssignmentStats | None = None,
     ) -> _ScheduledSection:
-        """Recursively schedule leaf-section jobs using a shared executor."""
+        """Recursively schedule leaf-section generation coroutines."""
         title = node['title']
         heading = self._heading(depth, title)
 
         if self._is_leaf_section(node):
-            return self._handle_leaf_section(executor, heading, km, llm, node, replies, stats)
-        return self._handle_children_section(depth, executor, heading, km, llm, node, replies, stats)
+            return self._handle_leaf_section(heading, km, llm, node, replies, stats)
+        return self._handle_children_section(depth, heading, km, llm, node, replies, stats)
 
     def _handle_children_section(
         self,
         depth: int,
-        executor: ThreadPoolExecutor,
         heading: str,
         km: dict,
         llm: GenerationLLM,
@@ -718,7 +754,6 @@ class DmpGeneratorComponent:
                     km=km,
                     llm=llm,
                     stats=stats,
-                    executor=executor,
                 )
                 for child in (node.get('children') or [])
             ],
@@ -726,7 +761,6 @@ class DmpGeneratorComponent:
 
     def _handle_leaf_section(
         self,
-        executor: ThreadPoolExecutor,
         heading: str,
         km: dict,
         llm: GenerationLLM,
@@ -737,8 +771,7 @@ class DmpGeneratorComponent:
         if node.get('assignments') is not None:
             return _ScheduledSection(
                 heading=heading,
-                future=executor.submit(
-                    self._generate_leaf_section,
+                leaf_coro=self._generate_leaf_section(
                     node,
                     heading,
                     replies,
@@ -753,7 +786,7 @@ class DmpGeneratorComponent:
     def _is_leaf_section(node: SerializedSectionAssignment) -> bool:
         return not node.get('children')
 
-    def _generate_leaf_section(
+    async def _generate_leaf_section(
         self,
         node: SerializedSectionAssignment,
         heading: str,
@@ -771,33 +804,34 @@ class DmpGeneratorComponent:
         assignments = node['assignments']
         if assignments is None:
             msg = f"Leaf section '{title}' is missing assignments"
+            logger.error('Leaf section generation failed: assignments are missing', extra={'section_title': title})
             raise ValueError(msg)
         matches, _ = self.match_replies_selection(assignments, replies, km)
         rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
         prompt = self.construct_chapter_prompt(title, matches)
-        content = self.llm_section_from_qa(llm, prompt, stats) if prompt else 'No data'
+        content = await llm.section_from_qa(prompt, stats) if prompt else 'No data'
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content
         return section, heading + '\n\n' + debug_body
 
-    def _collect_leaf_futures(
+    def _collect_leaf_sections(
         self,
         scheduled: _ScheduledSection,
-    ) -> list[Future[tuple[str, str]]]:
-        if scheduled.future is not None:
-            return [scheduled.future]
-        futures = []
+        leaf_sections: list[_ScheduledSection],
+    ) -> None:
+        if scheduled.leaf_coro is not None:
+            leaf_sections.append(scheduled)
+            return
         for child in scheduled.children:
-            futures.extend(self._collect_leaf_futures(child))
-        return futures
+            self._collect_leaf_sections(child, leaf_sections)
 
     def _render_scheduled_section(
         self,
         scheduled: _ScheduledSection,
     ) -> tuple[str, str]:
-        if scheduled.future is not None:
-            return scheduled.future.result()
+        if scheduled.result is not None:
+            return scheduled.result
         if scheduled.no_data:
             res = scheduled.heading + '\nNo data'
             return res, res

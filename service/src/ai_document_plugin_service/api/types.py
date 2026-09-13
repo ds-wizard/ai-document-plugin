@@ -1,17 +1,16 @@
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-def _model_from_fields[T: ApiModel](
-    model_type: type[T],
-    **data: object,
-) -> T:
-    return model_type.model_validate(data)
+from pydantic.alias_generators import to_camel
 
 
 class ApiModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+        serialize_by_alias=True,
+    )
 
 
 class ErrorType(StrEnum):
@@ -21,48 +20,63 @@ class ErrorType(StrEnum):
 
 
 class PipelineStatus(StrEnum):
-    ACCEPTED = 'accepted'
     QUEUED = 'queued'
     RUNNING = 'running'
     SUCCEEDED = 'succeeded'
     FAILED = 'failed'
 
 
+class TemplateScope(StrEnum):
+    PERSONAL = 'personal'
+    TENANT = 'tenant'
+
+    @staticmethod
+    def for_user(user_uuid: UUID | None) -> 'TemplateScope':
+        """A row with an owner is personal; without one it is tenant-wide."""
+        return TemplateScope.PERSONAL if user_uuid is not None else TemplateScope.TENANT
+
+
 class TemplateListItem(ApiModel):
     uuid: str
     title: str
+    scope: TemplateScope
 
 
 class TemplateDetail(ApiModel):
-    uuid: str
+    uuid: UUID
     title: str
     content: dict
+    scope: TemplateScope
 
 
 class TemplateCreateRequest(ApiModel):
     title: str
     content: dict
+    scope: TemplateScope = TemplateScope.PERSONAL
+
+
+class TemplateUpdateRequest(ApiModel):
+    title: str
+    content: dict
 
 
 class PipelineRunRequest(ApiModel):
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
-    template_uuid: str = Field(alias='templateUuid')
-    llm_model: str | None = Field(default=None, alias='llmModel')
-    llm_api_key: str | None = Field(default=None, alias='llmApiKey')
-    llm_api_url: str | None = Field(default=None, alias='llmApiUrl')
-    llm_max_workers: int | None = Field(default=None, alias='llmMaxWorkers', ge=1)
-
-
-class PipelineRunResponse(ApiModel):
-    status: PipelineStatus
-    run_id: str = Field(alias='runId')
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
-    template_uuid: str = Field(alias='templateUuid')
-    template_title: str = Field(alias='templateTitle')
+    questionnaire_uuid: UUID
+    template_uuid: UUID
+    llm_model: str
+    llm_api_key: str
+    llm_api_url: str
+    llm_max_workers: int | None = Field(default=None, ge=1)
 
 
 class PipelineSaveRequest(ApiModel):
-    result_markdown: str = Field(alias='resultMarkdown')
+    result_markdown: str
+
+
+class PipelineExportRequest(ApiModel):
+    """Carries the editor's current text so unsaved edits can be exported."""
+
+    result_markdown: str
 
 
 class PipelineErrorResponse(ApiModel):
@@ -70,17 +84,25 @@ class PipelineErrorResponse(ApiModel):
     message: str
 
 
-class PipelineStatusResponse(ApiModel):
-    run_id: str = Field(alias='runId')
+class PipelineSummaryResponse(ApiModel):
+    run_id: UUID
     status: PipelineStatus
-    questionnaire_uuid: str = Field(alias='questionnaireUuid')
-    knowledge_model_uuid: str | None = Field(default=None, alias='knowledgeModelUuid')
-    user_uuid: str = Field(alias='userUuid')
-    tenant_uuid: str = Field(alias='tenantUuid')
-    template_uuid: str = Field(alias='templateUuid')
-    template_title: str = Field(alias='templateTitle')
+    template_title: str
     error: PipelineErrorResponse | None = None
-    result_format: str | None = Field(default=None, alias='resultFormat')
-    result_markdown: str | None = Field(default=None, alias='resultMarkdown')
-    progress_message: str | None = Field(default=None, alias='progressMessage')
-    updated_at: str = Field(alias='updatedAt')
+    progress_message: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class PipelineStatusResponse(ApiModel):
+    run_id: UUID
+    status: PipelineStatus
+    questionnaire_uuid: UUID
+    knowledge_model_uuid: UUID | None = None
+    template_uuid: UUID
+    template_title: str
+    error: PipelineErrorResponse | None = None
+    result_format: str | None = None
+    result_markdown: str | None = None
+    progress_message: str | None = None
+    updated_at: str

@@ -5,17 +5,14 @@ a topic is mentioned early but has a dedicated chapter later). Does not add new 
 """
 
 import logging
-import typing
+import time
 from collections.abc import Callable
 from typing import TypedDict
 
 from haystack import component
 
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 logger = logging.getLogger(__name__)
 
@@ -27,40 +24,71 @@ class DmpPolisherComponentResult(TypedDict):
 
 @component
 class DmpPolisherComponent:
-    @typing.override
+    def __init__(self, section_polishing_llm: SectionPolishingLLM) -> None:
+        self.section_polishing_llm = section_polishing_llm
+
     @component.output_types(markdown=str, stats=AssignmentStats)
-    def run(
+    async def run_async(
         self,
         markdown: str,
-        config: Config,
         template_data: dict | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpPolisherComponentResult:
+        started = time.perf_counter()
         """Polish the DMP by moving content to relevant sections and improving structure.
 
         Args:
-            markdown: The raw DMP markdown to polish.
-            config: Config with up to date llm config
-            template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
+            :param markdown: The raw DMP markdown to polish.
+            :param config: Config with up to date llm config
+            :param template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
+            :param on_progress: Callback method to report progress
 
         Returns:
             The polished DMP markdown.
 
         """
         stats = AssignmentStats()
+        logger.info(
+            'Starting DMP polishing',
+            extra={
+                'input_markdown_length': len(markdown),
+                'has_template_data': template_data is not None,
+            },
+        )
         if on_progress is not None:
             on_progress('Polishing document')
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
-        llm = OpenAIGenerationLLM(config=config)
-        file = llm.polish_dmp(
+        polished = await self.section_polishing_llm.polish_dmp(
             markdown=markdown,
             structure_str=structure_str,
             stats=stats,
         )
+        logger.info(
+            'Completed DMP polishing',
+            extra={
+                'input_markdown_length': len(markdown),
+                'output_markdown_length': len(polished),
+                'llm_call_count': stats.total_calls,
+            },
+        )
+        stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
         return {
-            'markdown': file,
+            'markdown': polished,
             'stats': stats,
         }
+
+    @component.output_types(markdown=str, stats=AssignmentStats)
+    def run(
+        self,
+        markdown: str,
+        template_data: dict | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> DmpPolisherComponentResult:
+        """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
+        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        raise NotImplementedError(
+            msg,
+        )
 
     @staticmethod
     def _format_template_structure(nodes: list, depth: int = 0) -> list[str]:

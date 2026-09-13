@@ -1,10 +1,11 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type {
-    PipelineRunResponse,
     PipelineStatusResponse,
+    PipelineSummaryItem,
     TemplateDetail,
     TemplateOption,
+    TemplateScope,
 } from '@/types'
 
 export const isPipelineStatusResponse = (value: unknown): value is PipelineStatusResponse => {
@@ -102,6 +103,28 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
     return data
 }
 
+export const getPipelineHistory = async (
+    questionnaireUuid: string,
+): Promise<PipelineSummaryItem[]> => {
+    const url = `${getApiBaseUrl()}/pipelines?questionnaireUuid=${encodeURIComponent(questionnaireUuid)}`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<PipelineSummaryItem[] | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail
+                ? data.detail
+                : 'Failed to load the generation history.',
+        )
+    }
+
+    if (!Array.isArray(data)) {
+        throw new Error('Invalid generation history returned.')
+    }
+
+    return data
+}
+
 type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
@@ -118,7 +141,7 @@ export const runPipeline = async ({
     llmApiKey = null,
     llmApiUrl = null,
     llmMaxWorkers = null,
-}: RunPipelineParams): Promise<PipelineRunResponse> => {
+}: RunPipelineParams): Promise<PipelineStatusResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/run`
     const response = await apiFetch(url, {
         method: 'POST',
@@ -135,15 +158,21 @@ export const runPipeline = async ({
         }),
     })
 
-    const data = await readApiResponse<PipelineRunResponse | { detail?: string }>(response, url)
+    const data = await readApiResponse<PipelineStatusResponse | { detail?: unknown }>(response, url)
 
     if (!response.ok) {
+        if (response.status == 422) {
+            throw new Error(
+                'Plugin is not configured. Set the model, API key, and API URL in the plugin settings.',
+            )
+        }
+        const detail = 'detail' in data ? data.detail : undefined
         throw new Error(
-            'detail' in data && data.detail ? data.detail : 'Pipeline execution failed.',
+            typeof detail === 'string' && detail ? detail : 'Pipeline execution failed.',
         )
     }
 
-    if (!('runId' in data)) {
+    if (!isPipelineStatusResponse(data)) {
         throw new Error('The backend did not return a pipeline run identifier.')
     }
 
@@ -153,12 +182,14 @@ export const runPipeline = async ({
 type CreateTemplateParams = {
     title: string
     content: unknown
+    scope: TemplateScope
 }
 
 export const createTemplate = async ({
     title,
     content,
-}: CreateTemplateParams): Promise<TemplateOption> => {
+    scope,
+}: CreateTemplateParams): Promise<TemplateDetail> => {
     const url = `${getApiBaseUrl()}/templates`
     const response = await apiFetch(url, {
         method: 'POST',
@@ -168,6 +199,7 @@ export const createTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            scope,
         }),
     })
 
@@ -184,6 +216,98 @@ export const createTemplate = async ({
     }
 
     return data
+}
+
+type UpdateTemplateParams = {
+    uuid: string
+    title: string
+    content: unknown
+}
+
+export const updateTemplate = async ({
+    uuid,
+    title,
+    content,
+}: UpdateTemplateParams): Promise<TemplateDetail> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(uuid)}`
+    const response = await apiFetch(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            title,
+            content,
+        }),
+    })
+
+    const data = await readApiResponse<TemplateDetail | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to update the template.',
+        )
+    }
+
+    if (!('uuid' in data) || !('title' in data) || !('content' in data)) {
+        throw new Error('The backend did not return the updated template.')
+    }
+
+    return data
+}
+
+export const deleteTemplate = async (templateUuid: string): Promise<void> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
+    const response = await apiFetch(url, { method: 'DELETE' })
+
+    if (!response.ok) {
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(() => ({}))
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to delete the template.',
+        )
+    }
+}
+
+export const exportTemplateAsJson = async (templateUuid: string): Promise<Blob> => {
+    const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}/export`
+    const response = await apiFetch(url)
+
+    if (!response.ok) {
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(() => ({}))
+        throw new Error(
+            'detail' in data && data.detail
+                ? data.detail
+                : 'Failed to export the template as JSON.',
+        )
+    }
+
+    return response.blob()
+}
+
+export const exportPipelineResultAsDocx = async (
+    runId: string,
+    resultMarkdown: string,
+): Promise<Blob> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/export/docx`
+    const response = await apiFetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            resultMarkdown,
+        }),
+    })
+
+    if (!response.ok) {
+        // Errors still come back as JSON; only the success path is binary.
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(
+            (): { detail?: string } => ({}),
+        )
+        throw new Error(data.detail || 'Failed to export the result as a Word document.')
+    }
+
+    return response.blob()
 }
 
 export const saveEditedPipelineResult = async (

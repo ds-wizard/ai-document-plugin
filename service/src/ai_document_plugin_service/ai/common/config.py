@@ -1,12 +1,17 @@
+import logging
 import os
 import pathlib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_CONFIG_PATH = 'config.yaml'
 CONFIG_PATH_ENV_VAR = 'AI_DOCUMENT_PLUGIN_CONFIG_PATH'
+WILDCARD = '*'
 
 
 @dataclass(frozen=True)
@@ -30,6 +35,12 @@ class FilePaths:
 
 
 @dataclass(frozen=True)
+class AllowedApi:
+    url: str
+    tenant_uuid: str
+
+
+@dataclass(frozen=True)
 class DatabaseConfig:
     host: str
     port: int
@@ -41,11 +52,7 @@ class DatabaseConfig:
 
 @dataclass(frozen=True)
 class Config:
-    api_key: str
-    api_url: str
-    dsw_api_url: str
-    allowed_project_urls: tuple[str, ...]
-    model: str
+    allowed_apis: tuple[AllowedApi, ...]
     log_level: str
     database: DatabaseConfig
     files: FilePaths
@@ -53,14 +60,14 @@ class Config:
     section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
     dmp_polishing: SystemAndUserPrompt
-    parallel_workers: int
+    max_parallel_executions: int
 
 
 @dataclass(frozen=True)
-class LLMConfigOverride:
-    model: str | None = None
-    api_key: str | None = None
-    api_url: str | None = None
+class LLMConfig:
+    model: str
+    api_key: str
+    api_url: str
     parallel_workers: int | None = None
 
 
@@ -72,7 +79,7 @@ def _normalize_path(path: str) -> str:
     return str(pathlib.Path(_expand_env_vars(path).strip()).expanduser())
 
 
-def _get(config: dict[str, Any], *path: str) -> Any:  # noqa: ANN401
+def _get(config: dict[str, Any], *path: str, allow_empty_string: bool = False) -> Any:  # ruff: ignore[any-type]
     current = config
     for key in path:
         if not isinstance(current, dict) or key not in current:
@@ -85,7 +92,7 @@ def _get(config: dict[str, Any], *path: str) -> Any:  # noqa: ANN401
     if current is None:
         msg = f"Missing required config value: '{'.'.join(path)}'"
         raise ValueError(msg)
-    if isinstance(current, str) and not current.strip():
+    if isinstance(current, str) and not current.strip() and not allow_empty_string:
         msg = f"Missing required config value: '{'.'.join(path)}'"
         raise ValueError(msg)
     return current
@@ -118,33 +125,49 @@ def normalize_project_url(url: str) -> str:
     return url.strip().rstrip('/')
 
 
-def _get_allowed_project_urls(config: dict[str, Any]) -> tuple[str, ...]:
-    raw_urls = _get(config, 'auth', 'allowed_project_urls')
-    if not isinstance(raw_urls, list) or not raw_urls:
-        msg = "Invalid config value: 'auth.allowed_project_urls' must be a non-empty list"
-        raise ValueError(msg)
+def _get_allowed_apis(config: dict[str, Any]) -> tuple[AllowedApi, ...]:
+    raw_apis = _get(config, 'auth', 'allowed_apis')
+    if not isinstance(raw_apis, list) or not raw_apis:
+        msg = "Invalid config value: 'auth.allowed_apis' must be a non-empty list"
+        raise TypeError(msg)
 
-    normalized: list[str] = []
-    for index, entry in enumerate(raw_urls):
-        if not isinstance(entry, str) or not entry.strip():
-            msg = f"Invalid config value: 'auth.allowed_project_urls[{index}]' must be a non-empty string"
+    allowed_apis: list[AllowedApi] = []
+    for index, entry in enumerate(raw_apis):
+        if not isinstance(entry, dict):
+            msg = f"Invalid config value: 'auth.allowed_apis[{index}]' must be a mapping"
+            raise TypeError(msg)
+
+        raw_url = entry.get('url')
+        raw_tenant_uuid = entry.get('tenant_uuid')
+        if not isinstance(raw_url, str) or not raw_url.strip():
+            msg = f"Invalid config value: 'auth.allowed_apis[{index}].url' must be a non-empty string"
             raise ValueError(msg)
-        normalized.append(normalize_project_url(entry))
+        if not isinstance(raw_tenant_uuid, str) or not raw_tenant_uuid.strip():
+            msg = f"Invalid config value: 'auth.allowed_apis[{index}].tenant_uuid' must be a non-empty string"
+            raise ValueError(msg)
 
-    return tuple(normalized)
+        url = raw_url.strip()
+        tenant_uuid = raw_tenant_uuid.strip()
+        normalized_url = url if url == WILDCARD else normalize_project_url(url)
+        if tenant_uuid != WILDCARD:
+            try:
+                tenant_uuid = str(UUID(tenant_uuid))
+            except ValueError as error:
+                msg = f"Invalid config value: 'auth.allowed_apis[{index}].tenant_uuid' must be a UUID or '*'"
+                raise ValueError(msg) from error
 
+        if WILDCARD in {normalized_url, tenant_uuid}:
+            logger.warning(
+                "Do not use in production! Config 'auth.allowed_apis[%d]' uses a wildcard (url=%s, tenant_uuid=%s) "
+                'which allows anyone to use this API.',
+                index,
+                normalized_url,
+                tenant_uuid,
+            )
 
-def _get_parallel_workers(config: dict[str, Any]) -> int:
-    workers = config.get('llm_response_generation', {}).get('workers', 1)
-    try:
-        workers_int = int(workers)
-    except (TypeError, ValueError) as exc:
-        msg = "Invalid config value: 'parallelism.workers' must be an integer >= 1"
-        raise ValueError(msg) from exc
-    if workers_int < 1:
-        msg = "Invalid config value: 'parallelism.workers' must be >= 1"
-        raise ValueError(msg)
-    return workers_int
+        allowed_apis.append(AllowedApi(url=normalized_url, tenant_uuid=tenant_uuid))
+
+    return tuple(allowed_apis)
 
 
 def _resolve_existing_path(path: str, *, base_dir: pathlib.Path | None = None) -> str:
@@ -181,7 +204,6 @@ def resolve_config_path(config_path: str | None = None) -> str:
 def load_config(config_path: str | None = None) -> Config:
     resolved_config_path = _resolve_existing_path(resolve_config_path(config_path))
     config_dir = pathlib.Path(resolved_config_path).parent
-
     with pathlib.Path(resolved_config_path).open(encoding='utf-8') as handle:
         config = yaml.safe_load(handle)
 
@@ -199,13 +221,7 @@ def load_config(config_path: str | None = None) -> Config:
         raise TypeError(msg)
 
     return Config(
-        api_key=_expand_env_vars(
-            _get(config, 'llm_response_generation', 'api_key'),
-        ),
-        api_url=_get(config, 'llm_response_generation', 'api_url'),
-        model=_get(config, 'llm_response_generation', 'model'),
-        dsw_api_url=_get(config, 'dsw', 'api_url'),
-        allowed_project_urls=_get_allowed_project_urls(config),
+        allowed_apis=_get_allowed_apis(config),
         log_level=_get_log_level(config),
         database=DatabaseConfig(
             host=_expand_env_vars(_get(config, 'database', 'host')),
@@ -241,18 +257,5 @@ def load_config(config_path: str | None = None) -> Config:
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
-        parallel_workers=_get_parallel_workers(config),
-    )
-
-
-def apply_llm_override(config: Config, override: LLMConfigOverride | None = None) -> Config:
-    if override is None:
-        return config
-
-    return replace(
-        config,
-        model=override.model or config.model,
-        api_key=override.api_key or config.api_key,
-        api_url=override.api_url or config.api_url,
-        parallel_workers=override.parallel_workers or config.parallel_workers,
+        max_parallel_executions=int(_get(config, 'max_parallel_executions')),
     )

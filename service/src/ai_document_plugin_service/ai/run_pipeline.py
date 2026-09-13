@@ -3,26 +3,23 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
+from uuid import UUID
 
-from haystack import Pipeline
+from haystack import AsyncPipeline
 from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
+    Config,
     PipelineMetricsCollector,
-    configure_logging,
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-    LLMConfigOverride,
-    apply_llm_override,
-)
+from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
-from ai_document_plugin_service.ai.knowledgemodel.dsw_client import get_questionnaire_detail
+from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
@@ -32,13 +29,13 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
 )
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
+from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from haystack.components.routers.conditional_router import Route
 
-    from ai_document_plugin_service.ai.generation.llm import OpenAIGenerationLLM
+    from ai_document_plugin_service.ai.common.llm_client import LLMClient
+    from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
 
 # Cost per million tokens (USD) - adjust for your model
@@ -50,18 +47,14 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
-def build_pipeline(
-    database: Database,
-    saver: DBSaver,
-    generation_llm: OpenAIGenerationLLM,
-) -> Pipeline:
-    pipeline = Pipeline()
+def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_client: LLMClient) -> AsyncPipeline:
+    pipeline = AsyncPipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
-    assignment_component = AssignmentComponent()
+    assignment_component = AssignmentComponent(llm_client, config)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
-    dmp_generator_component = DmpGeneratorComponent(llm=generation_llm)
-    dmp_polisher_component = DmpPolisherComponent()
+    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config))
+    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config))
     saver_component = SaverComponent(database=database)
 
     # ROUTES
@@ -116,113 +109,161 @@ def build_pipeline(
     return pipeline
 
 
-def run_pipeline(
-    questionnaire_uuid: str,
-    token: str,
-    dsw_api_url: str | None,
-    template_uuid: str,
+async def run_pipeline(
+    questionnaire_uuid: UUID,
+    template_uuid: UUID,
     template_title: str,
     template_data: Mapping[str, object],
-    user_uuid: str,
-    tenant_uuid: str,
-    pipeline: Pipeline,
+    user_uuid: UUID,
+    tenant_uuid: UUID,
+    pipeline: AsyncPipeline,
     database: Database,
-    config: Config,
-    llm_override: LLMConfigOverride | None = None,
+    dsw_client: DSWClient,
+    model_name: str,
     on_progress: ProgressCallback | None = None,
-) -> tuple[str, str]:
+) -> tuple[UUID, str]:
     t1 = time.time()
-    resolved_config = apply_llm_override(config, llm_override)
-    configure_logging(resolved_config.log_level)
-    model_name = resolved_config.model
-
-    km_data = get_questionnaire_detail(
-        questionnaire_uuid=questionnaire_uuid,
-        config=config,
-        token=token,
-        api_url=dsw_api_url,
+    pipeline_total_started = time.perf_counter()
+    questionnaire_fetch_started = time.perf_counter()
+    try:
+        km_data = await dsw_client.get_questionnaire_detail(questionnaire_uuid=questionnaire_uuid)
+    except Exception:
+        logger.exception('Failed to load questionnaire detail', extra={'questionnaire_uuid': str(questionnaire_uuid)})
+        raise
+    log_timing_event(
+        'questionnaire_detail_loaded',
+        duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    knowledge_model_uuid = km_data['knowledgeModelPackage']['uuid']
+    knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
 
     if on_progress is not None:
         on_progress('Preparing document template')
 
-    result = pipeline.run(
-        data={
-            'loader_component': {
-                'knowledge_model_uuid': knowledge_model_uuid,
-                'template_uuid': template_uuid,
+    pipeline_started = time.perf_counter()
+    try:
+        result = await pipeline.run_async(
+            data={
+                'loader_component': {
+                    'knowledge_model_uuid': knowledge_model_uuid,
+                    'template_uuid': template_uuid,
+                },
+                'parser_component': {'data': km_data},
+                'assignment_component': {
+                    'template_data': template_data,
+                    'km': km,
+                    'on_progress': on_progress,
+                },
+                'assignment_saver_component': {
+                    'knowledge_model_uuid': knowledge_model_uuid,
+                    'knowledge_model_name': knowledge_model_name,
+                    'knowledge_model_version': knowledge_model_version,
+                    'template_uuid': template_uuid,
+                    'template_title': template_title,
+                    'template_data': template_data,
+                    'tenant_uuid': tenant_uuid,
+                },
+                'dmp_generator_component': {
+                    'replies': replies,
+                    'km': km,
+                    'on_progress': on_progress,
+                },
+                'dmp_polisher_component': {
+                    'template_data': template_data,
+                    'on_progress': on_progress,
+                },
+                'saver_component': {
+                    'template_uuid': template_uuid,
+                    'knowledge_model_uuid': knowledge_model_uuid,
+                    'user_uuid': user_uuid,
+                    'tenant_uuid': tenant_uuid,
+                },
             },
-            'parser_component': {'data': km_data},
-            'assignment_component': {
-                'template_data': template_data,
-                'config': resolved_config,
-                'km': km,
-                'on_progress': on_progress,
+            include_outputs_from={
+                'assignment_saver_component',
+                'dmp_generator_component',
+                'dmp_polisher_component',
+                'saver_component',
             },
-            'assignment_saver_component': {
-                'knowledge_model_uuid': knowledge_model_uuid,
-                'knowledge_model_name': knowledge_model_name,
-                'knowledge_model_version': knowledge_model_version,
-                'template_uuid': template_uuid,
-                'template_title': template_title,
-                'template_data': template_data,
-            },
-            'dmp_generator_component': {
-                'replies': replies,
-                'km': km,
-                'config': resolved_config,
-                'on_progress': on_progress,
-            },
-            'dmp_polisher_component': {
-                'config': resolved_config,
-                'template_data': template_data,
-                'on_progress': on_progress,
-            },
-            'saver_component': {
-                'template_uuid': template_uuid,
-                'knowledge_model_uuid': knowledge_model_uuid,
-                'user_uuid': user_uuid,
-                'tenant_uuid': tenant_uuid,
-            },
-        },
-        include_outputs_from={
-            'assignment_saver_component',
-            'dmp_generator_component',
-            'dmp_polisher_component',
-            'saver_component',
-        },
+        )
+    except Exception:
+        logger.exception(
+            'Pipeline component execution failed',
+            extra={'questionnaire_uuid': str(questionnaire_uuid), 'template_uuid': str(template_uuid)},
+        )
+        raise
+    log_timing_event(
+        'pipeline_components_finished',
+        duration_ms=round((time.perf_counter() - pipeline_started) * 1000, 3),
     )
 
     result_markdown = get_component_markdown(result, 'saver_component')
     if result_markdown is None:
         msg = 'Missing markdown output from saver_component'
+        logger.error(msg, extra={'template_uuid': str(template_uuid)})
         raise RuntimeError(msg)
 
-    write_metrics(
-        database,
-        template_uuid,
-        knowledge_model_uuid,
-        user_uuid,
-        tenant_uuid,
-        result,
-        model_name,
-        t1,
+    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    generation_stats = get_component_stats(result, 'dmp_generator_component')
+    polishing_stats = get_component_stats(result, 'dmp_polisher_component')
+
+    metrics_started = time.perf_counter()
+    try:
+        await write_metrics(
+            database,
+            template_uuid,
+            knowledge_model_uuid,
+            user_uuid,
+            tenant_uuid,
+            result,
+            model_name,
+            t1,
+        )
+    except Exception:
+        logger.exception(
+            'Failed to persist pipeline metrics',
+            extra={'template_uuid': str(template_uuid), 'knowledge_model_uuid': str(knowledge_model_uuid)},
+        )
+        raise
+    log_timing_event(
+        'pipeline_metrics_saved',
+        duration_ms=round((time.perf_counter() - metrics_started) * 1000, 3),
+    )
+    log_timing_event(
+        'pipeline_summary',
+        generation_ms=generation_stats.total_duration_ms if generation_stats is not None else None,
+        polishing_ms=polishing_stats.total_duration_ms if polishing_stats is not None else None,
+        total_pipeline_ms=round((time.perf_counter() - pipeline_total_started) * 1000, 3),
+        total_llm_wait_ms=round(
+            sum(
+                stats.total_llm_wait_ms
+                for stats in (assignment_stats, generation_stats, polishing_stats)
+                if stats is not None
+            ),
+            3,
+        ),
+        total_llm_response_ms=round(
+            sum(
+                stats.total_llm_response_ms
+                for stats in (assignment_stats, generation_stats, polishing_stats)
+                if stats is not None
+            ),
+            3,
+        ),
     )
     return knowledge_model_uuid, result_markdown
 
 
-def write_metrics(
+async def write_metrics(
     database: Database,
-    template_uuid: str,
-    knowledge_model_uuid: str,
-    user_uuid: str,
-    tenant_uuid: str,
+    template_uuid: UUID,
+    knowledge_model_uuid: UUID,
+    user_uuid: UUID,
+    tenant_uuid: UUID,
     result: Mapping[str, object],
     model_name: str,
     t1: float,
@@ -248,7 +289,7 @@ def write_metrics(
     t2 = time.time()
 
     stats = metrics.get_stats(elapsed_seconds=t2 - t1)
-    database.save_stats(
+    await database.save_stats(
         template_uuid=template_uuid,
         knowledge_model_uuid=knowledge_model_uuid,
         user_uuid=user_uuid,

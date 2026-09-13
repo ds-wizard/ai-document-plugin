@@ -63,6 +63,14 @@ class PipelineMetricsCollector:
     def total_cost(self) -> float:
         return sum(self._price(step.stats)[2] for step in self.steps)
 
+    @property
+    def total_llm_wait_ms(self) -> float:
+        return round(sum(step.stats.total_llm_wait_ms for step in self.steps), 3)
+
+    @property
+    def total_llm_response_ms(self) -> float:
+        return round(sum(step.stats.total_llm_response_ms for step in self.steps), 3)
+
     def _price(self, stats: AssignmentStats) -> tuple[float, float, float]:
         input_cost = stats.total_input_tokens * self.cost_per_mil_input / 1_000_000
         output_cost = stats.total_output_tokens * self.cost_per_mil_output / 1_000_000
@@ -98,6 +106,8 @@ class PipelineMetricsCollector:
                 'cost_per_mil_input': self.cost_per_mil_input,
                 'cost_per_mil_output': self.cost_per_mil_output,
                 'elapsed_seconds': elapsed_seconds,
+                'total_llm_wait_ms': self.total_llm_wait_ms,
+                'total_llm_response_ms': self.total_llm_response_ms,
             },
         }
 

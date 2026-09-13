@@ -150,7 +150,7 @@ def _parse_item_select_reply(
     return ''
 
 
-def parse_answer(  # noqa: PLR0911
+def parse_answer(  # ruff: ignore[too-many-return-statements]
     answer: dict[str, Any],
     km: dict[str, Any],
     replies: dict[str, Any] | None = None,
@@ -186,4 +186,5 @@ def parse_answer(  # noqa: PLR0911
         return ''
 
     msg = 'Unknown answer type'
+    logger.error('Unknown answer type encountered while parsing reply', extra={'answer_type': answer_type})
     raise RuntimeError(msg, answer_type)

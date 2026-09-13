@@ -1,6 +1,9 @@
+export type TemplateScope = 'personal' | 'tenant'
+
 export type TemplateOption = {
     uuid: string
     title: string
+    scope: TemplateScope
 }
 
 export type PipelineErrorResponse = {
@@ -22,14 +25,7 @@ export type TemplateDetail = {
     uuid: string
     title: string
     content: ApiTemplateContent
-}
-
-export type PipelineRunResponse = {
-    status: string
-    runId: string
-    questionnaireUuid: string
-    templateUuid: string
-    templateTitle: string
+    scope: TemplateScope
 }
 
 export type PipelineStatusResponse = {
@@ -45,6 +41,16 @@ export type PipelineStatusResponse = {
     resultFormat: string | null
     resultMarkdown: string | null
     progressMessage: string | null
+    updatedAt: string
+}
+
+export type PipelineSummaryItem = {
+    runId: string
+    status: 'queued' | 'running' | 'succeeded' | 'failed'
+    templateTitle: string
+    error: PipelineErrorResponse | null
+    progressMessage: string | null
+    createdAt: string
     updatedAt: string
 }
 

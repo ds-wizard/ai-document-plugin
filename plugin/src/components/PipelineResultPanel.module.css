@@ -1,28 +1,11 @@
 .root {
     display: grid;
     gap: 1.25rem;
-    margin-top: 0.5rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--ai-doc-color-slate-200);
 }
 
 .header {
     display: grid;
     gap: 1.1rem;
-}
-
-.headerContent {
-    display: grid;
-    gap: 0.5rem;
-}
-
-.subtitle {
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.95rem;
-}
-
-.segmentedControl {
-    display: inline-flex;
 }
 
 .toolbar {
@@ -40,6 +23,20 @@
     gap: 0.75rem;
     flex-wrap: wrap;
     margin-left: auto;
+}
+
+.rawEditor {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.rawToolbar {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.buttonIcon {
+    margin-right: 0.45rem;
 }
 
 .saveButton:disabled {

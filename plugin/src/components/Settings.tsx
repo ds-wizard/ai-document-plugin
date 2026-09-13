@@ -1,6 +1,8 @@
 import { SettingsComponentProps } from '@ds-wizard/plugin-sdk/elements'
+import { Toaster } from 'sonner'
 
 import styles from '@/components/Settings.module.css'
+import { TenantTemplateSection } from '@/components/settings/TenantTemplateSettings'
 import { SettingsData } from '@/data/settings-data'
 
 export default function Settings({
@@ -9,6 +11,7 @@ export default function Settings({
 }: SettingsComponentProps<SettingsData>) {
     return (
         <div className={styles.root}>
+            <Toaster richColors closeButton />
             <div>
                 <p className={styles.lead}>
                     Configure the LLM connection the plugin should use for pipeline execution.
@@ -18,8 +21,8 @@ export default function Settings({
                 </p>
             </div>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>Model</span>
+            <label className="ai-doc-field">
+                <span className="ai-doc-field-label">Model</span>
                 <input
                     type="text"
                     value={settings.model || ''}
@@ -30,12 +33,12 @@ export default function Settings({
                         })
                     }
                     placeholder="gpt-4.1-mini"
-                    className={styles.input}
+                    className="ai-doc-input"
                 />
             </label>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>API key</span>
+            <label className="ai-doc-field">
+                <span className="ai-doc-field-label">API key</span>
                 <input
                     type="password"
                     value={settings.apiKey || ''}
@@ -46,12 +49,12 @@ export default function Settings({
                         })
                     }
                     placeholder="sk-..."
-                    className={styles.input}
+                    className="ai-doc-input"
                 />
             </label>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>API URL</span>
+            <label className="ai-doc-field">
+                <span className="ai-doc-field-label">API URL</span>
                 <input
                     type="url"
                     value={settings.apiUrl || ''}
@@ -62,12 +65,12 @@ export default function Settings({
                         })
                     }
                     placeholder="https://api.openai.com/v1"
-                    className={styles.input}
+                    className="ai-doc-input"
                 />
             </label>
 
-            <label className={styles.label}>
-                <span className={styles.labelText}>Maximum parallel calls to LLM server</span>
+            <label className="ai-doc-field">
+                <span className="ai-doc-field-label">Maximum parallel calls to LLM server</span>
                 <input
                     type="number"
                     min={1}
@@ -80,9 +83,11 @@ export default function Settings({
                                 raw === '' ? null : Math.max(1, Number.parseInt(raw, 10) || 1),
                         })
                     }}
-                    className={styles.input}
+                    className="ai-doc-input"
                 />
             </label>
+
+            <TenantTemplateSection />
         </div>
     )
 }

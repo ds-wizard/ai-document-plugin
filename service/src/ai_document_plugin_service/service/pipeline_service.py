@@ -177,7 +177,7 @@ class PipelineService:
                 llm_config,
                 config,
             ),
-            trace_id=trace_id
+            trace_id=trace_id,
         )
         return run_id
 

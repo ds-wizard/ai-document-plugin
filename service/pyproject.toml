@@ -23,7 +23,7 @@ dependencies = [
     "httpx",
     "fastapi>=0.136.1,<1.0",
     "genson",
-    "haystack-ai>=2.30.1",
+    "haystack-ai>=2.30.1,<3",
     "json-repair",
     "markdown-it-py[linkify]",
     "openai",

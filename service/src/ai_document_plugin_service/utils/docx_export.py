@@ -86,8 +86,8 @@ def _write_link(paragraph: 'Paragraph', node: SyntaxTreeNode, formats: frozenset
     hyperlink.set(qn('r:id'), paragraph.part.relate_to(href, RELATIONSHIP_TYPE.HYPERLINK, is_external=True))
     for run in new_runs:
         # Appending moves the run out of the paragraph and into the hyperlink.
-        hyperlink.append(run._element)  # noqa: SLF001
-    paragraph._p.append(hyperlink)  # noqa: SLF001
+        hyperlink.append(run._element)  # ruff: ignore[private-member-access]
+    paragraph._p.append(hyperlink)  # ruff: ignore[private-member-access]
 
 
 def _write_inline(paragraph: 'Paragraph', node: SyntaxTreeNode, formats: frozenset[str]) -> None:

@@ -36,7 +36,7 @@ class ParserComponent:
         self.km: dict = {}
 
     @component.output_types(data=list[QuestionData])
-    def run(self, data: dict, trigger: bool) -> dict[str, list[QuestionData]]:  # noqa: FBT001, ARG002
+    def run(self, data: dict, trigger: bool) -> dict[str, list[QuestionData]]:  # ruff: ignore[boolean-type-hint-positional-argument, unused-method-argument]
         self.km = data['knowledgeModel']
         replies = data['replies']
         logger.info(

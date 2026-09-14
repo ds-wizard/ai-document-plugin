@@ -71,6 +71,7 @@ class GenerationRecord:
     questionnaire_uuid: UUID
     template_uuid: UUID
     title: str
+    language: str | None
     knowledge_model_uuid: UUID | None
     user_uuid: UUID
     tenant_uuid: UUID
@@ -89,6 +90,7 @@ class GenerationRecord:
             questionnaire_uuid=row.questionnaire_uuid,
             template_uuid=row.template_uuid,
             title=row.title,
+            language=row.language,
             knowledge_model_uuid=row.knowledge_model_uuid,
             user_uuid=row.user_uuid,
             tenant_uuid=row.tenant_uuid,
@@ -237,6 +239,7 @@ class Database(ABC):
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         title: str,
+        language: str,
         user_uuid: UUID,
         tenant_uuid: UUID,
         status: str,
@@ -806,6 +809,7 @@ class PostgresDB(Database):
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         title: str,
+        language: str,
         user_uuid: UUID,
         tenant_uuid: UUID,
         status: str,
@@ -817,6 +821,7 @@ class PostgresDB(Database):
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
             title=title,
+            language=language,
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
             status=status,

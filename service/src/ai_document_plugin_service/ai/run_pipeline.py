@@ -47,14 +47,20 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
-def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_client: LLMClient) -> AsyncPipeline:
+def build_pipeline(
+    database: Database,
+    saver: DBSaver,
+    config: Config,
+    llm_client: LLMClient,
+    language: str,
+) -> AsyncPipeline:
     pipeline = AsyncPipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent(llm_client, config)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
-    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config))
-    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config))
+    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config, language))
+    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
     saver_component = SaverComponent(database=database)
 
     # ROUTES

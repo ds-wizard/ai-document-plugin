@@ -64,6 +64,14 @@ class QuestionnaireLanguageResponse(ApiModel):
     language: str | None
 
 
+class LanguageOptionResponse(ApiModel):
+    code: str
+    iso6392: str
+    name: str
+    native_name: str
+    family: str
+
+
 class PipelineRunRequest(ApiModel):
     questionnaire_uuid: UUID
     template_uuid: UUID

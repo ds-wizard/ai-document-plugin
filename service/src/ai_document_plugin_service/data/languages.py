@@ -9,11 +9,25 @@ LANGUAGES_FILE = 'languages.json'
 
 
 @cache
-def _language_names() -> dict[str, str]:
+def get_available_languages() -> list[dict[str, str]]:
     resource = Path(__file__).parent / LANGUAGES_FILE
     definitions = json.loads(resource.read_text(encoding='utf-8'))
+    return [
+        {
+            'code': definition[ISO_639_1],
+            'iso6392': definition[ISO_639_2],
+            'name': definition[LANGUAGE_NAME],
+            'nativeName': definition['nativeName'],
+            'family': definition['family'],
+        }
+        for definition in definitions.values()
+    ]
+
+
+@cache
+def _language_names() -> dict[str, str]:
     names: dict[str, str] = {}
-    for definition in definitions.values():
+    for definition in get_available_languages():
         names[definition[ISO_639_1]] = definition[LANGUAGE_NAME]
         for code in definition[ISO_639_2].split('/'):
             names[code] = definition[LANGUAGE_NAME]

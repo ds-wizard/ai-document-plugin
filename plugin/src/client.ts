@@ -1,5 +1,6 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
+import type { LanguageDefinition } from '@/data/languages'
 import type {
     PipelineStatusResponse,
     PipelineSummaryItem,
@@ -53,6 +54,34 @@ export const getQuestionnaireLanguage = async (
     }
 
     return typeof data.language === 'string' ? data.language : null
+}
+
+export const getAvailableLanguages = async (): Promise<LanguageDefinition[]> => {
+    const url = `${getApiBaseUrl()}/languages`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<unknown>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load available languages (${response.status}).`)
+    }
+
+    if (
+        !Array.isArray(data) ||
+        !data.every(
+            (item) =>
+                item &&
+                typeof item === 'object' &&
+                typeof item.code === 'string' &&
+                typeof item.iso6392 === 'string' &&
+                typeof item.name === 'string' &&
+                typeof item.nativeName === 'string' &&
+                typeof item.family === 'string',
+        )
+    ) {
+        throw new Error('Invalid available languages returned.')
+    }
+
+    return data as LanguageDefinition[]
 }
 
 const buildAuthHeaders = (): Record<string, string> => {

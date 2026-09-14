@@ -1,12 +1,14 @@
 import { useDeferredValue, useEffect, useId, useRef, useState } from 'react'
 
 import styles from '@/components/LanguageDropdown.module.css'
-import { filterLanguageOptions, getLanguageOption } from '@/data/languages'
+import { filterLanguageOptions, getLanguageOption, type LanguageOption } from '@/data/languages'
 
 type LanguageDropdownProps = {
+    options: LanguageOption[]
     value: string
     onChange: (value: string) => void
     disabled?: boolean
+    loading?: boolean
     label?: string
     placeholder?: string
     searchPlaceholder?: string
@@ -16,9 +18,11 @@ const capitalizeLabel = (label: string): string =>
     label ? label[0].toLocaleUpperCase() + label.slice(1) : label
 
 export function LanguageDropdown({
+    options,
     value,
     onChange,
     disabled = false,
+    loading = false,
     label = 'Language',
     placeholder = 'Select language',
     searchPlaceholder = 'Search language...',
@@ -30,9 +34,13 @@ export function LanguageDropdown({
     const searchInputRef = useRef<HTMLInputElement | null>(null)
     const listboxId = useId()
 
-    const selectedOption = getLanguageOption(value)
-    const visibleOptions = filterLanguageOptions(deferredQuery)
-    const displayLabel = selectedOption ? capitalizeLabel(selectedOption.nativeLabel) : placeholder
+    const selectedOption = getLanguageOption(options, value)
+    const visibleOptions = filterLanguageOptions(options, deferredQuery)
+    const displayLabel = loading
+        ? 'Loading languages...'
+        : selectedOption
+          ? capitalizeLabel(selectedOption.nativeLabel)
+          : placeholder
 
     useEffect(() => {
         if (!isOpen) {
@@ -75,7 +83,8 @@ export function LanguageDropdown({
             <div className={styles.root} ref={rootRef}>
                 <button
                     type="button"
-                    disabled={disabled}
+                    disabled={disabled || loading}
+                    aria-busy={loading}
                     className={styles.toggle}
                     onClick={() => {
                         setIsOpen((currentValue) => !currentValue)
@@ -86,9 +95,13 @@ export function LanguageDropdown({
                     aria-controls={listboxId}
                 >
                     <span className={styles.toggleLabel}>{displayLabel}</span>
-                    <span className={styles.caret} aria-hidden="true">
-                        ▼
-                    </span>
+                    {loading ? (
+                        <span className={styles.spinner} aria-hidden="true" />
+                    ) : (
+                        <span className={styles.caret} aria-hidden="true">
+                            ▼
+                        </span>
+                    )}
                 </button>
 
                 {isOpen ? (
@@ -127,7 +140,9 @@ export function LanguageDropdown({
                                 ))
                             ) : (
                                 <div className={styles.emptyState}>
-                                    No languages match “{query.trim()}”.
+                                    {options.length === 0
+                                        ? 'No languages are available.'
+                                        : `No languages match “${query.trim()}”.`}
                                 </div>
                             )}
                         </div>

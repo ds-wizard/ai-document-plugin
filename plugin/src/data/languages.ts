@@ -1,19 +1,16 @@
-import languageDefinitions from '../../../service/src/ai_document_plugin_service/data/languages.json'
+export type LanguageDefinition = {
+    code: string
+    iso6392: string
+    name: string
+    nativeName: string
+    family: string
+}
 
 export type LanguageOption = {
     code: string
     englishLabel: string
     nativeLabel: string
     searchLabel: string
-}
-
-type LanguageDefinition = {
-    '639-1': string
-    '639-2': string
-    family: string
-    name: string
-    nativeName: string
-    wikiUrl: string
 }
 
 const normalizeSearchValue = (value: string): string =>
@@ -24,13 +21,13 @@ const normalizeSearchValue = (value: string): string =>
         .toLocaleLowerCase()
 
 const buildLanguageOption = (definition: LanguageDefinition): LanguageOption => ({
-    code: definition['639-1'],
+    code: definition.code,
     englishLabel: definition.name,
     nativeLabel: definition.nativeName || definition.name,
     searchLabel: normalizeSearchValue(
         [
-            definition['639-1'],
-            definition['639-2'],
+            definition.code,
+            definition.iso6392,
             definition.name,
             definition.nativeName,
             definition.family,
@@ -38,24 +35,31 @@ const buildLanguageOption = (definition: LanguageDefinition): LanguageOption => 
     ),
 })
 
-export const LANGUAGE_OPTIONS: LanguageOption[] = Object.values(languageDefinitions)
-    .map((definition) => buildLanguageOption(definition))
-    .sort((left, right) => left.nativeLabel.localeCompare(right.nativeLabel))
+export const buildLanguageOptions = (definitions: LanguageDefinition[]): LanguageOption[] =>
+    definitions
+        .map((definition) => buildLanguageOption(definition))
+        .sort((left, right) => left.nativeLabel.localeCompare(right.nativeLabel))
 
-export const getLanguageOption = (code: string): LanguageOption | null => {
+export const getLanguageOption = (
+    options: LanguageOption[],
+    code: string,
+): LanguageOption | null => {
     const normalizedCode = code.trim().toLocaleLowerCase()
     if (!normalizedCode) {
         return null
     }
 
-    return LANGUAGE_OPTIONS.find((option) => option.code === normalizedCode) ?? null
+    return options.find((option) => option.code === normalizedCode) ?? null
 }
 
-export const filterLanguageOptions = (query: string): LanguageOption[] => {
+export const filterLanguageOptions = (
+    options: LanguageOption[],
+    query: string,
+): LanguageOption[] => {
     const normalizedQuery = normalizeSearchValue(query.trim())
     if (!normalizedQuery) {
-        return LANGUAGE_OPTIONS
+        return options
     }
 
-    return LANGUAGE_OPTIONS.filter((option) => option.searchLabel.includes(normalizedQuery))
+    return options.filter((option) => option.searchLabel.includes(normalizedQuery))
 }

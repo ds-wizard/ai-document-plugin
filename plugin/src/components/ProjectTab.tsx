@@ -2,13 +2,13 @@ import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
-import { getQuestionnaireLanguage } from '@/client'
+import { getAvailableLanguages, getQuestionnaireLanguage } from '@/client'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import styles from '@/components/ProjectTab.module.css'
 import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
 import { RunDetailPanel } from '@/components/RunDetailPanel'
-import { getLanguageOption } from '@/data/languages'
+import { buildLanguageOptions, getLanguageOption, type LanguageOption } from '@/data/languages'
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import { useGenerationHistory } from '@/hooks/useGenerationHistory'
@@ -31,6 +31,8 @@ export default function ProjectTab({
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
     const [language, setLanguage] = useState('')
+    const [languageOptions, setLanguageOptions] = useState<LanguageOption[]>([])
+    const [languagesLoading, setLanguagesLoading] = useState(true)
     const userSelectedLanguage = useRef(false)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
@@ -43,11 +45,48 @@ export default function ProjectTab({
     }, [])
 
     useEffect(() => {
+        let cancelled = false
+        setLanguagesLoading(true)
+        setLanguageOptions([])
+
+        void getAvailableLanguages()
+            .then((definitions) => {
+                if (cancelled) return
+                const options = buildLanguageOptions(definitions)
+                if (options.length === 0) {
+                    throw new Error('No languages are available from the API.')
+                }
+                setLanguageOptions(options)
+            })
+            .catch((error: unknown) => {
+                if (!cancelled) {
+                    toast.error(
+                        error instanceof Error
+                            ? error.message
+                            : 'Failed to load available languages.',
+                    )
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setLanguagesLoading(false)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [settings.serviceUrl])
+
+    useEffect(() => {
         userSelectedLanguage.current = false
         setLanguage('')
 
+        if (languageOptions.length === 0) return
+
+        const fallbackLanguage =
+            getLanguageOption(languageOptions, DEFAULT_LANGUAGE)?.code ?? languageOptions[0].code
+
         if (!projectUuid) {
-            setLanguage(DEFAULT_LANGUAGE)
+            setLanguage(fallbackLanguage)
             return
         }
 
@@ -56,20 +95,21 @@ export default function ProjectTab({
             .then((questionnaireLanguage) => {
                 if (!cancelled && !userSelectedLanguage.current) {
                     setLanguage(
-                        getLanguageOption(questionnaireLanguage ?? '')?.code ?? DEFAULT_LANGUAGE,
+                        getLanguageOption(languageOptions, questionnaireLanguage ?? '')?.code ??
+                            fallbackLanguage,
                     )
                 }
             })
             .catch(() => {
                 if (!cancelled && !userSelectedLanguage.current) {
-                    setLanguage(DEFAULT_LANGUAGE)
+                    setLanguage(fallbackLanguage)
                 }
             })
 
         return () => {
             cancelled = true
         }
-    }, [projectUuid])
+    }, [projectUuid, languageOptions])
 
     if (!project) {
         return (
@@ -120,6 +160,8 @@ export default function ProjectTab({
                                 disabled={history.isStarting}
                                 onSelectedUuidChange={handleSelectedUuidChange}
                                 language={language}
+                                languageOptions={languageOptions}
+                                languagesLoading={languagesLoading}
                                 onLanguageChange={handleLanguageChange}
                             />
 
@@ -128,9 +170,11 @@ export default function ProjectTab({
                                 onClick={() => void handleRunPipeline()}
                                 disabled={
                                     templates.isLoading ||
+                                    languagesLoading ||
+                                    languageOptions.length === 0 ||
                                     history.isStarting ||
                                     !selectedUuid ||
-                                    !language
+                                    !getLanguageOption(languageOptions, language)
                                 }
                                 className={`btn btn-primary btn-wide ${styles.runButton}`}
                             >

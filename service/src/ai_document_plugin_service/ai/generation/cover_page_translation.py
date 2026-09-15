@@ -1,4 +1,4 @@
-"""Translate header labels without sending document values to the model."""
+"""Translate cover page labels without sending document values to the model."""
 
 import json
 import logging
@@ -13,7 +13,7 @@ from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
 logger = logging.getLogger(__name__)
 
 
-def cover_translation_labels(definition: CoverPageDefinition) -> dict[str, str]:
+def cover_page_translation_labels(definition: CoverPageDefinition) -> dict[str, str]:
     return {
         definition.metadata.title.id: definition.metadata.title.text,
         **{column.id: column.text for column in definition.metadata.columns},
@@ -24,7 +24,7 @@ def cover_translation_labels(definition: CoverPageDefinition) -> dict[str, str]:
     }
 
 
-def header_section_nodes(
+def cover_page_section_nodes(
     assignments: list[SerializedSectionAssignment],
     prefix: str = 'section',
 ) -> list[tuple[str, SerializedSectionAssignment]]:
@@ -32,11 +32,11 @@ def header_section_nodes(
     for index, node in enumerate(assignments):
         key = f'{prefix}_{index}'
         nodes.append((key, node))
-        nodes.extend(header_section_nodes(node['children'] or [], key))
+        nodes.extend(cover_page_section_nodes(node['children'] or [], key))
     return nodes
 
 
-class HeaderTranslator:
+class CoverPageTranslator:
     def __init__(
         self,
         client: LLMClient,
@@ -55,9 +55,9 @@ class HeaderTranslator:
         stats: AssignmentStats,
     ) -> tuple[dict[str, str], list[SerializedSectionAssignment]]:
         localized = deepcopy(assignments)
-        nodes = header_section_nodes(localized)
+        nodes = cover_page_section_nodes(localized)
         labels = {
-            **cover_translation_labels(self.cover_definition),
+            **cover_page_translation_labels(self.cover_definition),
             **{key: node['title'] for key, node in nodes},
         }
         if self.language.lower().split('-')[0] == 'en':
@@ -87,13 +87,16 @@ class HeaderTranslator:
             translations = {}
         for key, original in labels.items():
             translated = translations.get(key)
-            if isinstance(translated, str) and translated.strip() and not any(
-                character in translated for character in '\n\r|<>`#*[]'
+            if (
+                isinstance(translated, str)
+                and translated.strip()
+                and not any(character in translated for character in '\n\r|<>`#*[]')
             ):
                 labels[key] = translated.strip()
             else:
                 logger.warning(
-                    'Missing or invalid header label translation; using source label', extra={'label_key': key},
+                    'Missing or invalid cover page label translation; using source label',
+                    extra={'label_key': key},
                 )
                 labels[key] = original
         for key, node in nodes:

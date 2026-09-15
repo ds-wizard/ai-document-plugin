@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { getQuestionnaireLanguage } from '@/client'
-import { DocumentHeaderPreview } from '@/components/DocumentHeaderPreview'
+import { CoverPagePreview } from '@/components/CoverPagePreview'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import { LanguageDropdown } from '@/components/LanguageDropdown'
@@ -33,7 +33,7 @@ export default function ProjectTab({
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
     const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
-    const [generateDmpMetadata, setGenerateDmpMetadata] = useState(false)
+    const [includeCoverPage, setIncludeCoverPage] = useState(false)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
@@ -84,7 +84,7 @@ export default function ProjectTab({
     }
 
     const handleRunPipeline = async () => {
-        const started = await history.startRun(selectedUuid, language, generateDmpMetadata)
+        const started = await history.startRun(selectedUuid, language, includeCoverPage)
         if (started) {
             setSelectedRunId(started.runId)
         }
@@ -129,19 +129,19 @@ export default function ProjectTab({
                                 <label className={styles.metadataOption}>
                                     <input
                                         type="checkbox"
-                                        checked={generateDmpMetadata}
+                                        checked={includeCoverPage}
                                         onChange={(event) =>
-                                            setGenerateDmpMetadata(event.target.checked)
+                                            setIncludeCoverPage(event.target.checked)
                                         }
                                         disabled={history.isStarting}
                                     />
                                     <span>
-                                        Automatically generate DMP metadata and project information
-                                        on introductory pages
+                                        Include a cover page with DMP metadata and project
+                                        information
                                     </span>
                                 </label>
 
-                                <DocumentHeaderPreview language={language} />
+                                <CoverPagePreview language={language} />
                             </div>
 
                             <button

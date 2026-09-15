@@ -1,7 +1,7 @@
-import styles from '@/components/DocumentHeaderPreview.module.css'
+import styles from '@/components/CoverPagePreview.module.css'
 import { getLanguageOption } from '@/data/languages'
 
-type DocumentHeaderPreviewProps = {
+type CoverPagePreviewProps = {
     language: string
 }
 
@@ -22,19 +22,19 @@ const PROJECT_FIELDS = [
     'Project abstract',
 ]
 
-export function DocumentHeaderPreview({ language }: DocumentHeaderPreviewProps) {
+export function CoverPagePreview({ language }: CoverPagePreviewProps) {
     const languageName = getLanguageOption(language)?.englishLabel ?? language
 
     return (
         <details className={styles.root}>
-            <summary className={styles.summary}>Preview these introductory pages</summary>
+            <summary className={styles.summary}>Preview the cover page</summary>
             <div className={styles.content}>
                 <p className={styles.note}>
                     {language.toLowerCase().split('-')[0] !== 'en' &&
                         ` Labels are shown here in English and will be translated into ${languageName} during generation.`}
                 </p>
 
-                <section aria-label="Document header structure" className={styles.page}>
+                <section aria-label="Cover page structure" className={styles.page}>
                     <h3 className={styles.title}>Data Management Plan</h3>
                     <div className={styles.tableWrapper}>
                         <table className={styles.table}>
@@ -72,8 +72,8 @@ export function DocumentHeaderPreview({ language }: DocumentHeaderPreviewProps) 
                             <tbody>
                                 <tr>
                                     <td colSpan={3} className={styles.placeholder}>
-                                        Named project versions and their descriptions, newest first. Empty
-                                        if no versions are available.
+                                        Named project versions and their descriptions, newest first.
+                                        Empty if no versions are available.
                                     </td>
                                 </tr>
                             </tbody>

@@ -1,7 +1,7 @@
 from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
 
 
-def build_header_assignment_template(definition: CoverPageDefinition) -> dict[str, object]:
+def build_cover_page_assignment_template(definition: CoverPageDefinition) -> dict[str, object]:
     return {
         'sections': [
             {

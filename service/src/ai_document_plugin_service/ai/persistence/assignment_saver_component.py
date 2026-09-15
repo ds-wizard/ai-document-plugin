@@ -33,7 +33,7 @@ StatsJson = dict[str, dict[str, int | float]]
 
 class AssignmentSaverComponentResult(TypedDict):
     assignments: list[SerializedSectionAssignment]
-    header_assignments: list[SerializedSectionAssignment] | None
+    cover_page_assignments: list[SerializedSectionAssignment] | None
     stats: AssignmentStats | None
 
 
@@ -44,7 +44,7 @@ class AssignmentSaverComponent:
 
     @component.output_types(
         assignments=list[SerializedSectionAssignment],
-        header_assignments=list[SerializedSectionAssignment],
+        cover_page_assignments=list[SerializedSectionAssignment],
         stats=AssignmentStats,
     )
     async def run_async(
@@ -58,7 +58,7 @@ class AssignmentSaverComponent:
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
-        header_assignments: list[SectionAssignment] | None = None,
+        cover_page_assignments: list[SectionAssignment] | None = None,
         existing_assignments: list[SerializedSectionAssignment] | None = None,
     ) -> AssignmentSaverComponentResult:
         """Save assignments to storage, optionally including token usage stats."""
@@ -79,8 +79,10 @@ class AssignmentSaverComponent:
             if existing_assignments is not None
             else [assignment.to_dict() for assignment in assignments]
         )
-        serialized_header_assignments = (
-            [assignment.to_dict() for assignment in header_assignments] if header_assignments is not None else None
+        serialized_cover_page_assignments = (
+            [assignment.to_dict() for assignment in cover_page_assignments]
+            if cover_page_assignments is not None
+            else None
         )
         stats_payload = _serialize_stats(stats)
 
@@ -89,7 +91,7 @@ class AssignmentSaverComponent:
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             content_assignments=None if existing_assignments is not None else serializable,
-            header_assignments=serialized_header_assignments,
+            cover_page_assignments=serialized_cover_page_assignments,
             stats=stats_payload,
             template_uuid=template_uuid,
             template_title=template_title,
@@ -100,14 +102,14 @@ class AssignmentSaverComponent:
 
         return {
             'assignments': serializable,
-            'header_assignments': serialized_header_assignments,
+            'cover_page_assignments': serialized_cover_page_assignments,
             'stats': stats,
         }
 
     @typing.override
     @component.output_types(
         assignments=list[SerializedSectionAssignment],
-        header_assignments=list[SerializedSectionAssignment],
+        cover_page_assignments=list[SerializedSectionAssignment],
         stats=AssignmentStats,
     )
     def run(
@@ -121,7 +123,7 @@ class AssignmentSaverComponent:
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
-        header_assignments: list[SectionAssignment] | None = None,
+        cover_page_assignments: list[SectionAssignment] | None = None,
         existing_assignments: list[SerializedSectionAssignment] | None = None,
     ) -> AssignmentSaverComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
@@ -139,7 +141,7 @@ class Saver(ABC):
         knowledge_model_name: str,
         knowledge_model_version: str,
         content_assignments: list[SerializedSectionAssignment] | None,
-        header_assignments: list[SerializedSectionAssignment] | None,
+        cover_page_assignments: list[SerializedSectionAssignment] | None,
         stats: StatsJson | None,
         template_uuid: UUID,
         template_title: str,
@@ -158,7 +160,7 @@ class FileSaver(Saver):
         knowledge_model_name: str,
         knowledge_model_version: str,
         content_assignments: list[SerializedSectionAssignment] | None,
-        header_assignments: list[SerializedSectionAssignment] | None,
+        cover_page_assignments: list[SerializedSectionAssignment] | None,
         stats: StatsJson | None,
         template_uuid: UUID,
         template_title: str,
@@ -169,7 +171,7 @@ class FileSaver(Saver):
     ) -> None:
         _ = (template_uuid, template_title, template_data, tenant_uuid)
         assignments = [
-            *(header_assignments or []),
+            *(cover_page_assignments or []),
             *(content_assignments or []),
         ]
         output_name = self._build_filename(
@@ -228,7 +230,7 @@ class DBSaver(Saver):
         knowledge_model_name: str,
         knowledge_model_version: str,
         content_assignments: list[SerializedSectionAssignment] | None,
-        header_assignments: list[SerializedSectionAssignment] | None,
+        cover_page_assignments: list[SerializedSectionAssignment] | None,
         stats: StatsJson | None,
         template_uuid: UUID,
         template_title: str,
@@ -256,7 +258,7 @@ class DBSaver(Saver):
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             content_assignments=content_assignments,
-            header_assignments=header_assignments,
+            cover_page_assignments=cover_page_assignments,
             stats=stats,
             created_at=created_at,
             template_uuid=template_uuid,

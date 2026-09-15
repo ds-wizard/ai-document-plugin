@@ -158,12 +158,12 @@ class Database(ABC):
         knowledge_model_name: str,
         knowledge_model_version: str,
         content_assignments: list[SerializedSectionAssignment] | None,
-        header_assignments: list[SerializedSectionAssignment] | None,
+        cover_page_assignments: list[SerializedSectionAssignment] | None,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist content or header assignments in a database backend."""
+        """Persist content or cover page assignments in a database backend."""
 
     @abstractmethod
     async def save_template(
@@ -181,9 +181,9 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
         *,
-        include_header_assignments: bool = False,
+        include_cover_page_assignments: bool = False,
     ) -> list[SerializedSectionAssignment] | None:
-        """Get content assignments or DMP-header assignments from a database backend."""
+        """Get content assignments or cover-page assignments from a database backend."""
 
     @abstractmethod
     async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
@@ -387,7 +387,7 @@ class PostgresDB(Database):
         knowledge_model_name: str,
         knowledge_model_version: str,
         content_assignments: list[SerializedSectionAssignment] | None,
-        header_assignments: list[SerializedSectionAssignment] | None,
+        cover_page_assignments: list[SerializedSectionAssignment] | None,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -400,7 +400,7 @@ class PostgresDB(Database):
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
             content_assignments=content_assignments,
-            header_assignments=header_assignments,
+            cover_page_assignments=cover_page_assignments,
             stats=stats,
             template_uuid=template_uuid,
         )
@@ -413,11 +413,13 @@ class PostgresDB(Database):
                 'created_at': statement.excluded.created_at,
                 **(
                     {'content_assignments': statement.excluded.content_assignments}
-                    if content_assignments is not None else {}
+                    if content_assignments is not None
+                    else {}
                 ),
                 **(
-                    {'header_assignments': statement.excluded.header_assignments}
-                    if header_assignments is not None else {}
+                    {'cover_page_assignments': statement.excluded.cover_page_assignments}
+                    if cover_page_assignments is not None
+                    else {}
                 ),
             },
         )
@@ -430,11 +432,9 @@ class PostgresDB(Database):
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'content_assignment_count': (
-                    len(content_assignments) if content_assignments is not None else None
-                ),
-                'header_assignment_count': (
-                    len(header_assignments) if header_assignments is not None else None
+                'content_assignment_count': (len(content_assignments) if content_assignments is not None else None),
+                'cover_page_assignment_count': (
+                    len(cover_page_assignments) if cover_page_assignments is not None else None
                 ),
                 'db.schema': self.schema_name,
             },
@@ -575,7 +575,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
         *,
-        include_header_assignments: bool = False,
+        include_cover_page_assignments: bool = False,
     ) -> list[SerializedSectionAssignment] | None:
         await self._ensure_schema()
 
@@ -601,12 +601,12 @@ class PostgresDB(Database):
 
         logger.debug(
             'Loaded %s assignments for KM package id=%s from %s.assignment',
-            'header' if include_header_assignments else 'content',
+            'cover page' if include_cover_page_assignments else 'content',
             knowledge_model_uuid,
             self.schema_name,
         )
 
-        return row.header_assignments if include_header_assignments else row.content_assignments
+        return row.cover_page_assignments if include_cover_page_assignments else row.content_assignments
 
     def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""

@@ -11,7 +11,7 @@ from haystack import AsyncPipeline
 from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
-from ai_document_plugin_service.ai.assignment.projects_section import build_header_assignment_template
+from ai_document_plugin_service.ai.assignment.projects_section import build_cover_page_assignment_template
 from ai_document_plugin_service.ai.common import (
     Config,
     PipelineMetricsCollector,
@@ -19,9 +19,9 @@ from ai_document_plugin_service.ai.common import (
     get_component_stats,
 )
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
+from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
+from ai_document_plugin_service.ai.generation.cover_page_translation import CoverPageTranslator
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
-from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
-from ai_document_plugin_service.ai.generation.header_translation import HeaderTranslator
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
@@ -66,17 +66,17 @@ def build_pipeline(
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
-        header_generation_prompt=config.header_generation,
-        header_translator=HeaderTranslator(
+        cover_page_generation_prompt=config.cover_page_generation,
+        cover_page_translator=CoverPageTranslator(
             llm_client,
             language,
-            config.header_translation,
+            config.cover_page_translation,
             config.cover_definition,
         ),
-        cover_renderer=CoverPageRenderer(config.cover_definition),
+        cover_page_renderer=CoverPageRenderer(config.cover_definition),
     )
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
-    document_header_component = DocumentHeaderComponent()
+    cover_page_component = CoverPageComponent()
     saver_component = SaverComponent(database=database)
 
     # ROUTES
@@ -104,7 +104,7 @@ def build_pipeline(
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
-    pipeline.add_component('document_header_component', document_header_component)
+    pipeline.add_component('cover_page_component', cover_page_component)
     pipeline.add_component('saver_component', saver_component)
 
     # CONNECTIONS
@@ -113,7 +113,7 @@ def build_pipeline(
     pipeline.connect('loader_component.found', 'router.found')
     pipeline.connect('loader_component.reuse_content', 'assignment_component.reuse_content')
     pipeline.connect('loader_component.assignments', 'assignment_saver_component.existing_assignments')
-    pipeline.connect('loader_component.header_assignments', 'dmp_generator_component.db_header_assignments')
+    pipeline.connect('loader_component.cover_page_assignments', 'dmp_generator_component.db_cover_page_assignments')
     # no assignments saved -> continue to parser_component
     pipeline.connect('router.missing_assignment', 'parser_component.trigger')
     # assignments already done -> continue to dmp_generator_component
@@ -122,19 +122,21 @@ def build_pipeline(
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
-    pipeline.connect('assignment_component.header_assignments', 'assignment_saver_component.header_assignments')
+    pipeline.connect('assignment_component.cover_page_assignments', 'assignment_saver_component.cover_page_assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
-    pipeline.connect('assignment_saver_component.header_assignments', 'dmp_generator_component.new_header_assignments')
+    pipeline.connect(
+        'assignment_saver_component.cover_page_assignments', 'dmp_generator_component.new_cover_page_assignments'
+    )
     # dmp_generator_component -> prepolished_saver_component
     pipeline.connect('dmp_generator_component.debug_markdown', 'saver_component.debug_markdown')
     # dmp_generator_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
-    # Add fixed metadata only after the LLM has polished the document body.
-    pipeline.connect('dmp_generator_component.document_header', 'document_header_component.document_header')
-    pipeline.connect('dmp_polisher_component.markdown', 'document_header_component.markdown')
-    pipeline.connect('document_header_component.markdown', 'saver_component.markdown')
+    # Add the cover page only after the LLM has polished the document body.
+    pipeline.connect('dmp_generator_component.cover_page', 'cover_page_component.cover_page')
+    pipeline.connect('dmp_polisher_component.markdown', 'cover_page_component.markdown')
+    pipeline.connect('cover_page_component.markdown', 'saver_component.markdown')
 
     return pipeline
 
@@ -152,7 +154,7 @@ async def run_pipeline(
     model_name: str,
     cover_definition: CoverPageDefinition,
     *,
-    generate_dmp_metadata: bool = False,
+    include_cover_page: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[UUID, str]:
     t1 = time.time()
@@ -168,7 +170,7 @@ async def run_pipeline(
         duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
     project_versions: list[dict] = []
-    if generate_dmp_metadata:
+    if include_cover_page:
         project_versions_fetch_started = time.perf_counter()
         try:
             project_versions = await dsw_client.get_project_versions(project_uuid=questionnaire_uuid)
@@ -182,7 +184,9 @@ async def run_pipeline(
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    header_assignment_template = build_header_assignment_template(cover_definition) if generate_dmp_metadata else None
+    cover_page_assignment_template = (
+        build_cover_page_assignment_template(cover_definition) if include_cover_page else None
+    )
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
@@ -197,12 +201,12 @@ async def run_pipeline(
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
                     'template_uuid': template_uuid,
-                    'include_header_assignments': generate_dmp_metadata,
+                    'include_cover_page_assignments': include_cover_page,
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
                     'template_data': dict(template_data),
-                    'header_template_data': header_assignment_template,
+                    'cover_page_template_data': cover_page_assignment_template,
                     'km': km,
                     'on_progress': on_progress,
                 },
@@ -220,7 +224,7 @@ async def run_pipeline(
                     'km': km,
                     'questionnaire_detail': km_data,
                     'project_versions': project_versions,
-                    'generate_dmp_metadata': generate_dmp_metadata,
+                    'include_cover_page': include_cover_page,
                     'on_progress': on_progress,
                 },
                 'dmp_polisher_component': {

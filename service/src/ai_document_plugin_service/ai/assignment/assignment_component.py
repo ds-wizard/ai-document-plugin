@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class AssignmentComponentResult(TypedDict):
     assignments: list[SectionAssignment]
-    header_assignments: list[SectionAssignment] | None
+    cover_page_assignments: list[SectionAssignment] | None
     stats: AssignmentStats
 
 
@@ -69,7 +69,7 @@ class AssignmentComponent:
 
     @component.output_types(
         assignments=list[SectionAssignment],
-        header_assignments=list[SectionAssignment],
+        cover_page_assignments=list[SectionAssignment],
         stats=AssignmentStats,
     )
     async def run_async(
@@ -78,16 +78,18 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
-        header_template_data: dict[str, Any] | None = None,
+        cover_page_template_data: dict[str, Any] | None = None,
         *,
         reuse_content: bool = False,
     ) -> AssignmentComponentResult:
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
-        header_sections = build_section_records(header_template_data) if header_template_data is not None else []
+        cover_page_sections = (
+            build_section_records(cover_page_template_data) if cover_page_template_data is not None else []
+        )
         content_sections = [] if reuse_content else build_section_records(template_data)
-        sections = [*header_sections, *content_sections]
+        sections = [*cover_page_sections, *content_sections]
         question_chunks, question_id_to_path = build_question_chunks(data)
         logger.info(
             'Starting question-to-section assignment',
@@ -150,14 +152,14 @@ class AssignmentComponent:
         stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
 
         return {
-            'assignments': assignments[len(header_sections) :],
-            'header_assignments': assignments[: len(header_sections)] or None,
+            'assignments': assignments[len(cover_page_sections) :],
+            'cover_page_assignments': assignments[: len(cover_page_sections)] or None,
             'stats': stats,
         }
 
     @component.output_types(
         assignments=list[SectionAssignment],
-        header_assignments=list[SectionAssignment],
+        cover_page_assignments=list[SectionAssignment],
         stats=AssignmentStats,
     )
     def run(
@@ -166,7 +168,7 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
-        header_template_data: dict[str, Any] | None = None,
+        cover_page_template_data: dict[str, Any] | None = None,
         *,
         reuse_content: bool = False,
     ) -> AssignmentComponentResult:

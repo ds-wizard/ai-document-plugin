@@ -17,7 +17,7 @@ class AssignmentLoaderComponent:
 
     @component.output_types(
         assignments=list[SerializedSectionAssignment] | None,
-        header_assignments=list[SerializedSectionAssignment],
+        cover_page_assignments=list[SerializedSectionAssignment],
         found=bool,
         reuse_content=bool,
     )
@@ -26,7 +26,7 @@ class AssignmentLoaderComponent:
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
         *,
-        include_header_assignments: bool = False,
+        include_cover_page_assignments: bool = False,
     ) -> dict[str, Any]:
         logger.debug(
             'Loading stored assignments for pipeline',
@@ -36,38 +36,38 @@ class AssignmentLoaderComponent:
             knowledge_model_uuid,
             template_uuid,
         )
-        header_assignments = (
+        cover_page_assignments = (
             await self.database.get_assignments(
                 knowledge_model_uuid,
                 template_uuid,
-                include_header_assignments=True,
+                include_cover_page_assignments=True,
             )
-            if include_header_assignments
+            if include_cover_page_assignments
             else None
         )
         found = content_assignments is not None and (
-            not include_header_assignments or header_assignments is not None
+            not include_cover_page_assignments or cover_page_assignments is not None
         )
         logger.info(
             'Assignment load completed',
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'include_header_assignments': include_header_assignments,
+                'include_cover_page_assignments': include_cover_page_assignments,
                 'found': found,
             },
         )
 
         return {
             'assignments': content_assignments,
-            'header_assignments': header_assignments or [],
+            'cover_page_assignments': cover_page_assignments or [],
             'found': found,
             'reuse_content': content_assignments is not None,
         }
 
     @component.output_types(
         assignments=list[SerializedSectionAssignment] | None,
-        header_assignments=list[SerializedSectionAssignment],
+        cover_page_assignments=list[SerializedSectionAssignment],
         found=bool,
         reuse_content=bool,
     )
@@ -76,7 +76,7 @@ class AssignmentLoaderComponent:
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
         *,
-        include_header_assignments: bool = False,
+        include_cover_page_assignments: bool = False,
     ) -> dict[str, Any]:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'

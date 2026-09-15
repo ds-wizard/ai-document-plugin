@@ -256,21 +256,26 @@ def test_empty_markdown_still_produces_a_readable_file(markdown: str) -> None:
     assert all(not paragraph.text for paragraph in document.paragraphs)
 
 
-async def test_header_ends_with_page_break_in_word() -> None:
-    from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
+async def test_cover_page_ends_with_page_break_in_word() -> None:
+    from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 
-    result = await DocumentHeaderComponent().run_async(
-        document_header='# Custom header\n\nHeader details',
+    result = await CoverPageComponent().run_async(
+        cover_page='# Custom cover page\n\nCover page details',
         markdown='# Main content\n\nBody text',
     )
     document = _render(result['markdown'])
     breaks = document.element.xpath('//w:br[@w:type="page"]')
     assert len(breaks) == 1
     paragraphs = document.paragraphs
-    assert [p.text for p in paragraphs] == ['Custom header', 'Header details', '', 'Main content', 'Body text']
+    assert [p.text for p in paragraphs] == ['Custom cover page', 'Cover page details', '', 'Main content', 'Body text']
     assert paragraphs[2]._p.xpath('.//w:br[@w:type="page"]')
 
 
-def test_no_header_does_not_add_page_break() -> None:
+def test_no_cover_page_does_not_add_page_break() -> None:
     document = _render('# Main content\n\nBody text')
     assert not document.element.xpath('//w:br[@w:type="page"]')
+
+
+def test_legacy_cover_page_marker_still_adds_page_break() -> None:
+    document = _render('# Cover page\n\n<!-- ai-document-header-end -->\n\n# Main content')
+    assert len(document.element.xpath('//w:br[@w:type="page"]')) == 1

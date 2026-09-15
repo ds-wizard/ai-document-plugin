@@ -38,7 +38,7 @@ export type UseGenerationHistoryResult = {
     startRun: (
         templateUuid: string,
         language: string,
-        generateDmpMetadata: boolean,
+        includeCoverPage: boolean,
     ) => Promise<RunRecord | null>
     ensureDetailLoaded: (runId: string) => void
     applyStatus: (status: PipelineStatusResponse) => RunRecord
@@ -183,7 +183,7 @@ export function useGenerationHistory(
         async (
             templateUuid: string,
             language: string,
-            generateDmpMetadata: boolean,
+            includeCoverPage: boolean,
         ): Promise<RunRecord | null> => {
             if (!project) {
                 toast.error('Project is not available.')
@@ -202,7 +202,7 @@ export function useGenerationHistory(
                     questionnaireUuid: project.uuid,
                     templateUuid,
                     language,
-                    generateDmpMetadata,
+                    includeCoverPage,
                     llmModel: settings.model || null,
                     llmApiKey: settings.apiKey || null,
                     llmApiUrl: settings.apiUrl || null,

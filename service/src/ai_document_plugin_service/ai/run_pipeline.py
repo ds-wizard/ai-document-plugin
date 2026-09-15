@@ -4,6 +4,7 @@ import argparse
 import logging
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common.llm_client import LLMClient
     from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
-    from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
+
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -52,6 +53,33 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str], None]
 
 
+@dataclass(frozen=True)
+class CoverPagePipelineDependencies:
+    assignment_template: dict[str, object]
+    generation_prompt: str
+    translator: CoverPageTranslator
+    renderer: CoverPageRenderer
+
+
+def _collect_cover_page_dependencies(
+    config: Config,
+    llm_client: LLMClient,
+    language: str,
+) -> CoverPagePipelineDependencies:
+    definition = config.cover_definition
+    return CoverPagePipelineDependencies(
+        assignment_template=build_cover_page_assignment_template(definition),
+        generation_prompt=config.cover_page_generation,
+        translator=CoverPageTranslator(
+            llm_client,
+            language,
+            config.cover_page_translation,
+            definition,
+        ),
+        renderer=CoverPageRenderer(definition),
+    )
+
+
 def build_pipeline(
     database: Database,
     saver: DBSaver,
@@ -60,20 +88,16 @@ def build_pipeline(
     language: str,
 ) -> AsyncPipeline:
     pipeline = AsyncPipeline()
+    cover_page = _collect_cover_page_dependencies(config, llm_client, language)
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
-    assignment_component = AssignmentComponent(llm_client, config)
+    assignment_component = AssignmentComponent(llm_client, config, cover_page.assignment_template)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
-        cover_page_generation_prompt=config.cover_page_generation,
-        cover_page_translator=CoverPageTranslator(
-            llm_client,
-            language,
-            config.cover_page_translation,
-            config.cover_definition,
-        ),
-        cover_page_renderer=CoverPageRenderer(config.cover_definition),
+        cover_page_generation_prompt=cover_page.generation_prompt,
+        cover_page_translator=cover_page.translator,
+        cover_page_renderer=cover_page.renderer,
     )
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
     cover_page_component = CoverPageComponent()
@@ -152,7 +176,6 @@ async def run_pipeline(
     database: Database,
     dsw_client: DSWClient,
     model_name: str,
-    cover_definition: CoverPageDefinition,
     *,
     include_cover_page: bool = False,
     on_progress: ProgressCallback | None = None,
@@ -184,9 +207,6 @@ async def run_pipeline(
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    cover_page_assignment_template = (
-        build_cover_page_assignment_template(cover_definition) if include_cover_page else None
-    )
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']
@@ -206,9 +226,9 @@ async def run_pipeline(
                 'parser_component': {'data': km_data},
                 'assignment_component': {
                     'template_data': dict(template_data),
-                    'cover_page_template_data': cover_page_assignment_template,
                     'km': km,
                     'on_progress': on_progress,
+                    'include_cover_page': include_cover_page,
                 },
                 'assignment_saver_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,

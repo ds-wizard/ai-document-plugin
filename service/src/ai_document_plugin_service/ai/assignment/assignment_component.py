@@ -46,9 +46,15 @@ class AssignmentComponent:
     For example, it assigns question 'When will the project start?' to sections Introduction and Project Timeline
     """
 
-    def __init__(self, llm_client: LLMClient, config: Config) -> None:
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        config: Config,
+        cover_page_assignment_template: dict[str, Any],
+    ) -> None:
         self.llm_client = llm_client
         self.config = config
+        self.cover_page_assignment_template = cover_page_assignment_template
         self.section_id_generator = OpenAISectionIdGenerator(llm_client, config)
         self.section_matcher = OpenAILayerMatcher(self.llm_client, self.config)
 
@@ -78,16 +84,14 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
-        cover_page_template_data: dict[str, Any] | None = None,
         *,
+        include_cover_page: bool = False,
         reuse_content: bool = False,
     ) -> AssignmentComponentResult:
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
-        cover_page_sections = (
-            build_section_records(cover_page_template_data) if cover_page_template_data is not None else []
-        )
+        cover_page_sections = build_section_records(self.cover_page_assignment_template) if include_cover_page else []
         content_sections = [] if reuse_content else build_section_records(template_data)
         sections = [*cover_page_sections, *content_sections]
         question_chunks, question_id_to_path = build_question_chunks(data)
@@ -168,8 +172,8 @@ class AssignmentComponent:
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
-        cover_page_template_data: dict[str, Any] | None = None,
         *,
+        include_cover_page: bool = False,
         reuse_content: bool = False,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""

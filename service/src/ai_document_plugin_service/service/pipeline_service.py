@@ -333,7 +333,6 @@ class PipelineService:
             database=self.database,
             on_progress=on_progress,
             model_name=llm_client.get_model_name(),
-            cover_definition=config.cover_definition,
             dsw_client=DSWClient(auth.token, auth.api_url),
             include_cover_page=include_cover_page,
         )

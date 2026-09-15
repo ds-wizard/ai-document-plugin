@@ -6,6 +6,7 @@ import fastapi
 
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
+    CoverPagePreviewDefinition,
     PipelineExportRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
@@ -36,6 +37,11 @@ protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authen
 @public_router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
+
+
+@protected_router.get('/cover-page/preview')
+def get_cover_page_preview(config: ConfigDI) -> CoverPagePreviewDefinition:
+    return CoverPagePreviewDefinition.from_definition(config.cover_definition)
 
 
 @protected_router.get('/templates')

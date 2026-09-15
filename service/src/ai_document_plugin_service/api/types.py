@@ -1,8 +1,11 @@
 from enum import StrEnum
+from typing import Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
 
 
 class ApiModel(BaseModel):
@@ -58,6 +61,92 @@ class TemplateCreateRequest(ApiModel):
 class TemplateUpdateRequest(ApiModel):
     title: str
     content: dict
+
+
+class CoverPagePreviewLabel(ApiModel):
+    id: str
+    text: str
+
+
+class CoverPagePreviewField(ApiModel):
+    id: str
+    label: str
+    preview: str
+
+
+class CoverPagePreviewMetadata(ApiModel):
+    title: CoverPagePreviewLabel
+    columns: list[CoverPagePreviewLabel]
+    fields: list[CoverPagePreviewField]
+    attribution: str
+
+
+class CoverPagePreviewHistory(ApiModel):
+    id: str
+    title: CoverPagePreviewLabel
+    columns: list[CoverPagePreviewLabel]
+    preview: str
+
+
+class CoverPagePreviewAssignmentField(ApiModel):
+    id: str
+    label: str
+
+
+class CoverPagePreviewAssignmentSection(ApiModel):
+    id: str
+    title: str
+    preview: str
+    fields: list[CoverPagePreviewAssignmentField]
+
+
+class CoverPagePreviewDefinition(ApiModel):
+    version: str
+    metadata: CoverPagePreviewMetadata
+    history: CoverPagePreviewHistory
+    assigned_sections: list[CoverPagePreviewAssignmentSection]
+
+    @classmethod
+    def from_definition(cls, definition: CoverPageDefinition) -> Self:
+        return cls(
+            version=definition.version,
+            metadata=CoverPagePreviewMetadata(
+                title=CoverPagePreviewLabel(
+                    id=definition.metadata.title.id,
+                    text=definition.metadata.title.text,
+                ),
+                columns=[
+                    CoverPagePreviewLabel(id=column.id, text=column.text) for column in definition.metadata.columns
+                ],
+                fields=[
+                    CoverPagePreviewField(id=field.id, label=field.label, preview=field.preview)
+                    for field in definition.metadata.fields
+                ],
+                attribution=definition.metadata.attribution,
+            ),
+            history=CoverPagePreviewHistory(
+                id=definition.history.id,
+                title=CoverPagePreviewLabel(
+                    id=definition.history.title.id,
+                    text=definition.history.title.text,
+                ),
+                columns=[
+                    CoverPagePreviewLabel(id=column.id, text=column.text) for column in definition.history.columns
+                ],
+                preview=definition.history.preview,
+            ),
+            assigned_sections=[
+                CoverPagePreviewAssignmentSection(
+                    id=section.id,
+                    title=section.title,
+                    preview=section.preview,
+                    fields=[
+                        CoverPagePreviewAssignmentField(id=field.id, label=field.label) for field in section.fields
+                    ],
+                )
+                for section in definition.assigned_sections
+            ],
+        )
 
 
 class PipelineRunRequest(ApiModel):

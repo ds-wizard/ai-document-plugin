@@ -1,96 +1,120 @@
+import { useEffect, useState } from 'react'
+
+import { getCoverPagePreview } from '@/client'
 import styles from '@/components/CoverPagePreview.module.css'
 import { getLanguageOption } from '@/data/languages'
+import type { CoverPagePreviewDefinition } from '@/types'
 
 type CoverPagePreviewProps = {
     language: string
 }
 
-const METADATA_FIELDS = [
-    ['Project Name', 'Your project name'],
-    ['Based On', 'Knowledge model name and version'],
-    ['Project Phase', 'Current project phase'],
-    ['Created By', 'Author'],
-    ['Generated On', 'Date of generation'],
-]
-
-const PROJECT_FIELDS = [
-    'Project title',
-    'Project acronym',
-    'Project number/code',
-    'Funding',
-    'Project duration',
-    'Project abstract',
-]
-
 export function CoverPagePreview({ language }: CoverPagePreviewProps) {
     const languageName = getLanguageOption(language)?.englishLabel ?? language
+    const [definition, setDefinition] = useState<CoverPagePreviewDefinition | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        let cancelled = false
+
+        void getCoverPagePreview()
+            .then((loadedDefinition) => {
+                if (!cancelled) {
+                    setDefinition(loadedDefinition)
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setError('The cover page preview could not be loaded.')
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     return (
         <details className={styles.root}>
             <summary className={styles.summary}>Preview the cover page</summary>
             <div className={styles.content}>
-                <p className={styles.note}>
-                    {language.toLowerCase().split('-')[0] !== 'en' &&
-                        ` Labels are shown here in English and will be translated into ${languageName} during generation.`}
-                </p>
+                {error && <p className={styles.note}>{error}</p>}
+                {!error && !definition && <p className={styles.note}>Loading preview...</p>}
+                {definition && (
+                    <>
+                        {language.toLowerCase().split('-')[0] !== 'en' && (
+                            <p className={styles.note}>
+                                Labels are shown here in English and will be translated into{' '}
+                                {languageName} during generation.
+                            </p>
+                        )}
 
-                <section aria-label="Cover page structure" className={styles.page}>
-                    <h3 className={styles.title}>Data Management Plan</h3>
-                    <div className={styles.tableWrapper}>
-                        <table className={styles.table}>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Field</th>
-                                    <th scope="col">Value</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {METADATA_FIELDS.map(([label, source]) => (
-                                    <tr key={label}>
-                                        <th scope="row">{label}</th>
-                                        <td className={styles.placeholder}>{source}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <p className={styles.attribution}>
-                        Data Management Plan created in Data Stewardship Wizard «ds-wizard.org»
-                        using AI document generation plugin
-                    </p>
+                        <section aria-label="Cover page structure" className={styles.page}>
+                            <h3 className={styles.title}>{definition.metadata.title.text}</h3>
+                            <div className={styles.tableWrapper}>
+                                <table className={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            {definition.metadata.columns.map((column) => (
+                                                <th key={column.id} scope="col">
+                                                    {column.text}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {definition.metadata.fields.map((field) => (
+                                            <tr key={field.id}>
+                                                <th scope="row">{field.label}</th>
+                                                <td className={styles.placeholder}>
+                                                    {field.preview}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p className={styles.attribution}>{definition.metadata.attribution}</p>
 
-                    <h4 className={styles.heading}>History of Changes</h4>
-                    <div className={styles.tableWrapper}>
-                        <table className={styles.table}>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Version</th>
-                                    <th scope="col">Date</th>
-                                    <th scope="col">Changes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colSpan={3} className={styles.placeholder}>
-                                        Named project versions and their descriptions, newest first.
-                                        Empty if no versions are available.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                            <h4 className={styles.heading}>{definition.history.title.text}</h4>
+                            <div className={styles.tableWrapper}>
+                                <table className={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            {definition.history.columns.map((column) => (
+                                                <th key={column.id} scope="col">
+                                                    {column.text}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td
+                                                colSpan={definition.history.columns.length}
+                                                className={styles.placeholder}
+                                            >
+                                                {definition.history.preview}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                    <h3 className={styles.heading}>Projects</h3>
-                    <p className={styles.note}>
-                        A subsection for each project, using its original title. Details come from
-                        questionnaire answers; unanswered optional fields are omitted.
-                    </p>
-                    <ul className={styles.fields}>
-                        {PROJECT_FIELDS.map((label) => (
-                            <li key={label}>{label}</li>
-                        ))}
-                    </ul>
-                </section>
+                            {definition.assignedSections.map((section) => (
+                                <div key={section.id}>
+                                    <h3 className={styles.heading}>{section.title}</h3>
+                                    <p className={styles.note}>{section.preview}</p>
+                                    <ul className={styles.fields}>
+                                        {section.fields.map((field) => (
+                                            <li key={field.id}>{field.label}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </section>
+                    </>
+                )}
             </div>
         </details>
     )

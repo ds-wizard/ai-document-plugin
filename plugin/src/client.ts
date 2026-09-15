@@ -1,6 +1,7 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type {
+    CoverPagePreviewDefinition,
     PipelineStatusResponse,
     PipelineSummaryItem,
     TemplateDetail,
@@ -99,6 +100,33 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     return templates
 }
 
+export const getCoverPagePreview = async (): Promise<CoverPagePreviewDefinition> => {
+    const url = `${getApiBaseUrl()}/cover-page/preview`
+    const response = await apiFetch(url)
+    const definition = await readApiResponse<CoverPagePreviewDefinition | { detail?: string }>(
+        response,
+        url,
+    )
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in definition && definition.detail
+                ? definition.detail
+                : `Failed to load the cover page preview (${response.status}).`,
+        )
+    }
+
+    if (
+        !('metadata' in definition) ||
+        !('history' in definition) ||
+        !('assignedSections' in definition)
+    ) {
+        throw new Error('Invalid cover page preview returned.')
+    }
+
+    return definition
+}
+
 export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
     const url = `${getApiBaseUrl()}/templates/${encodeURIComponent(templateUuid)}`
     const response = await apiFetch(url)
@@ -154,7 +182,7 @@ type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
     language: string
-    generateDmpMetadata: boolean
+    includeCoverPage: boolean
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
@@ -165,7 +193,7 @@ export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
     language,
-    generateDmpMetadata,
+    includeCoverPage,
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
@@ -181,7 +209,7 @@ export const runPipeline = async ({
             questionnaireUuid,
             templateUuid,
             language,
-            generateDmpMetadata,
+            includeCoverPage,
             llmModel,
             llmApiKey,
             llmApiUrl,

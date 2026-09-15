@@ -8,29 +8,20 @@ from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssi
 from ai_document_plugin_service.ai.common.config import SystemPrompt
 from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage, call_with_retry
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
 
 logger = logging.getLogger(__name__)
 
-HEADER_LABELS = {
-    'document_title': 'Data Management Plan',
-    'field': 'Field',
-    'value': 'Value',
-    'project_name': 'Project Name',
-    'based_on': 'Based On',
-    'project_phase': 'Project Phase',
-    'created_by': 'Created By',
-    'generated_on': 'Generated On',
-    'history_title': 'History of Changes',
-    'version': 'Version',
-    'date': 'Date',
-    'changes': 'Changes',
-    'project_title': 'Project title',
-    'project_acronym': 'Project acronym',
-    'project_code': 'Project number/code',
-    'funding': 'Funding',
-    'project_duration': 'Project duration',
-    'project_abstract': 'Project abstract',
-}
+
+def cover_translation_labels(definition: CoverPageDefinition) -> dict[str, str]:
+    return {
+        definition.metadata.title.id: definition.metadata.title.text,
+        **{column.id: column.text for column in definition.metadata.columns},
+        **{field.id: field.label for field in definition.metadata.fields},
+        definition.history.title.id: definition.history.title.text,
+        **{column.id: column.text for column in definition.history.columns},
+        **{field.id: field.label for section in definition.assigned_sections for field in section.fields},
+    }
 
 
 def header_section_nodes(
@@ -46,10 +37,17 @@ def header_section_nodes(
 
 
 class HeaderTranslator:
-    def __init__(self, client: LLMClient, language: str, prompt: SystemPrompt) -> None:
+    def __init__(
+        self,
+        client: LLMClient,
+        language: str,
+        prompt: SystemPrompt,
+        cover_definition: CoverPageDefinition,
+    ) -> None:
         self.client = client
         self.language = language
         self.prompt = prompt
+        self.cover_definition = cover_definition
 
     async def translate(
         self,
@@ -58,7 +56,10 @@ class HeaderTranslator:
     ) -> tuple[dict[str, str], list[SerializedSectionAssignment]]:
         localized = deepcopy(assignments)
         nodes = header_section_nodes(localized)
-        labels = {**HEADER_LABELS, **{key: node['title'] for key, node in nodes}}
+        labels = {
+            **cover_translation_labels(self.cover_definition),
+            **{key: node['title'] for key, node in nodes},
+        }
         if self.language.lower().split('-')[0] == 'en':
             return labels, localized
 

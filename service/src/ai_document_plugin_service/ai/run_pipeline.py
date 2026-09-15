@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common.llm_client import LLMClient
     from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
+    from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
 
 # Cost per million tokens (USD) - adjust for your model
 COST_PER_MIL_INPUT = 0.25
@@ -66,7 +67,12 @@ def build_pipeline(
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
         header_generation_prompt=config.header_generation,
-        header_translator=HeaderTranslator(llm_client, language, config.header_translation),
+        header_translator=HeaderTranslator(
+            llm_client,
+            language,
+            config.header_translation,
+            config.cover_definition,
+        ),
         cover_renderer=CoverPageRenderer(config.cover_definition),
     )
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
@@ -144,6 +150,7 @@ async def run_pipeline(
     database: Database,
     dsw_client: DSWClient,
     model_name: str,
+    cover_definition: CoverPageDefinition,
     *,
     generate_dmp_metadata: bool = False,
     on_progress: ProgressCallback | None = None,
@@ -175,7 +182,7 @@ async def run_pipeline(
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
-    header_assignment_template = build_header_assignment_template() if generate_dmp_metadata else None
+    header_assignment_template = build_header_assignment_template(cover_definition) if generate_dmp_metadata else None
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
     knowledge_model_version = km_data['knowledgeModelPackage']['version']

@@ -5,13 +5,13 @@ from typing import Optional, cast
 import pytest
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
-from ai_document_plugin_service.ai.assignment.projects_section import build_header_assignment_template
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
 )
+from ai_document_plugin_service.ai.generation.header_translation import HeaderTranslator
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
@@ -27,6 +27,12 @@ def _component(
 ) -> DmpGeneratorComponent:
     return DmpGeneratorComponent(
         dmp_generator_llm=gen_llm or StubGenerationLLM(),
+        header_translator=HeaderTranslator(
+            cast(LLMClient, object()),
+            'en',
+            TEST_CONFIG.header_translation,
+            TEST_CONFIG.cover_definition,
+        ),
         header_generation_prompt=header_generation_prompt,
         cover_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
     )
@@ -262,21 +268,6 @@ def test_construct_chapter_prompt_formats_questions() -> None:
     assert 'Chapter name: Data' in prompt
     assert 'Q1' in prompt
     assert 'A1' in prompt
-
-
-def test_header_assignment_template_describes_current_project_fields() -> None:
-    assert build_header_assignment_template() == {
-        'sections': [
-            {
-                'title': 'Projects',
-                'content': (
-                    'Summarize project details from the questionnaire: project title, project acronym, '
-                    'project number or code, funding, project duration, and project abstract. '
-                    'Use only answers supplied by the questionnaire.'
-                ),
-            },
-        ],
-    }
 
 
 async def test_disabled_metadata_omits_fixed_cover_even_when_source_data_are_available() -> None:
@@ -787,9 +778,9 @@ async def test_localized_header_keeps_project_values_and_body_assignments():
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
-    from ai_document_plugin_service.ai.generation.header_translation import HEADER_LABELS, HeaderTranslator
+    from ai_document_plugin_service.ai.generation.header_translation import cover_translation_labels
 
-    translations = {**HEADER_LABELS, 'document_title': 'Plán správy dat', 'project_name': 'Název projektu',
+    translations = {**cover_translation_labels(TEST_CONFIG.cover_definition), 'document_title': 'Plán správy dat', 'project_name': 'Název projektu',
                     'history_title': 'Historie změn', 'section_0': 'Přehled výzkumu', 'funding': 'Financování'}
     client = SimpleNamespace(completion=AsyncMock(return_value=SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(translations)))], usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
@@ -801,6 +792,7 @@ async def test_localized_header_keeps_project_values_and_body_assignments():
             cast(LLMClient, client),
             'cs',
             load_config(TEST_CONFIG_PATH).header_translation,
+            TEST_CONFIG.cover_definition,
         ),
         cover_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
     )

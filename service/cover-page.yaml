@@ -1,0 +1,77 @@
+version: "1"
+
+metadata:
+  title:
+    id: document_title
+    text: Data Management Plan
+  columns:
+    - id: field
+      text: Field
+    - id: value
+      text: Value
+  fields:
+    - id: project_name
+      label: Project Name
+      resolver: questionnaire.project_name
+      preview: Your project name
+    - id: based_on
+      label: Based On
+      resolver: questionnaire.knowledge_model
+      preview: Knowledge model name and version
+    - id: project_phase
+      label: Project Phase
+      resolver: questionnaire.project_phase
+      preview: Current project phase
+    - id: created_by
+      label: Created By
+      resolver: static.empty
+      preview: Author
+    - id: generated_on
+      label: Generated On
+      resolver: system.generated_on
+      preview: Date of generation
+  attribution: Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» using AI document generation plugin
+
+history:
+  id: history
+  title:
+    id: history_title
+    text: History of Changes
+  resolver: project.versions
+  columns:
+    - id: version
+      text: Version
+      value_key: name
+    - id: date
+      text: Date
+      value_key: updatedAt
+      formatter: date
+    - id: changes
+      text: Changes
+      value_key: description
+  preview: Named project versions and their descriptions, newest first. Empty if no versions are available.
+
+assigned_sections:
+  - id: projects
+    title: Projects
+    description: >-
+      Summarize project details from the questionnaire: project title, project acronym, project number or code,
+      funding, project duration, and project abstract. Use only answers supplied by the questionnaire.
+    item_name: project
+    item_heading_field: project_title
+    preserve_item_headings: true
+    preview: A subsection for each project, using its original title. Details come from questionnaire answers; unanswered optional fields are omitted.
+    fields:
+      - id: project_title
+        label: Project title
+        required: true
+      - id: project_acronym
+        label: Project acronym
+      - id: project_code
+        label: Project number/code
+      - id: funding
+        label: Funding
+      - id: project_duration
+        label: Project duration
+      - id: project_abstract
+        label: Project abstract

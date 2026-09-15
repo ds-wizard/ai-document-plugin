@@ -14,7 +14,7 @@ from haystack import component
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.generation.header_translation import HEADER_LABELS, HeaderTranslator
+from ai_document_plugin_service.ai.generation.header_translation import HeaderTranslator
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
 )
@@ -49,8 +49,8 @@ class DmpGeneratorComponent:
     def __init__(
         self,
         dmp_generator_llm: GenerationLLM,
+        header_translator: HeaderTranslator,
         header_generation_prompt: str = '',
-        header_translator: HeaderTranslator | None = None,
         cover_renderer: CoverPageRenderer | None = None,
     ) -> None:
         self.dmp_generator_llm = dmp_generator_llm
@@ -92,16 +92,18 @@ class DmpGeneratorComponent:
         )
 
         stats = AssignmentStats()
-        header_labels = dict(HEADER_LABELS)
+        header_labels: dict[str, str] = {}
         header_instruction = self.header_generation_prompt
-        if self.header_translator is not None and (generate_dmp_metadata or header_assignments):
+        if generate_dmp_metadata or header_assignments:
             if on_progress is not None:
                 on_progress('Preparing header labels')
             header_labels, header_assignments = await self.header_translator.translate(header_assignments, stats)
-            field_keys = (
-                'project_title', 'project_acronym', 'project_code', 'funding', 'project_duration', 'project_abstract',
+            assignment_fields = (
+                field
+                for section in self.header_translator.cover_definition.assigned_sections
+                for field in section.fields
             )
-            field_labels = '\n'.join(f'{HEADER_LABELS[key]}: {header_labels[key]}' for key in field_keys)
+            field_labels = '\n'.join(f'{field.label}: {header_labels[field.id]}' for field in assignment_fields)
             header_instruction += (
                 '\n\nUse these exact field labels instead of their English equivalents:\n' + field_labels
                 + '\nPreserve the original project names in subsection headings.'

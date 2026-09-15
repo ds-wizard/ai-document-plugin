@@ -2,8 +2,6 @@ from pathlib import Path
 
 from ai_document_plugin_service.ai.common.config import load_config
 from typing import Optional, cast
-from datetime import date
-
 import pytest
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
@@ -17,8 +15,10 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+from ai_document_plugin_service.cover_page.renderer import CoverPageRenderer
 
 TEST_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / 'config.test.yaml')
+TEST_CONFIG = load_config(TEST_CONFIG_PATH)
 
 
 def _component(
@@ -28,6 +28,7 @@ def _component(
     return DmpGeneratorComponent(
         dmp_generator_llm=gen_llm or StubGenerationLLM(),
         header_generation_prompt=header_generation_prompt,
+        cover_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
     )
 
 
@@ -263,29 +264,6 @@ def test_construct_chapter_prompt_formats_questions() -> None:
     assert 'A1' in prompt
 
 
-def test_resolve_phase_title_returns_phase_title() -> None:
-    phase_title = _component()._resolve_phase_title(
-        _questionnaire_detail_fixture(),
-        _km_with_phase_fixture(),
-    )
-    assert phase_title == 'Before Submitting the Proposal'
-
-
-def test_resolve_knowledge_model_returns_name_and_version() -> None:
-    knowledge_model = _component()._resolve_knowledge_model(_questionnaire_detail_fixture())
-
-    assert knowledge_model == 'DSW Knowledge Model, 1.2.0'
-
-
-def test_build_history_of_changes_rows_orders_versions_by_updated_at() -> None:
-    rows = _component()._build_history_of_changes_rows(_project_versions_fixture())
-
-    assert rows == [
-        '| Version 2 | 21.02.2018 | Latest version |',
-        '| Version 1 | 21.01.2018 | First version |',
-    ]
-
-
 def test_header_assignment_template_describes_current_project_fields() -> None:
     assert build_header_assignment_template() == {
         'sections': [
@@ -299,37 +277,6 @@ def test_header_assignment_template_describes_current_project_fields() -> None:
             },
         ],
     }
-
-
-def test_build_document_header_matches_current_markdown_contract() -> None:
-    header = _component()._build_document_header(
-        _questionnaire_detail_fixture(),
-        _km_with_phase_fixture(),
-        generated_on=date(2026, 9, 1),
-        project_versions=_project_versions_fixture(),
-    )
-
-    assert header == (
-        '# Data Management Plan\n'
-        '\n'
-        '| Field | Value |\n'
-        '| --- | --- |\n'
-        '| Project Name | Potato project |\n'
-        '| Based On | DSW Knowledge Model, 1.2.0 |\n'
-        '| Project Phase | Before Submitting the Proposal |\n'
-        '| Created By |  |\n'
-        '| Generated On | 01.09.2026 |\n'
-        '\n'
-        'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
-        'using AI document generation plugin\n'
-        '\n'
-        '## History of Changes\n'
-        '\n'
-        '| Version | Date | Changes |\n'
-        '| --- | --- | --- |\n'
-        '| Version 2 | 21.02.2018 | Latest version |\n'
-        '| Version 1 | 21.01.2018 | First version |'
-    )
 
 
 async def test_disabled_metadata_omits_fixed_cover_even_when_source_data_are_available() -> None:
@@ -855,6 +802,7 @@ async def test_localized_header_keeps_project_values_and_body_assignments():
             'cs',
             load_config(TEST_CONFIG_PATH).header_translation,
         ),
+        cover_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
     )
     header = [SectionAssignment(id='h', title='Research overview', assignments={
         'itemQ': {'question_path': 'ch.itemQ', 'question_title': 'Item', 'question_text': 'Item text', 'children': {}},

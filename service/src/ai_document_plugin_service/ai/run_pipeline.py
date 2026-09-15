@@ -33,6 +33,7 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
 from ai_document_plugin_service.ai.persistence.saver_component import SaverComponent
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
+from ai_document_plugin_service.cover_page.renderer import CoverPageRenderer
 
 if TYPE_CHECKING:
     from haystack.components.routers.conditional_router import Route
@@ -66,6 +67,7 @@ def build_pipeline(
         SectionGenerationLLM(llm_client, config, language),
         header_generation_prompt=config.header_generation,
         header_translator=HeaderTranslator(llm_client, language, config.header_translation),
+        cover_renderer=CoverPageRenderer(config.cover_definition),
     )
     dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
     document_header_component = DocumentHeaderComponent()

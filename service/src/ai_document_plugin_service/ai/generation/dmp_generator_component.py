@@ -5,7 +5,7 @@ import re
 import time
 from collections.abc import Callable, Coroutine, Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any, TypedDict
 
 import pandas as pd
@@ -19,6 +19,8 @@ from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.cover_page.renderer import CoverPageRenderer
+from ai_document_plugin_service.cover_page.resolvers import CoverDataSources
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +47,16 @@ class _ScheduledSection:
 @component
 class DmpGeneratorComponent:
     def __init__(
-        self, dmp_generator_llm: GenerationLLM, header_generation_prompt: str = '',
+        self,
+        dmp_generator_llm: GenerationLLM,
+        header_generation_prompt: str = '',
         header_translator: HeaderTranslator | None = None,
+        cover_renderer: CoverPageRenderer | None = None,
     ) -> None:
         self.dmp_generator_llm = dmp_generator_llm
         self.header_generation_prompt = header_generation_prompt
         self.header_translator = header_translator
+        self.cover_renderer = cover_renderer
 
     @component.output_types(markdown=str, debug_markdown=str, document_header=str, stats=AssignmentStats)
     async def run_async(
@@ -158,13 +164,20 @@ class DmpGeneratorComponent:
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
-        document_header = (
-            self._build_document_header(
-                questionnaire_detail, km, project_versions=project_versions, labels=header_labels,
+        document_header = ''
+        if generate_dmp_metadata and questionnaire_detail is not None:
+            if self.cover_renderer is None:
+                msg = 'Cover renderer is required when document metadata generation is enabled'
+                raise RuntimeError(msg)
+            document_header = self.cover_renderer.render(
+                CoverDataSources(
+                    questionnaire_detail=questionnaire_detail,
+                    knowledge_model=km,
+                    project_versions=project_versions or [],
+                    generated_on=datetime.now().astimezone().date(),
+                ),
+                labels=header_labels,
             )
-            if generate_dmp_metadata
-            else ''
-        )
         if header_sections:
             header_parts = [self._render_scheduled_section(section) for section in header_sections]
             header_markdown = '\n\n'.join(markdown for markdown, _ in header_parts)
@@ -775,112 +788,6 @@ class DmpGeneratorComponent:
         )
         table_md = df.to_markdown(index=False)
         return '<details>\n<summary>Source questions</summary>\n\n' + table_md + '\n\n</details>'
-
-    @staticmethod
-    def _resolve_phase_title(
-        questionnaire_detail: dict[str, Any] | None,
-        km: dict[str, Any],
-    ) -> str:
-        if questionnaire_detail is None:
-            return ''
-        phase_uuid = questionnaire_detail.get('phaseUuid')
-        if not isinstance(phase_uuid, str) or not phase_uuid:
-            return ''
-        phases = km.get('entities', {}).get('phases', {})
-        phase = phases.get(phase_uuid, {})
-        title = phase.get('title')
-        return title if isinstance(title, str) else ''
-
-    @staticmethod
-    def _resolve_knowledge_model(questionnaire_detail: dict[str, Any] | None) -> str:
-        if questionnaire_detail is None:
-            return ''
-
-        package = questionnaire_detail.get('knowledgeModelPackage')
-        if not isinstance(package, dict):
-            return ''
-
-        name = package.get('name')
-        version = package.get('version')
-        values = [value for value in (name, version) if isinstance(value, str) and value]
-        return ', '.join(values)
-
-    @classmethod
-    def _build_history_of_changes_rows(cls, project_versions: list[dict[str, Any]] | None) -> list[str]:
-        if not project_versions:
-            return []
-
-        def updated_at(version: dict[str, Any]) -> str:
-            value = version.get('updatedAt')
-            return value if isinstance(value, str) else ''
-
-        sorted_versions = sorted(project_versions, key=updated_at, reverse=True)
-        return [
-            '| {name} | {date} | {changes} |'.format(
-                name=cls._sanitize_table_cell(version.get('name')),
-                date=cls._format_history_date(version.get('updatedAt')),
-                changes=cls._sanitize_table_cell(version.get('description')),
-            )
-            for version in sorted_versions
-        ]
-
-    @staticmethod
-    def _format_history_date(updated_at: object | None) -> str:
-        if not isinstance(updated_at, str):
-            return ''
-
-        try:
-            parsed = datetime.fromisoformat(updated_at)
-        except ValueError:
-            return DmpGeneratorComponent._sanitize_table_cell(updated_at)
-        return parsed.strftime('%d.%m.%Y')
-
-    @classmethod
-    def _build_document_header(
-        cls,
-        questionnaire_detail: dict[str, Any] | None,
-        km: dict[str, Any],
-        generated_on: date | None = None,
-        project_versions: list[dict[str, Any]] | None = None,
-        labels: dict[str, str] | None = None,
-    ) -> str:
-        if questionnaire_detail is None:
-            return ''
-
-        project_name = questionnaire_detail.get('name')
-        if not isinstance(project_name, str):
-            project_name = ''
-
-        phase_title = cls._resolve_phase_title(questionnaire_detail, km)
-        generated_on_value = (generated_on or datetime.now().astimezone().date()).strftime('%d.%m.%Y')
-        project_name = project_name.replace('|', '\\|')
-        phase_title = phase_title.replace('|', '\\|')
-        based_on = cls._resolve_knowledge_model(questionnaire_detail).replace('|', '\\|')
-
-        labels = {**HEADER_LABELS, **(labels or {})}
-        lines = [
-            f"# {labels['document_title']}",
-            '',
-            f"| {labels['field']} | {labels['value']} |",
-            '| --- | --- |',
-            f"| {labels['project_name']} | {project_name} |",
-            f"| {labels['based_on']} | {based_on} |",
-            f"| {labels['project_phase']} | {phase_title} |",
-            f"| {labels['created_by']} |  |",
-            f"| {labels['generated_on']} | {generated_on_value} |",
-            '',
-            (
-                'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
-                'using AI document generation plugin'
-            ),
-            '',
-            f"## {labels['history_title']}",
-            '',
-            f"| {labels['version']} | {labels['date']} | {labels['changes']} |",
-            '| --- | --- | --- |',
-            *cls._build_history_of_changes_rows(project_versions),
-        ]
-        return '\n'.join(lines)
 
     @staticmethod
     async def _execute_leaf_section(

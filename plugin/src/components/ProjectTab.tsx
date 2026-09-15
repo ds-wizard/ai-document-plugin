@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { getQuestionnaireLanguage } from '@/client'
+import { DocumentHeaderPreview } from '@/components/DocumentHeaderPreview'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import { LanguageDropdown } from '@/components/LanguageDropdown'
@@ -124,20 +125,24 @@ export default function ProjectTab({
                                 }
                             />
 
-                            <label className={styles.metadataOption}>
-                                <input
-                                    type="checkbox"
-                                    checked={generateDmpMetadata}
-                                    onChange={(event) =>
-                                        setGenerateDmpMetadata(event.target.checked)
-                                    }
-                                    disabled={history.isStarting}
-                                />
-                                <span>
-                                    Automatically generate DMP metadata and project information on
-                                    the first page
-                                </span>
-                            </label>
+                            <div className={styles.metadataSection}>
+                                <label className={styles.metadataOption}>
+                                    <input
+                                        type="checkbox"
+                                        checked={generateDmpMetadata}
+                                        onChange={(event) =>
+                                            setGenerateDmpMetadata(event.target.checked)
+                                        }
+                                        disabled={history.isStarting}
+                                    />
+                                    <span>
+                                        Automatically generate DMP metadata and project information
+                                        on introductory pages
+                                    </span>
+                                </label>
+
+                                <DocumentHeaderPreview language={language} />
+                            </div>
 
                             <button
                                 type="button"

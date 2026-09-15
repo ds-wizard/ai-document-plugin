@@ -1,11 +1,13 @@
 from ai_document_plugin_service.ai.common.config import load_config
-from typing import Optional
+from typing import Optional, cast
 from datetime import date
 
 import pytest
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
+from ai_document_plugin_service.ai.assignment.projects_section import build_header_assignment_template
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.generation.document_header_component import DocumentHeaderComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
@@ -280,7 +282,22 @@ def test_build_history_of_changes_rows_orders_versions_by_updated_at() -> None:
     ]
 
 
-def test_build_document_header_includes_requested_fields() -> None:
+def test_header_assignment_template_describes_current_project_fields() -> None:
+    assert build_header_assignment_template() == {
+        'sections': [
+            {
+                'title': 'Projects',
+                'content': (
+                    'Summarize project details from the questionnaire: project title, project acronym, '
+                    'project number or code, funding, project duration, and project abstract. '
+                    'Use only answers supplied by the questionnaire.'
+                ),
+            },
+        ],
+    }
+
+
+def test_build_document_header_matches_current_markdown_contract() -> None:
     header = _component()._build_document_header(
         _questionnaire_detail_fixture(),
         _km_with_phase_fixture(),
@@ -288,21 +305,40 @@ def test_build_document_header_includes_requested_fields() -> None:
         project_versions=_project_versions_fixture(),
     )
 
-    assert header.startswith('# Data Management Plan')
-    assert '| Field | Value |' in header
-    assert '| Project Name | Potato project |' in header
-    assert '| Based On | DSW Knowledge Model, 1.2.0 |' in header
-    assert '| Project Phase | Before Submitting the Proposal |' in header
-    assert '| Created By |  |' in header
-    assert '| Generated On | 01.09.2026 |' in header
-    assert (
+    assert header == (
+        '# Data Management Plan\n'
+        '\n'
+        '| Field | Value |\n'
+        '| --- | --- |\n'
+        '| Project Name | Potato project |\n'
+        '| Based On | DSW Knowledge Model, 1.2.0 |\n'
+        '| Project Phase | Before Submitting the Proposal |\n'
+        '| Created By |  |\n'
+        '| Generated On | 01.09.2026 |\n'
+        '\n'
         'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
-        'using AI document generation plugin'
-    ) in header
-    assert '## History of Changes' in header
-    assert '| Version | Date | Changes |' in header
-    assert '| --- | --- | --- |' in header
-    assert header.index('| Version 2 |') < header.index('| Version 1 |')
+        'using AI document generation plugin\n'
+        '\n'
+        '## History of Changes\n'
+        '\n'
+        '| Version | Date | Changes |\n'
+        '| --- | --- | --- |\n'
+        '| Version 2 | 21.02.2018 | Latest version |\n'
+        '| Version 1 | 21.01.2018 | First version |'
+    )
+
+
+async def test_disabled_metadata_omits_fixed_cover_even_when_source_data_are_available() -> None:
+    result = await _component().run_async(
+        replies={},
+        km=_km_with_phase_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        project_versions=_project_versions_fixture(),
+        new_assignments=[],
+        generate_dmp_metadata=False,
+    )
+
+    assert result['document_header'] == ''
 
 
 async def test_document_header_component_adds_header_after_polishing() -> None:
@@ -808,7 +844,14 @@ async def test_localized_header_keeps_project_values_and_body_assignments():
         choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(translations)))], usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
     )))
     stub = StubGenerationLLM()
-    component = DmpGeneratorComponent(stub, header_translator=HeaderTranslator(client, 'cs', load_config().header_translation))
+    component = DmpGeneratorComponent(
+        stub,
+        header_translator=HeaderTranslator(
+            cast(LLMClient, client),
+            'cs',
+            load_config().header_translation,
+        ),
+    )
     header = [SectionAssignment(id='h', title='Research overview', assignments={
         'itemQ': {'question_path': 'ch.itemQ', 'question_title': 'Item', 'question_text': 'Item text', 'children': {}},
     }).to_dict()]

@@ -7,6 +7,7 @@ from uuid import UUID
 
 import yaml
 
+from ai_document_plugin_service.cover_page.resolvers import validate_cover_data_resolvers
 from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
 
 logger = logging.getLogger(__name__)
@@ -236,6 +237,9 @@ def load_config(config_path: str | None = None) -> Config:
         msg = 'Invalid cover definition format: expected a top-level mapping'
         raise TypeError(msg)
 
+    parsed_cover_definition = CoverPageDefinition.model_validate(cover_definition)
+    validate_cover_data_resolvers(parsed_cover_definition)
+
     return Config(
         allowed_apis=_get_allowed_apis(config),
         log_level=_get_log_level(config),
@@ -280,6 +284,6 @@ def load_config(config_path: str | None = None) -> Config:
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
-        cover_definition=CoverPageDefinition.model_validate(cover_definition),
+        cover_definition=parsed_cover_definition,
         max_parallel_executions=int(_get(config, 'max_parallel_executions')),
     )

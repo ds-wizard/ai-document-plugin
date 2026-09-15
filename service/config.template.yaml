@@ -25,6 +25,7 @@ database:
 # Path to prompts config. Path is set as the relative path from this config.
 files:
   prompts_path: "prompts.yaml"
+  cover_definition_path: "cover-page.yaml"
 
 # This specifies how many DMPs can be processed at the same time.
 # Each DMP process can create further parallel lines of execution depending on the tenants setting.

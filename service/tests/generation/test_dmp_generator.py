@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from ai_document_plugin_service.ai.common.config import load_config
 from typing import Optional, cast
 from datetime import date
@@ -15,6 +17,8 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+
+TEST_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / 'config.test.yaml')
 
 
 def _component(
@@ -849,7 +853,7 @@ async def test_localized_header_keeps_project_values_and_body_assignments():
         header_translator=HeaderTranslator(
             cast(LLMClient, client),
             'cs',
-            load_config().header_translation,
+            load_config(TEST_CONFIG_PATH).header_translation,
         ),
     )
     header = [SectionAssignment(id='h', title='Research overview', assignments={

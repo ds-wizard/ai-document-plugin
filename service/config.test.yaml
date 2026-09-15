@@ -16,5 +16,6 @@ database:
 
 files:
   prompts_path: "prompts.yaml"
+  cover_definition_path: "cover-page.yaml"
 
 max_parallel_executions: 2

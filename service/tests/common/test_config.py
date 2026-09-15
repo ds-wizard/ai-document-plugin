@@ -15,6 +15,7 @@ from ai_document_plugin_service.app import create_app
 SERVICE_DIR = Path(__file__).resolve().parents[2]
 TEST_CONFIG_PATH = SERVICE_DIR / 'config.test.yaml'
 TEST_PROMPTS_PATH = SERVICE_DIR / 'prompts.yaml'
+TEST_COVER_DEFINITION_PATH = SERVICE_DIR / 'cover-page.yaml'
 
 
 def _copy_test_config(
@@ -26,6 +27,7 @@ def _copy_test_config(
 ) -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TEST_PROMPTS_PATH, base_dir / 'prompts.yaml')
+    shutil.copyfile(TEST_COVER_DEFINITION_PATH, base_dir / 'cover-page.yaml')
 
     config = yaml.safe_load(TEST_CONFIG_PATH.read_text(encoding='utf-8'))
     if allowed_apis is not None:
@@ -51,6 +53,7 @@ def test_load_config_uses_env_config_path_and_resolves_prompts_relative_to_it(
         AllowedApi(url='https://your-dsw-instance.example.com/wizard-api', tenant_uuid='123e4567-e89b-12d3-a456-426614174000'),
     )
     assert config.files.prompts_path == str(TEST_PROMPTS_PATH)
+    assert config.files.cover_definition_path == str(TEST_COVER_DEFINITION_PATH)
 
 
 def test_load_config_warns_on_wildcard_allowed_apis_entry(
@@ -83,6 +86,7 @@ def test_load_config_falls_back_to_default_path_when_env_is_missing(
     config = load_config()
 
     assert config.files.prompts_path == str(config_path.parent / 'prompts.yaml')
+    assert config.files.cover_definition_path == str(config_path.parent / 'cover-page.yaml')
 
 
 def test_load_config_rejects_absolute_prompts_path_in_config(
@@ -111,6 +115,7 @@ def test_create_app_stores_the_resolved_config(
     app = create_app(run_migrations=False)
 
     assert app.state.config.files.prompts_path == str(TEST_PROMPTS_PATH)
+    assert app.state.config.cover_definition.version == '1'
 
 
 @patch('ai_document_plugin_service.app.run_startup_migrations')

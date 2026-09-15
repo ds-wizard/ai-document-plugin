@@ -7,6 +7,8 @@ from uuid import UUID
 
 import yaml
 
+from ai_document_plugin_service.cover_page.schema import CoverPageDefinition
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = 'config.yaml'
@@ -32,6 +34,7 @@ class SystemPrompt:
 @dataclass(frozen=True)
 class FilePaths:
     prompts_path: str
+    cover_definition_path: str
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,7 @@ class Config:
     header_translation: SystemPrompt
     header_generation: str
     dmp_polishing: SystemAndUserPrompt
+    cover_definition: CoverPageDefinition
     max_parallel_executions: int
 
 
@@ -211,15 +215,25 @@ def load_config(config_path: str | None = None) -> Config:
 
     configured_prompts_path = _get_relative_file_path(config, 'prompts_path')
     resolved_prompts_path = _resolve_existing_path(configured_prompts_path, base_dir=config_dir)
+    configured_cover_definition_path = _get_relative_file_path(config, 'cover_definition_path')
+    resolved_cover_definition_path = _resolve_existing_path(
+        configured_cover_definition_path,
+        base_dir=config_dir,
+    )
 
     with pathlib.Path(resolved_prompts_path).open(encoding='utf-8') as handle:
         prompts = yaml.safe_load(handle)
+    with pathlib.Path(resolved_cover_definition_path).open(encoding='utf-8') as handle:
+        cover_definition = yaml.safe_load(handle)
 
     if not isinstance(config, dict):
         msg = 'Invalid config format: expected a top-level mapping'
         raise TypeError(msg)
     if not isinstance(prompts, dict):
         msg = 'Invalid prompts format: expected a top-level mapping'
+        raise TypeError(msg)
+    if not isinstance(cover_definition, dict):
+        msg = 'Invalid cover definition format: expected a top-level mapping'
         raise TypeError(msg)
 
     return Config(
@@ -235,6 +249,7 @@ def load_config(config_path: str | None = None) -> Config:
         ),
         files=FilePaths(
             prompts_path=resolved_prompts_path,
+            cover_definition_path=resolved_cover_definition_path,
         ),
         assignment=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'assignment', 'temperature')),
@@ -265,5 +280,6 @@ def load_config(config_path: str | None = None) -> Config:
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
+        cover_definition=CoverPageDefinition.model_validate(cover_definition),
         max_parallel_executions=int(_get(config, 'max_parallel_executions')),
     )

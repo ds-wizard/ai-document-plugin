@@ -40,14 +40,6 @@ export function CustomTemplateSection({
     const previousFileNameRef = useRef(fileName)
     const dragDepthRef = useRef(0)
 
-    // Reset the form whenever we switch which template is being edited (or created).
-    useEffect(() => {
-        setTitle(editingTemplate?.title ?? '')
-        setJson(editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '')
-        setFileName('')
-        setInputMode('visual')
-    }, [editingTemplate])
-
     const processTemplateFile = async (file: File) => {
         try {
             const content = await file.text()

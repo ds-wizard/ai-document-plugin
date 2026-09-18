@@ -150,6 +150,7 @@ export function TenantTemplateSection() {
 
                             {editingTemplate?.uuid === template.uuid ? (
                                 <CustomTemplateSection
+                                    key={editingTemplate.uuid}
                                     scope="tenant"
                                     editingTemplate={editingTemplate}
                                     onSaved={handleSaved}

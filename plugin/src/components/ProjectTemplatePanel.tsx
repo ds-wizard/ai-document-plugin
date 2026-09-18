@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { LanguageDropdown } from '@/components/LanguageDropdown'
 import styles from '@/components/ProjectTemplatePanel.module.css'
 import { TemplateDropdown } from '@/components/TemplateDropdown'
 import { TemplateManager } from '@/components/TemplateManager'
+import type { LanguageOption } from '@/data/languages'
 import type { UseTemplatesResult } from '@/hooks/useTemplates'
 
 type ProjectTemplatePanelProps = {
     templates: UseTemplatesResult
     disabled: boolean
     onSelectedUuidChange: (uuid: string) => void
+    language: string
+    languageOptions: LanguageOption[]
+    languagesLoading: boolean
+    onLanguageChange: (language: string) => void
 }
 
 /**
@@ -19,6 +25,10 @@ export function ProjectTemplatePanel({
     templates,
     disabled,
     onSelectedUuidChange,
+    language,
+    languageOptions,
+    languagesLoading,
+    onLanguageChange,
 }: ProjectTemplatePanelProps) {
     const { templates: options, isLoading, isDeleting, upsertSaved, deleteByUuid } = templates
 
@@ -36,6 +46,15 @@ export function ProjectTemplatePanel({
         <>
             <div className={styles.selector}>
                 <h4>Generate DMP from your questionnaire</h4>
+                <div className={styles.languageControl}>
+                    <LanguageDropdown
+                        options={languageOptions}
+                        value={language}
+                        onChange={onLanguageChange}
+                        disabled={disabled || languageOptions.length === 0}
+                        loading={languagesLoading}
+                    />
+                </div>
                 <TemplateDropdown
                     value={selectedUuid}
                     onChange={select}

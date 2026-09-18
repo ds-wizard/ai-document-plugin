@@ -1,5 +1,6 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
+import type { LanguageDefinition } from '@/data/languages'
 import type {
     PipelineStatusResponse,
     PipelineSummaryItem,
@@ -35,6 +36,53 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
 }
 // __API_URL__ (with removed trailing /. e.g.: example.com/ => example.com
 export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
+
+export const getQuestionnaireLanguage = async (
+    questionnaireUuid: string,
+): Promise<string | null> => {
+    const encodedUuid = encodeURIComponent(questionnaireUuid)
+    const url = `${getApiBaseUrl()}/language/${encodedUuid}`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<unknown>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load the questionnaire language (${response.status}).`)
+    }
+
+    if (!data || typeof data !== 'object' || !('language' in data)) {
+        return null
+    }
+
+    return typeof data.language === 'string' ? data.language : null
+}
+
+export const getAvailableLanguages = async (): Promise<LanguageDefinition[]> => {
+    const url = `${getApiBaseUrl()}/languages`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<unknown>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load available languages (${response.status}).`)
+    }
+
+    if (
+        !Array.isArray(data) ||
+        !data.every(
+            (item) =>
+                item &&
+                typeof item === 'object' &&
+                typeof item.code === 'string' &&
+                typeof item.iso6392 === 'string' &&
+                typeof item.name === 'string' &&
+                typeof item.nativeName === 'string' &&
+                typeof item.family === 'string',
+        )
+    ) {
+        throw new Error('Invalid available languages returned.')
+    }
+
+    return data as LanguageDefinition[]
+}
 
 const buildAuthHeaders = (): Record<string, string> => {
     const { apiUrl, token } = getApiUrlAndToken()
@@ -128,6 +176,7 @@ export const getPipelineHistory = async (
 type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
+    language: string
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
@@ -137,6 +186,7 @@ type RunPipelineParams = {
 export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
+    language,
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
@@ -151,6 +201,7 @@ export const runPipeline = async ({
         body: JSON.stringify({
             questionnaireUuid,
             templateUuid,
+            language,
             llmModel,
             llmApiKey,
             llmApiUrl,

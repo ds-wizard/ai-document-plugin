@@ -8,6 +8,7 @@ from ai_document_plugin_service.ai.common.llm_client import (
     call_with_retry,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.data.languages import get_language_name
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -33,9 +34,10 @@ class GenerationLLM(ABC):
 
 
 class SectionGenerationLLM(GenerationLLM):
-    def __init__(self, llm_client: LLMClient, config: Config) -> None:
+    def __init__(self, llm_client: LLMClient, config: Config, language: str) -> None:
         self.config = config
         self.client = llm_client
+        self.language = get_language_name(language)
 
     def get_max_workers(self) -> int:
         return self.client.get_max_workers()
@@ -46,7 +48,7 @@ class SectionGenerationLLM(GenerationLLM):
     ) -> list['ChatCompletionMessageParam']:
         system_message: ChatCompletionSystemMessageParam = {
             'role': 'system',
-            'content': self.config.dmp_generation.system_message,
+            'content': self.config.dmp_generation.system_message.replace('{language}', self.language),
         }
         user_message: ChatCompletionUserMessageParam = {
             'role': 'user',

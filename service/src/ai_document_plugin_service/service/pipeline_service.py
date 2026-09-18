@@ -149,7 +149,7 @@ class PipelineService:
         title: str,
         auth: AuthenticatedUser,
         config: Config,
-        trace_id: str,
+        trace_id: UUID | None,
     ) -> UUID:
         """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
         run_id = await self.database.create_generation(

@@ -1,21 +1,22 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-_TRACE_ID_CONTEXT: ContextVar[str] = ContextVar('trace_id', default='-')
+_TRACE_UUID_CONTEXT: ContextVar[UUID | None] = ContextVar('trace_id', default=None)
 
 
-def get_trace_id() -> str:
-    return _TRACE_ID_CONTEXT.get()
+def get_trace_uuid() -> UUID | None:
+    return _TRACE_UUID_CONTEXT.get()
 
 
 @contextmanager
-def trace_context(trace_id: str) -> 'Iterator[None]':
-    token = _TRACE_ID_CONTEXT.set(trace_id)
+def trace_context(trace_uuid: UUID | None) -> 'Iterator[None]':
+    token = _TRACE_UUID_CONTEXT.set(trace_uuid)
     try:
         yield
     finally:
-        _TRACE_ID_CONTEXT.reset(token)
+        _TRACE_UUID_CONTEXT.reset(token)

@@ -49,7 +49,7 @@ class PipelineQueueManager:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
-    def enqueue(self, run_id: UUID, job: JobFactory, *, trace_id: str = '-') -> None:
+    def enqueue(self, run_id: UUID, job: JobFactory, *, trace_id: UUID | None = None) -> None:
         with self._order_lock:
             self._order.append(run_id)
             queue_size = len(self._order)
@@ -78,7 +78,7 @@ class PipelineQueueManager:
                 return None
         return queue_index - self._max_concurrent_jobs
 
-    async def _run_job(self, run_id: UUID, job: JobFactory, trace_id: str) -> None:
+    async def _run_job(self, run_id: UUID, job: JobFactory, trace_id: UUID | None) -> None:
         with trace_context(trace_id):
             try:
                 async with self._semaphore:
@@ -89,7 +89,7 @@ class PipelineQueueManager:
                 logger.info('Finished queued pipeline job', extra={'run_id': run_id})
 
     @staticmethod
-    def _log_job_failure(future: Future[None], trace_id: str) -> None:
+    def _log_job_failure(future: Future[None], trace_id: UUID | None) -> None:
         # Jobs are expected to handle their own errors; this guards against an
         # unhandled exception being silently swallowed by the background loop.
         with trace_context(trace_id):

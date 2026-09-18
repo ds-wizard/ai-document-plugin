@@ -76,9 +76,9 @@ async def test_list_scopes_query_to_tenant_and_user() -> None:
     result = await TemplateService(database).list(_user())
 
     database.list_templates.assert_awaited_once_with(TENANT_UUID, USER_UUID)
-    assert result[0].uuid == str(tenant_template_uuid)
+    assert result[0].uuid == tenant_template_uuid
     assert result[0].scope is TemplateScope.TENANT
-    assert result[1].uuid == str(personal_template_uuid)
+    assert result[1].uuid == personal_template_uuid
     assert result[1].scope is TemplateScope.PERSONAL
 
 

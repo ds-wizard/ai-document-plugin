@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from ai_document_plugin_service.ai.assignment.section_tree import (
     build_section_records,
     collect_leaf_section_texts,
@@ -27,7 +29,7 @@ def test_collect_leaf_section_texts_preserves_tree_order() -> None:
     assert all(isinstance(leaf.text, str) and leaf.text for leaf in leaves)
     ids = [leaf.id for leaf in leaves]
     assert len(set(ids)) == len(ids)
-    assert all(isinstance(rec_id, str) and rec_id for rec_id in ids)
+    assert all(isinstance(rec_id, UUID) for rec_id in ids)
 
 
 def test_collect_leaf_section_duplicate_title() -> None:

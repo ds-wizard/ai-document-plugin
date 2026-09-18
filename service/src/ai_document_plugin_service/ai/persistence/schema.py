@@ -23,6 +23,7 @@ class PersistenceSchema:
     assignment_table: Table
     template_table: Table
     generation_table: Table
+    generation_stats_table: Table
 
 
 def create_persistence_schema(schema_name: str) -> PersistenceSchema:
@@ -95,9 +96,36 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('error_message', Text, nullable=True),
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
-        # Columns used for analysis only:
+        Column(
+            'created_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+        Column(
+            'updated_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+        Index(
+            'ix_generation_questionnaire_user_tenant_created_at',
+            'questionnaire_uuid',
+            'user_uuid',
+            'tenant_uuid',
+            'created_at',
+        ),
+    )
+
+    # Analysis-only data, one row per generation (created together with it).
+    generation_stats_table = Table(
+        'generation_stats',
+        metadata,
+        Column('run_id', UUID(as_uuid=True), ForeignKey('generation.run_id', ondelete='CASCADE'), primary_key=True),
+        # Request trace id; NULL for runs created before it was recorded.
+        Column('trace_id', UUID(as_uuid=True), nullable=True),
         Column('dmp_pre_polished', Text, nullable=True),
-        # at start same as result_markdown, but not editable. Older rows don't have the original value saved
+        # at start same as generation.result_markdown, but not editable. Older rows don't have the original value saved
         Column('dmp_polished', Text, nullable=True),
         # LLM usage per pipeline step. NULL when the step did not run (assignment is skipped
         # when cached assignments are reused) or the run has no stats (failed or old runs).
@@ -123,13 +151,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             nullable=False,
             server_default=func.now(),
         ),
-        Index(
-            'ix_generation_questionnaire_user_tenant_created_at',
-            'questionnaire_uuid',
-            'user_uuid',
-            'tenant_uuid',
-            'created_at',
-        ),
     )
 
     return PersistenceSchema(
@@ -137,4 +158,5 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         assignment_table=assignment_table,
         template_table=template_table,
         generation_table=generation_table,
+        generation_stats_table=generation_stats_table,
     )

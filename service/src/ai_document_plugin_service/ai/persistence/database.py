@@ -61,6 +61,9 @@ class GenerationUpdate(TypedDict, total=False):
     error_message: str | None
     result_markdown: str | None
     progress_message: str | None
+
+
+class GenerationStats(TypedDict, total=False):
     dmp_pre_polished: str | None
     dmp_polished: str | None
     assignment_llm_calls: int | None
@@ -239,6 +242,15 @@ class Database(ABC):
         """
 
     @abstractmethod
+    async def create_generation_stats(
+        self,
+        run_id: UUID,
+        trace_id: UUID | None,
+        **stats: Unpack[GenerationStats],
+    ) -> None:
+        """Create the stats row of a finished generation."""
+
+    @abstractmethod
     async def get_generation(
         self,
         run_id: UUID,
@@ -277,6 +289,7 @@ class PostgresDB(Database):
         self.assignment_table = schema.assignment_table
         self.template_table = schema.template_table
         self.generation_table = schema.generation_table
+        self.generation_stats_table = schema.generation_stats_table
         self._database_verified = False
         logger.info(
             'Initialized Postgres database client',
@@ -326,7 +339,7 @@ class PostgresDB(Database):
             yield connection
 
     def _generation_record_columns(self) -> list[Column[Any]]:
-        """Generation columns read into ``GenerationRecord``; skips the large write-only ones."""
+        """Generation columns read into ``GenerationRecord``."""
         return [column for column in self.generation_table.c if column.name in GenerationRecord.__dataclass_fields__]
 
     def _list_existing_tables(self, connection: Connection) -> set[str]:
@@ -340,7 +353,7 @@ class PostgresDB(Database):
         async with self.engine.connect() as connection:
             existing_tables = await connection.run_sync(self._list_existing_tables)
 
-        required_tables = {'alembic_version', 'template', 'assignment', 'generation'}
+        required_tables = {'alembic_version', 'template', 'assignment', 'generation', 'generation_stats'}
         missing_tables = sorted(required_tables - existing_tables)
 
         if missing_tables:
@@ -700,6 +713,18 @@ class PostgresDB(Database):
             self.schema_name,
         )
         return GenerationRecord.from_row(row)
+
+    async def create_generation_stats(
+        self,
+        run_id: UUID,
+        trace_id: UUID | None,
+        **stats: Unpack[GenerationStats],
+    ) -> None:
+        await self._ensure_schema()
+        statement = self.generation_stats_table.insert().values(run_id=run_id, trace_id=trace_id, **stats)
+
+        async with self._connect() as connection:
+            await connection.execute(statement)
 
     async def get_generation(
         self,

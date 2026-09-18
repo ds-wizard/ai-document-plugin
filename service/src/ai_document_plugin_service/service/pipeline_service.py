@@ -14,9 +14,15 @@ from ai_document_plugin_service.ai.common.execution_logging import (
     log_timing_event,
 )
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
+from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
-from ai_document_plugin_service.ai.persistence.database import Database, GenerationRecord, GenerationUpdate
+from ai_document_plugin_service.ai.persistence.database import (
+    Database,
+    GenerationRecord,
+    GenerationStats,
+    GenerationUpdate,
+)
 from ai_document_plugin_service.ai.run_pipeline import PipelineOutput, build_pipeline, run_pipeline
 from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
@@ -86,16 +92,22 @@ def _generation_record_to_summary_response(record: GenerationRecord) -> Pipeline
 
 
 def _succeeded_update(output: PipelineOutput) -> GenerationUpdate:
-    """Everything a finished run writes, as one update. Per-step usage stays NULL for steps that did not run."""
-    stats = output.stats
-    assignment, generation, polishing = stats.assignment, stats.generation, stats.polishing
+    """The generation fields a finished run writes."""
     return {
         'status': PipelineStatus.SUCCEEDED,
         'knowledge_model_uuid': output.knowledge_model_uuid,
         'result_markdown': output.markdown,
+        'progress_message': None,
+    }
+
+
+def _succeeded_stats(output: PipelineOutput) -> GenerationStats:
+    """The stats a finished run writes. Per-step usage stays NULL for steps that did not run."""
+    stats = output.stats
+    assignment, generation, polishing = stats.assignment, stats.generation, stats.polishing
+    return {
         'dmp_pre_polished': output.dmp_pre_polished,
         'dmp_polished': output.markdown,
-        'progress_message': None,
         'assignment_llm_calls': assignment.llm_calls if assignment else None,
         'assignment_input_tokens': assignment.input_tokens if assignment else None,
         'assignment_output_tokens': assignment.output_tokens if assignment else None,
@@ -251,14 +263,16 @@ class PipelineService:
             logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
             pipeline_error = _pipeline_error_from_exception(error)
             try:
-                await self.database.update_generation(
-                    run_id,
-                    auth.tenant_uuid,
-                    status=PipelineStatus.FAILED,
-                    error_type=pipeline_error.type,
-                    error_message=pipeline_error.message,
-                    progress_message=None,
-                )
+                async with self.database.transaction():
+                    await self.database.update_generation(
+                        run_id,
+                        auth.tenant_uuid,
+                        status=PipelineStatus.FAILED,
+                        error_type=pipeline_error.type,
+                        error_message=pipeline_error.message,
+                        progress_message=None,
+                    )
+                    await self.database.create_generation_stats(run_id, get_trace_uuid())
             except Exception:
                 logger.exception(
                     'Failed to persist pipeline failure status',
@@ -277,13 +291,15 @@ class PipelineService:
     ) -> None:
         template = await self.database.get_template(template_uuid, auth.tenant_uuid)
         if template is None:
-            await self.database.update_generation(
-                run_id,
-                auth.tenant_uuid,
-                status=PipelineStatus.FAILED,
-                error_type=ErrorType.TEMPLATE_NOT_FOUND,
-                error_message=TEMPLATE_NOT_FOUND_MESSAGE,
-            )
+            async with self.database.transaction():
+                await self.database.update_generation(
+                    run_id,
+                    auth.tenant_uuid,
+                    status=PipelineStatus.FAILED,
+                    error_type=ErrorType.TEMPLATE_NOT_FOUND,
+                    error_message=TEMPLATE_NOT_FOUND_MESSAGE,
+                )
+                await self.database.create_generation_stats(run_id, get_trace_uuid())
             logger.error(
                 'Pipeline run failed because template was not found',
                 extra={'run_id': run_id, 'template_uuid': str(template_uuid), 'tenant_uuid': str(auth.tenant_uuid)},
@@ -336,8 +352,10 @@ class PipelineService:
         )
         log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
 
-        # Everything the run produced is written in this one update, so it lands atomically.
-        await self.database.update_generation(run_id, auth.tenant_uuid, **_succeeded_update(output))
+        # Everything the run produced is written in one transaction, so it lands atomically.
+        async with self.database.transaction():
+            await self.database.update_generation(run_id, auth.tenant_uuid, **_succeeded_update(output))
+            await self.database.create_generation_stats(run_id, get_trace_uuid(), **_succeeded_stats(output))
         logger.info(
             'Pipeline run status updated to succeeded',
             extra={

@@ -1,3 +1,4 @@
+import uuid
 from typing import Optional
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
@@ -514,11 +515,11 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
     km = _km_fixture()
     assignments = [
         SectionAssignment(
-            id='s0',
+            id=uuid.uuid4(),
             title='Root',
             children=[
                 SectionAssignment(
-                    id='s1',
+                    id=uuid.uuid4(),
                     title='Leaf',
                     assignments={
                         'itemQ': {
@@ -559,7 +560,7 @@ async def test_run_handles_empty_section() -> None:
     component = _component(stub)
     km = _km_fixture()
     assignments = [
-        SectionAssignment(id='s0', title='Empty'),
+        SectionAssignment(id=uuid.uuid4(), title='Empty'),
     ]
 
     result = await component.run_async(

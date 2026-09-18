@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 from unittest.mock import patch
+from uuid import UUID
 
 import yaml
 from fastapi.testclient import TestClient
@@ -48,7 +49,10 @@ def test_load_config_uses_env_config_path_and_resolves_prompts_relative_to_it(
     config = load_config()
 
     assert config.allowed_apis == (
-        AllowedApi(url='https://your-dsw-instance.example.com/wizard-api', tenant_uuid='123e4567-e89b-12d3-a456-426614174000'),
+        AllowedApi(
+            url='https://your-dsw-instance.example.com/wizard-api',
+            tenant_uuid=UUID('123e4567-e89b-12d3-a456-426614174000'),
+        ),
     )
     assert config.files.prompts_path == str(TEST_PROMPTS_PATH)
 

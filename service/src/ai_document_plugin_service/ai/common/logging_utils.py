@@ -1,6 +1,6 @@
 import logging
 
-from ai_document_plugin_service.ai.common.trace_context import get_trace_id
+from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 
 LOG_FORMAT = '%(asctime)s | %(levelname)8s | %(name)s: [T:%(traceId)s] %(message)s'
 _ORIGINAL_LOG_RECORD_FACTORY = logging.getLogRecordFactory()
@@ -24,7 +24,7 @@ def configure_logging(level: int | str = logging.DEBUG) -> None:
 
 def _normalize_level(level: int | str) -> int:
     if isinstance(level, str):
-        normalized_level = logging.getLevelName(level.upper())
+        normalized_level = logging.getLevelNamesMapping().get(level.upper())
         if not isinstance(normalized_level, int):
             msg = f'Unsupported log level: {level}'
             raise TypeError(msg)
@@ -64,5 +64,6 @@ def _install_trace_log_record_factory() -> None:
 
 def _trace_log_record_factory(*args: object, **kwargs: object) -> logging.LogRecord:
     record = _ORIGINAL_LOG_RECORD_FACTORY(*args, **kwargs)
-    record.traceId = get_trace_id()
+    trace_id = get_trace_uuid()
+    record.traceId = '-' if trace_id is None else str(trace_id)
     return record

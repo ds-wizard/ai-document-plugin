@@ -28,11 +28,10 @@ class AuthenticatedUser:
 
 def is_allowed_request(api_url: str, tenant_uuid: UUID, allowed_apis: tuple[AllowedApi, ...]) -> bool:
     normalized_api_url = normalize_project_url(api_url)
-    tenant_uuid_str = str(tenant_uuid)
 
     for entry in allowed_apis:
         url_matches = entry.url in {WILDCARD, normalized_api_url}
-        tenant_matches = entry.tenant_uuid in {WILDCARD, tenant_uuid_str}
+        tenant_matches = entry.tenant_uuid in {WILDCARD, tenant_uuid}
         if not (url_matches and tenant_matches):
             continue
         return True

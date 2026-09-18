@@ -1,6 +1,6 @@
 [project]
 name = "ai-document-plugin-service"
-version = "0.2.2"
+version = "0.3.0"
 description = "Plugin for DSW to generate documents using AI."
 keywords = ["wizard", "plugin", "ai", "document", "generation", "llm", "fastapi"]
 license = "MIT"
@@ -23,7 +23,7 @@ dependencies = [
     "httpx",
     "fastapi>=0.136.1,<1.0",
     "genson",
-    "haystack-ai>=2.30.1",
+    "haystack-ai>=2.30.1,<3",
     "json-repair",
     "markdown-it-py[linkify]",
     "openai",

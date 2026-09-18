@@ -4,18 +4,22 @@ from uuid import UUID
 
 import fastapi
 
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
+    LanguageOptionResponse,
     PipelineExportRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    QuestionnaireLanguageResponse,
     TemplateCreateRequest,
     TemplateDetail,
     TemplateListItem,
     TemplateUpdateRequest,
 )
+from ai_document_plugin_service.data.languages import get_available_languages
 from ai_document_plugin_service.di import (
     AuthenticatedDI,
     ConfigDI,
@@ -36,6 +40,18 @@ protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authen
 @public_router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
+
+
+@protected_router.get('/language/{questionnaire_uuid}')
+async def get_questionnaire_language(questionnaire_uuid: UUID, auth: AuthenticatedDI) -> QuestionnaireLanguageResponse:
+    questionnaire = await DSWClient(auth.token, auth.api_url).get_questionnaire_detail(questionnaire_uuid)
+    language = questionnaire.get('language') if isinstance(questionnaire, dict) else None
+    return QuestionnaireLanguageResponse(language=language if isinstance(language, str) else None)
+
+
+@protected_router.get('/languages')
+def list_languages() -> list[LanguageOptionResponse]:
+    return [LanguageOptionResponse.model_validate(language) for language in get_available_languages()]
 
 
 @protected_router.get('/templates')
@@ -98,7 +114,7 @@ async def start_pipeline(
         template.title,
         auth,
         config,
-        getattr(request.state, 'trace_uuid', '-'),
+        getattr(request.state, 'trace_uuid', None),
     )
     status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:

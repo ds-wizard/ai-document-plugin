@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -14,13 +15,13 @@ _PIPELINE_EVENT_LOGGER = logging.getLogger('ai_document_plugin_service.execution
 
 @dataclass(frozen=True)
 class RunLogContext:
-    run_id: str
-    questionnaire_uuid: str | None = None
-    template_uuid: str | None = None
+    run_id: UUID
+    questionnaire_uuid: UUID | None = None
+    template_uuid: UUID | None = None
     template_title: str | None = None
-    knowledge_model_uuid: str | None = None
-    user_uuid: str | None = None
-    tenant_uuid: str | None = None
+    knowledge_model_uuid: UUID | None = None
+    user_uuid: UUID | None = None
+    tenant_uuid: UUID | None = None
 
 
 @contextmanager
@@ -40,7 +41,7 @@ def log_llm_event(record: dict[str, Any]) -> None:
     _emit_event(_LLM_EVENT_LOGGER, record)
 
 
-def log_timing_event(event: str, **fields: Any) -> None:  # noqa: ANN401
+def log_timing_event(event: str, **fields: Any) -> None:  # ruff: ignore[any-type]
     _emit_event(_PIPELINE_EVENT_LOGGER, {'event': event, **fields})
 
 

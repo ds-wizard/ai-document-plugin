@@ -5,14 +5,13 @@ import json
 import logging
 import pathlib
 import re
-import typing
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
 # UUID must be imported outside TYPE_CHECKING block for haystack to work
-from uuid import UUID  # noqa: TC003
+from uuid import UUID  # ruff: ignore[typing-only-standard-library-import]
 
 from haystack import component
 
@@ -88,7 +87,6 @@ class AssignmentSaverComponent:
             'stats': stats,
         }
 
-    @typing.override
     @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
     def run(
         self,

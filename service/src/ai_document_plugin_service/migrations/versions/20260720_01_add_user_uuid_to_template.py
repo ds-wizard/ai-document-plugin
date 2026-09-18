@@ -82,8 +82,8 @@ def downgrade() -> None:
     # (or vanish from) the restored (title, tenant_uuid) unique constraint, so drop them
     # before recreating it. The schema comes from Alembic config, not user input.
     template_reference = _qualified_table_reference(schema, 'template')
-    op.execute(sa.text(f'DELETE FROM {template_reference} WHERE user_uuid IS NOT NULL'))  # noqa: S608
-    op.execute(sa.text(f'DELETE FROM {template_reference} WHERE deleted_at IS NOT NULL'))  # noqa: S608
+    op.execute(sa.text(f'DELETE FROM {template_reference} WHERE user_uuid IS NOT NULL'))  # ruff: ignore[hardcoded-sql-expression]
+    op.execute(sa.text(f'DELETE FROM {template_reference} WHERE deleted_at IS NOT NULL'))  # ruff: ignore[hardcoded-sql-expression]
 
     op.create_unique_constraint(
         'uq_template_title_tenant_uuid',

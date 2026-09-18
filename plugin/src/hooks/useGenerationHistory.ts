@@ -35,7 +35,7 @@ export type UseGenerationHistoryResult = {
     // returns a reference to a generation run.
     // This helps with handling live updates from the pollers without need to do subscribe logic
     getRun: (runId: string) => RunRecord | undefined
-    startRun: (templateUuid: string) => Promise<RunRecord | null>
+    startRun: (templateUuid: string, language: string) => Promise<RunRecord | null>
     ensureDetailLoaded: (runId: string) => void
     applyStatus: (status: PipelineStatusResponse) => RunRecord
 }
@@ -176,7 +176,7 @@ export function useGenerationHistory(
     const getRun = useCallback((runId: string) => runsRef.current[runId], [])
 
     const startRun = useCallback(
-        async (templateUuid: string): Promise<RunRecord | null> => {
+        async (templateUuid: string, language: string): Promise<RunRecord | null> => {
             if (!project) {
                 toast.error('Project is not available.')
                 return null
@@ -193,6 +193,7 @@ export function useGenerationHistory(
                 const status = await runPipeline({
                     questionnaireUuid: project.uuid,
                     templateUuid,
+                    language,
                     llmModel: settings.model || null,
                     llmApiKey: settings.apiKey || null,
                     llmApiUrl: settings.apiUrl || null,

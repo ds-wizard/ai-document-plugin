@@ -58,4 +58,4 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
 if __name__ == '__main__':
     import uvicorn
 
-    uvicorn.run(create_app(), host='0.0.0.0', port=8010)  # noqa: S104
+    uvicorn.run(create_app(), host='0.0.0.0', port=8010)  # ruff: ignore[hardcoded-bind-all-interfaces]

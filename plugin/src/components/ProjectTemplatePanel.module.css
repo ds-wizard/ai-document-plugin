@@ -2,3 +2,7 @@
     display: grid;
     gap: 0.65rem;
 }
+
+.languageControl {
+    width: min(100%, 28rem);
+}

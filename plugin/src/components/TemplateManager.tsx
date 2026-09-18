@@ -228,6 +228,7 @@ export function TemplateManager({
 
             {isEditingSelected && detail ? (
                 <CustomTemplateSection
+                    key={detail.uuid}
                     scope="personal"
                     editingTemplate={{
                         uuid: detail.uuid,

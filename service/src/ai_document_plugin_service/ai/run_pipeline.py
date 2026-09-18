@@ -54,7 +54,9 @@ class PipelineOutput:
     stats: PipelineStats
 
 
-def build_pipeline(database: Database, saver: DBSaver, config: Config, llm_client: LLMClient, language: str) -> AsyncPipeline:
+def build_pipeline(
+    database: Database, saver: DBSaver, config: Config, llm_client: LLMClient, language: str
+) -> AsyncPipeline:
     pipeline = AsyncPipeline()
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()

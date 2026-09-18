@@ -83,7 +83,7 @@ def upgrade() -> None:
     result_reference = _qualified_table_reference(schema, 'result')
     connection = op.get_bind()
 
-    total = connection.execute(sa.text(f'SELECT count(*) FROM {result_reference}')).scalar_one()  # noqa: S608
+    total = connection.execute(sa.text(f'SELECT count(*) FROM {result_reference}')).scalar_one()  # ruff: ignore[hardcoded-sql-expression]
 
     # Result data is attached to the latest succeeded generation matching its DMP.
     backfill = connection.execute(
@@ -133,7 +133,7 @@ def upgrade() -> None:
                 SELECT e.step FROM json_array_elements(r.stats -> 'rows') AS e(step)
                 WHERE e.step ->> 'step' = '3. DMP polisher' LIMIT 1
             ) AS pol ON true
-            """  # noqa: S608
+            """  # ruff: ignore[hardcoded-sql-expression]
         )
     )
     logger.info(

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { getQuestionnaireLanguage } from '@/client'
+import { CoverPagePreview } from '@/components/CoverPagePreview'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import { LanguageDropdown } from '@/components/LanguageDropdown'
@@ -32,6 +33,7 @@ export default function ProjectTab({
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
     const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
+    const [includeCoverPage, setIncludeCoverPage] = useState(false)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
@@ -82,7 +84,7 @@ export default function ProjectTab({
     }
 
     const handleRunPipeline = async () => {
-        const started = await history.startRun(selectedUuid, language)
+        const started = await history.startRun(selectedUuid, language, includeCoverPage)
         if (started) {
             setSelectedRunId(started.runId)
         }
@@ -122,6 +124,25 @@ export default function ProjectTab({
                                     </div>
                                 }
                             />
+
+                            <div className={styles.metadataSection}>
+                                <label className={styles.metadataOption}>
+                                    <input
+                                        type="checkbox"
+                                        checked={includeCoverPage}
+                                        onChange={(event) =>
+                                            setIncludeCoverPage(event.target.checked)
+                                        }
+                                        disabled={history.isStarting}
+                                    />
+                                    <span>
+                                        Include a cover page with DMP metadata and project
+                                        information
+                                    </span>
+                                </label>
+
+                                <CoverPagePreview language={language} />
+                            </div>
 
                             <button
                                 type="button"

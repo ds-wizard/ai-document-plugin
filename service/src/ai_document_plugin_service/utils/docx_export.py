@@ -15,6 +15,8 @@ from docx.shared import RGBColor
 from markdown_it import MarkdownIt
 from markdown_it.tree import SyntaxTreeNode
 
+COVER_PAGE_END = '<!-- ai-cover-page-end -->'
+
 if TYPE_CHECKING:
     from docx.document import Document
     from docx.text.paragraph import Paragraph
@@ -142,7 +144,9 @@ def _write_table(document: 'Document', node: SyntaxTreeNode) -> None:
 
 
 def _write_block(document: 'Document', node: SyntaxTreeNode, style: str | None = None) -> None:
-    if node.type == 'heading':
+    if node.type == 'html_block' and node.content.strip() in COVER_PAGE_END_MARKERS:
+        document.add_page_break()
+    elif node.type == 'heading':
         _write_paragraph(document, node, f'Heading {min(int(node.tag[1:]), _MAX_HEADING_LEVEL)}')
     elif node.type == 'paragraph':
         _write_paragraph(document, node, style)

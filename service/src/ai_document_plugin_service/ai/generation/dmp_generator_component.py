@@ -5,6 +5,7 @@ import re
 import time
 from collections.abc import Callable, Coroutine, Iterable
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, TypedDict
 
 import pandas as pd
@@ -13,10 +14,13 @@ from haystack import component
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.generation.cover_page_translation import CoverPageTranslator
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
+from ai_document_plugin_service.cover_page.cover_page_resolvers import CoverDataSources
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +31,7 @@ DEPTH_INCLUDE_ALL_ANSWERS = 2
 class DmpGeneratorComponentResult(TypedDict):
     markdown: str
     debug_markdown: str
+    cover_page: str
     stats: AssignmentStats
 
 
@@ -41,16 +46,33 @@ class _ScheduledSection:
 
 @component
 class DmpGeneratorComponent:
-    def __init__(self, dmp_generator_llm: GenerationLLM) -> None:
+    def __init__(
+        self,
+        dmp_generator_llm: GenerationLLM,
+        cover_page_translator: CoverPageTranslator,
+        cover_page_field_labels: dict[str, str],
+        cover_page_generation_prompt: str = '',
+        cover_page_renderer: CoverPageRenderer | None = None,
+    ) -> None:
         self.dmp_generator_llm = dmp_generator_llm
+        self.cover_page_generation_prompt = cover_page_generation_prompt
+        self.cover_page_translator = cover_page_translator
+        self.cover_page_field_labels = dict(cover_page_field_labels)
+        self.cover_page_renderer = cover_page_renderer
 
-    @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
+    @component.output_types(markdown=str, debug_markdown=str, cover_page=str, stats=AssignmentStats)
     async def run_async(
         self,
         replies: dict,
         km: dict,
+        questionnaire_detail: dict[str, Any] | None = None,
+        project_versions: list[dict[str, Any]] | None = None,
+        *,
+        include_cover_page: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
+        new_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
+        db_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         started = time.perf_counter()
@@ -60,17 +82,36 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        assignments = db_assignments or new_assignments or []
+        document_assignments = db_assignments if db_assignments is not None else new_assignments or []
+        cover_page_assignments = (
+            db_cover_page_assignments if db_assignments is not None else new_cover_page_assignments
+        ) or []
         replies = self._filter_reachable_replies(replies, km)
         logger.info(
             'Starting DMP generation',
             extra={
-                'assignment_count': len(assignments),
+                'assignment_count': len(document_assignments),
                 'reply_count': len(replies),
             },
         )
 
         stats = AssignmentStats()
+        cover_page_labels: dict[str, str] = {}
+        cover_page_instruction = self.cover_page_generation_prompt
+        if include_cover_page or cover_page_assignments:
+            if on_progress is not None:
+                on_progress('Preparing cover page labels')
+            cover_page_labels, cover_page_assignments = await self.cover_page_translator.translate(
+                cover_page_assignments, stats
+            )
+            field_labels = '\n'.join(
+                f'{label}: {cover_page_labels[field_id]}' for field_id, label in self.cover_page_field_labels.items()
+            )
+            cover_page_instruction += (
+                '\n\nUse these exact field labels instead of their English equivalents:\n'
+                + field_labels
+                + '\nPreserve the original project names in subsection headings.'
+            )
         max_workers = self.dmp_generator_llm.get_max_workers()
         scheduled_sections = [
             self._schedule_section(
@@ -81,11 +122,25 @@ class DmpGeneratorComponent:
                 llm=self.dmp_generator_llm,
                 stats=stats,
             )
-            for node in assignments
+            for node in document_assignments
+        ]
+        cover_page_sections = [
+            self._schedule_section(
+                node=assignment,
+                depth=0,
+                replies=replies,
+                km=km,
+                llm=self.dmp_generator_llm,
+                stats=stats,
+                generation_instruction=cover_page_instruction,
+            )
+            for assignment in cover_page_assignments
         ]
         leaf_sections: list[_ScheduledSection] = []
         for scheduled in scheduled_sections:
             self._collect_leaf_sections(scheduled, leaf_sections)
+        for cover_page_section in cover_page_sections:
+            self._collect_leaf_sections(cover_page_section, leaf_sections)
 
         total_sections = len(leaf_sections)
         logger.info(
@@ -101,11 +156,11 @@ class DmpGeneratorComponent:
             logger.info(
                 'Generating sections progress',
                 extra={
-                        'completed_sections': i,
-                        'total_sections': total_sections,
-                        'progress_percent': progress_percent(i, total_sections),
-                        'max_workers': max_workers,
-                    }
+                    'completed_sections': i,
+                    'total_sections': total_sections,
+                    'progress_percent': progress_percent(i, total_sections),
+                    'max_workers': max_workers,
+                },
             )
             if on_progress is not None:
                 on_progress(
@@ -115,6 +170,34 @@ class DmpGeneratorComponent:
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
         debug_markdown = '\n\n'.join([d for _, d in parts])
+        cover_page = ''
+        if include_cover_page and questionnaire_detail is not None:
+            if self.cover_page_renderer is None:
+                msg = 'Cover page renderer is required when cover page inclusion is enabled'
+                raise RuntimeError(msg)
+            cover_page = self.cover_page_renderer.render(
+                CoverDataSources(
+                    questionnaire_detail=questionnaire_detail,
+                    knowledge_model=km,
+                    project_versions=project_versions or [],
+                    generated_on=datetime.now().astimezone().date(),
+                ),
+                labels=cover_page_labels,
+            )
+        if cover_page_sections:
+            cover_page_parts = [self._render_scheduled_section(section) for section in cover_page_sections]
+            cover_page_markdown = '\n\n'.join(markdown for markdown, _ in cover_page_parts)
+            cover_page_debug_markdown = '\n\n'.join(debug_markdown for _, debug_markdown in cover_page_parts)
+            cover_page = f'{cover_page}\n\n{cover_page_markdown}'
+            debug_markdown = f'{cover_page_debug_markdown}\n\n{debug_markdown}'
+        logger.info(
+            'Prepared cover page',
+            extra={
+                'include_cover_page': include_cover_page,
+                'cover_page_length': len(cover_page),
+                'cover_page_assignment_count': len(cover_page_assignments),
+            },
+        )
         logger.info(
             'Completed DMP generation',
             extra={
@@ -128,16 +211,23 @@ class DmpGeneratorComponent:
         return {
             'markdown': markdown,
             'debug_markdown': debug_markdown,
+            'cover_page': cover_page,
             'stats': stats,
         }
 
-    @component.output_types(markdown=str, debug_markdown=str, stats=AssignmentStats)
+    @component.output_types(markdown=str, debug_markdown=str, cover_page=str, stats=AssignmentStats)
     def run(
         self,
         replies: dict,
         km: dict,
+        questionnaire_detail: dict[str, Any] | None = None,
+        project_versions: list[dict[str, Any]] | None = None,
+        *,
+        include_cover_page: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
+        new_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
+        db_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
@@ -725,14 +815,15 @@ class DmpGeneratorComponent:
         km: dict,
         llm: GenerationLLM,
         stats: AssignmentStats | None = None,
+        generation_instruction: str = '',
     ) -> _ScheduledSection:
         """Recursively schedule leaf-section generation coroutines."""
         title = node['title']
         heading = self._heading(depth, title)
 
         if self._is_leaf_section(node):
-            return self._handle_leaf_section(heading, km, llm, node, replies, stats)
-        return self._handle_children_section(depth, heading, km, llm, node, replies, stats)
+            return self._handle_leaf_section(heading, km, llm, node, replies, stats, generation_instruction)
+        return self._handle_children_section(depth, heading, km, llm, node, replies, stats, generation_instruction)
 
     def _handle_children_section(
         self,
@@ -743,6 +834,7 @@ class DmpGeneratorComponent:
         node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
+        generation_instruction: str,
     ) -> _ScheduledSection:
         return _ScheduledSection(
             heading=heading,
@@ -754,6 +846,7 @@ class DmpGeneratorComponent:
                     km=km,
                     llm=llm,
                     stats=stats,
+                    generation_instruction=generation_instruction,
                 )
                 for child in (node.get('children') or [])
             ],
@@ -767,6 +860,7 @@ class DmpGeneratorComponent:
         node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
+        generation_instruction: str,
     ) -> _ScheduledSection:
         if node.get('assignments') is not None:
             return _ScheduledSection(
@@ -778,6 +872,7 @@ class DmpGeneratorComponent:
                     km,
                     llm,
                     stats,
+                    generation_instruction,
                 ),
             )
         return _ScheduledSection(heading=heading, no_data=True)
@@ -794,6 +889,7 @@ class DmpGeneratorComponent:
         km: dict,
         llm: GenerationLLM,
         stats: AssignmentStats | None = None,
+        generation_instruction: str = '',
     ) -> tuple[str, str]:
         """Generate markdown/debug markdown for a leaf node with assignments.
 
@@ -810,6 +906,8 @@ class DmpGeneratorComponent:
         rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
         prompt = self.construct_chapter_prompt(title, matches)
+        if prompt and generation_instruction:
+            prompt += f'\n\n{generation_instruction}'
         content = await llm.section_from_qa(prompt, stats) if prompt else 'No data'
         debug_body = (table + '\n\n' + content) if table else content
         section = heading + '\n\n' + content

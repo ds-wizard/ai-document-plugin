@@ -28,6 +28,40 @@ export type TemplateDetail = {
     scope: TemplateScope
 }
 
+export type CoverPagePreviewLabel = {
+    id: string
+    text: string
+}
+
+export type CoverPagePreviewDefinition = {
+    version: string
+    metadata: {
+        title: CoverPagePreviewLabel
+        columns: CoverPagePreviewLabel[]
+        fields: Array<{
+            id: string
+            label: string
+            preview: string
+        }>
+        attribution: string
+    }
+    history: {
+        id: string
+        title: CoverPagePreviewLabel
+        columns: CoverPagePreviewLabel[]
+        preview: string
+    }
+    assignedSections: Array<{
+        id: string
+        title: string
+        preview: string
+        fields: Array<{
+            id: string
+            label: string
+        }>
+    }>
+}
+
 export type PipelineStatusResponse = {
     runId: string
     status: 'queued' | 'running' | 'succeeded' | 'failed'

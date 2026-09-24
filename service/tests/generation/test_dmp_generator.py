@@ -1,19 +1,46 @@
+from pathlib import Path
+
+from ai_document_plugin_service.ai.common.config import load_config
+from typing import Optional, cast
+import pytest
 import uuid
-from typing import Optional
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.llm_client import LLMClient
+from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
 )
+from ai_document_plugin_service.ai.generation.cover_page_translation import CoverPageTranslator
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+from ai_document_plugin_service.cover_page.cover_page_definition import (
+    cover_page_assignment_field_labels,
+    cover_page_translation_labels,
+)
+from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
+
+TEST_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / 'config.test.yaml')
+TEST_CONFIG = load_config(TEST_CONFIG_PATH)
 
 
-def _component(gen_llm: GenerationLLM | None = None) -> DmpGeneratorComponent:
+def _component(
+    gen_llm: GenerationLLM | None = None,
+    cover_page_generation_prompt: str = '',
+) -> DmpGeneratorComponent:
     return DmpGeneratorComponent(
         dmp_generator_llm=gen_llm or StubGenerationLLM(),
+        cover_page_translator=CoverPageTranslator(
+            cast(LLMClient, object()),
+            'en',
+            TEST_CONFIG.cover_page_translation,
+            labels=cover_page_translation_labels(TEST_CONFIG.cover_definition),
+        ),
+        cover_page_generation_prompt=cover_page_generation_prompt,
+        cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
+        cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
     )
 
 
@@ -24,6 +51,7 @@ def _serialize_assignments(assignments: list[SectionAssignment]) -> list[Seriali
 def _km_fixture() -> dict:
     return {
         'entities': {
+            'phases': {},
             'questions': {
                 'listQ': {'title': 'List', 'text': 'List text', 'questionType': 'ListQuestion'},
                 'itemQ': {'title': 'Item', 'text': 'Item text', 'questionType': 'ValueQuestion'},
@@ -50,6 +78,7 @@ def _reachable_km_fixture() -> dict:
                     'questionUuids': ['rootQ', 'datasetsQ'],
                 },
             },
+            'phases': {},
             'questions': {
                 'rootQ': {
                     'questionType': 'OptionsQuestion',
@@ -81,6 +110,48 @@ def _reachable_km_fixture() -> dict:
             'choices': {},
         },
     }
+
+
+def _questionnaire_detail_fixture() -> dict:
+    return {
+        'name': 'Potato project',
+        'phaseUuid': 'phase-1',
+        'knowledgeModelPackage': {
+            'name': 'DSW Knowledge Model',
+            'version': '1.2.0',
+        },
+    }
+
+
+def _km_with_phase_fixture() -> dict:
+    return {
+        'entities': {
+            'phases': {
+                'phase-1': {
+                    'title': 'Before Submitting the Proposal',
+                },
+            },
+            'questions': {},
+            'answers': {},
+            'chapters': {},
+            'choices': {},
+        },
+    }
+
+
+def _project_versions_fixture() -> list[dict]:
+    return [
+        {
+            'name': 'Version 1',
+            'updatedAt': '2018-01-21T00:00:00Z',
+            'description': 'First version',
+        },
+        {
+            'name': 'Version 2',
+            'updatedAt': '2018-02-21T00:00:00Z',
+            'description': 'Latest version',
+        },
+    ]
 
 
 class StubGenerationLLM(GenerationLLM):
@@ -203,6 +274,28 @@ def test_construct_chapter_prompt_formats_questions() -> None:
     assert 'Chapter name: Data' in prompt
     assert 'Q1' in prompt
     assert 'A1' in prompt
+
+
+async def test_disabled_cover_page_is_omitted_even_when_source_data_are_available() -> None:
+    result = await _component().run_async(
+        replies={},
+        km=_km_with_phase_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        project_versions=_project_versions_fixture(),
+        new_assignments=[],
+        include_cover_page=False,
+    )
+
+    assert result['cover_page'] == ''
+
+
+async def test_cover_page_component_prepends_cover_page_after_polishing() -> None:
+    result = await CoverPageComponent().run_async(
+        markdown='# Polished section',
+        cover_page='# Data Management Plan',
+    )
+
+    assert result['markdown'] == '# Data Management Plan\n\n<!-- ai-cover-page-end -->\n\n# Polished section'
 
 
 def test_match_replies_selection_handles_multianswer_groups() -> None:
@@ -463,9 +556,7 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
 
     parsed = parse_answer(answer, km)
 
-    assert parsed == (
-        '{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value'
-    )
+    assert parsed == ('{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value')
 
 
 def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
@@ -504,9 +595,7 @@ def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
         path='chapter.selectQ',
     )
 
-    assert parsed == (
-        '{"homepage": "https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4"} value'
-    )
+    assert parsed == ('{"homepage": "https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4"} value')
 
 
 async def test_run_renders_parent_and_leaf_sections() -> None:
@@ -552,7 +641,114 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
     assert 'Generated section body' in markdown
     assert '<details>' in debug_markdown
     assert 'Source questions' in debug_markdown
-    assert stats is not None
+
+
+@pytest.mark.parametrize('cached', [False, True])
+@pytest.mark.parametrize('nested', [False, True])
+async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool, nested: bool) -> None:
+    stub = StubGenerationLLM(
+        section_response=(
+            '### Potato project\n\n- Project title: Potato project\n- Project acronym: PP\n- Project number/code: 123'
+        ),
+    )
+    component = _component(
+        stub, cover_page_generation_prompt='Use the answered project title as each subsection heading.'
+    )
+    cover_page_assignments = [
+        SectionAssignment(
+            id='cover-page-details',
+            title='Research overview',
+            assignments={
+                'itemQ': {
+                    'question_path': 'ch.itemQ',
+                    'question_title': 'Item',
+                    'question_text': 'Item text',
+                    'children': {},
+                },
+            },
+        )
+    ]
+    assignments = [
+        SectionAssignment(
+            id='document',
+            title='Projects',
+            assignments={
+                'itemQ': {
+                    'question_path': 'ch.itemQ',
+                    'question_title': 'Item',
+                    'question_text': 'Item text',
+                    'children': {},
+                },
+            },
+        ),
+    ]
+    if nested:
+        cover_page_assignments = [
+            SectionAssignment(id='cover-page-root', title='Overview', children=cover_page_assignments)
+        ]
+    replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
+
+    result = await component.run_async(
+        replies=replies,
+        km=_km_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        new_assignments=None if cached else _serialize_assignments(assignments),
+        new_cover_page_assignments=None if cached else _serialize_assignments(cover_page_assignments),
+        db_assignments=_serialize_assignments(assignments) if cached else None,
+        db_cover_page_assignments=_serialize_assignments(cover_page_assignments) if cached else None,
+        include_cover_page=True,
+    )
+
+    assert 'Research overview' in result['cover_page']
+    assert '### Potato project' in result['cover_page']
+    assert 'Research overview' not in result['markdown']
+    assert '# Projects' in result['markdown']
+    assert len(stub.section_calls) == 2
+    cover_page_prompt = next(prompt for prompt in stub.section_calls if 'Research overview' in prompt)
+    body_prompt = next(prompt for prompt in stub.section_calls if 'Projects' in prompt)
+    assert 'Use the answered project title' in cover_page_prompt
+    assert 'Use the answered project title' not in body_prompt
+
+
+async def test_run_reuses_assignments_without_cover_page() -> None:
+    stub = StubGenerationLLM()
+    component = _component(stub, cover_page_generation_prompt='Cover-page-only instruction')
+    assignments = _serialize_assignments(
+        [
+            SectionAssignment(
+                id='document',
+                title='Document section',
+                assignments={
+                    'itemQ': {
+                        'question_path': 'ch.itemQ',
+                        'question_title': 'Item',
+                        'question_text': 'Item text',
+                        'children': {},
+                    },
+                },
+            ),
+        ]
+    )
+    replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
+
+    first = await component.run_async(
+        replies=replies,
+        km=_km_fixture(),
+        new_assignments=assignments,
+        new_cover_page_assignments=None,
+    )
+    repeated = await component.run_async(
+        replies=replies,
+        km=_km_fixture(),
+        db_assignments=assignments,
+        db_cover_page_assignments=None,
+    )
+
+    assert repeated['markdown'] == first['markdown']
+    assert '# Document section' in repeated['markdown']
+    assert repeated['cover_page'] == first['cover_page'] == ''
+    assert len(stub.section_calls) == 2
+    assert all('Cover-page-only instruction' not in prompt for prompt in stub.section_calls)
 
 
 async def test_run_handles_empty_section() -> None:
@@ -573,3 +769,85 @@ async def test_run_handles_empty_section() -> None:
     assert '# Empty' in markdown
     assert 'No data' in markdown
     assert len(stub.section_calls) == 0
+
+
+@pytest.mark.parametrize(('cover_page', 'body'), [('', '# Body'), ('# Cover page', ''), ('   ', '# Body')])
+async def test_cover_page_boundary_requires_both_parts(cover_page: str, body: str) -> None:
+    result = await CoverPageComponent().run_async(markdown=body, cover_page=cover_page)
+    assert '<!-- ai-cover-page-end -->' not in result['markdown']
+
+
+async def test_localized_cover_page_keeps_project_values_and_body_assignments():
+    import json
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    translations = {
+        **cover_page_translation_labels(TEST_CONFIG.cover_definition),
+        'document_title': 'Plán správy dat',
+        'project_name': 'Název projektu',
+        'history_title': 'Historie změn',
+        'section_0': 'Přehled výzkumu',
+        'funding': 'Financování',
+    }
+    client = SimpleNamespace(
+        completion=AsyncMock(
+            return_value=SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(translations)))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+            )
+        )
+    )
+    stub = StubGenerationLLM()
+    component = DmpGeneratorComponent(
+        stub,
+        cover_page_translator=CoverPageTranslator(
+            cast(LLMClient, client),
+            'cs',
+            load_config(TEST_CONFIG_PATH).cover_page_translation,
+            labels=cover_page_translation_labels(TEST_CONFIG.cover_definition),
+        ),
+        cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
+        cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
+    )
+    cover_page_assignments = [
+        SectionAssignment(
+            id='cover-page',
+            title='Research overview',
+            assignments={
+                'itemQ': {
+                    'question_path': 'ch.itemQ',
+                    'question_title': 'Item',
+                    'question_text': 'Item text',
+                    'children': {},
+                },
+            },
+        ).to_dict()
+    ]
+    original = deepcopy(cover_page_assignments)
+    result = await component.run_async(
+        replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
+        km=_km_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        db_assignments=[SectionAssignment(id='body', title='Research overview').to_dict()],
+        db_cover_page_assignments=cover_page_assignments,
+        include_cover_page=True,
+    )
+    assert '# Plán správy dat' in result['cover_page']
+    assert '| Název projektu | Potato project |' in result['cover_page']
+    assert '## Historie změn' in result['cover_page']
+    assert '# Přehled výzkumu' in result['cover_page']
+    assert '# Research overview' in result['markdown']
+    assert 'Funding: Financování' in stub.section_calls[0]
+    assert cover_page_assignments == original
+    client.completion.assert_awaited_once()
+
+
+async def test_no_cover_page_skips_translation():
+    from unittest.mock import AsyncMock
+
+    translator = AsyncMock()
+    component = DmpGeneratorComponent(StubGenerationLLM(), cover_page_translator=translator, cover_page_field_labels={})
+    await component.run_async(replies={}, km=_km_fixture(), new_assignments=[])
+    translator.translate.assert_not_called()

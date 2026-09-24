@@ -7,6 +7,7 @@ import fastapi
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
+    CoverPagePreviewDefinition,
     LanguageOptionResponse,
     PipelineExportRequest,
     PipelineRunRequest,
@@ -52,6 +53,11 @@ async def get_questionnaire_language(questionnaire_uuid: UUID, auth: Authenticat
 @protected_router.get('/languages')
 def list_languages() -> list[LanguageOptionResponse]:
     return [LanguageOptionResponse.model_validate(language) for language in get_available_languages()]
+
+
+@protected_router.get('/cover-page/preview')
+def get_cover_page_preview(config: ConfigDI) -> CoverPagePreviewDefinition:
+    return CoverPagePreviewDefinition.from_definition(config.cover_definition)
 
 
 @protected_router.get('/templates')

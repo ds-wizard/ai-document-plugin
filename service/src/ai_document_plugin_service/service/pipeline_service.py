@@ -188,6 +188,14 @@ class PipelineService:
         trace_id: UUID | None,
     ) -> UUID:
         """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
+        logger.info(
+            'Queueing pipeline job',
+            extra={
+                'questionnaire_uuid': str(payload.questionnaire_uuid),
+                'template_uuid': str(payload.template_uuid),
+                'include_cover_page': payload.include_cover_page,
+            },
+        )
         run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
@@ -211,9 +219,10 @@ class PipelineService:
                 payload.questionnaire_uuid,
                 payload.template_uuid,
                 payload.language,
-                auth,
-                llm_config,
-                config,
+                include_cover_page=payload.include_cover_page,
+                auth=auth,
+                llm_config=llm_config,
+                config=config,
             ),
             trace_id=trace_id,
         )
@@ -245,6 +254,8 @@ class PipelineService:
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         language: str,
+        *,
+        include_cover_page: bool,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
@@ -255,9 +266,10 @@ class PipelineService:
                 questionnaire_uuid,
                 template_uuid,
                 language,
-                auth,
-                llm_config,
-                config,
+                include_cover_page=include_cover_page,
+                auth=auth,
+                llm_config=llm_config,
+                config=config,
             )
         except Exception as error:
             logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
@@ -285,6 +297,8 @@ class PipelineService:
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         language: str,
+        *,
+        include_cover_page: bool,
         auth: AuthenticatedUser,
         llm_config: LLMConfig,
         config: Config,
@@ -349,6 +363,7 @@ class PipelineService:
             pipeline=pipeline,
             on_progress=on_progress,
             dsw_client=DSWClient(auth.token, auth.api_url),
+            include_cover_page=include_cover_page,
         )
         log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
 

@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -72,10 +73,96 @@ class LanguageOptionResponse(ApiModel):
     family: str
 
 
+class CoverPagePreviewLabel(ApiModel):
+    id: str
+    text: str
+
+
+class CoverPagePreviewField(ApiModel):
+    id: str
+    label: str
+    preview: str
+
+
+class CoverPagePreviewMetadata(ApiModel):
+    title: CoverPagePreviewLabel
+    columns: list[CoverPagePreviewLabel]
+    fields: list[CoverPagePreviewField]
+    attribution: str
+
+
+class CoverPagePreviewHistory(ApiModel):
+    id: str
+    title: CoverPagePreviewLabel
+    columns: list[CoverPagePreviewLabel]
+    preview: str
+
+
+class CoverPagePreviewAssignmentField(ApiModel):
+    id: str
+    label: str
+
+
+class CoverPagePreviewAssignmentSection(ApiModel):
+    id: str
+    title: str
+    preview: str
+    fields: list[CoverPagePreviewAssignmentField]
+
+
+class CoverPagePreviewDefinition(ApiModel):
+    version: str
+    metadata: CoverPagePreviewMetadata
+    history: CoverPagePreviewHistory
+    assigned_sections: list[CoverPagePreviewAssignmentSection]
+
+    @classmethod
+    def from_definition(cls, definition: dict) -> Self:
+        metadata = definition['metadata']
+        history = definition['history']
+        return cls(
+            version=definition['version'],
+            metadata=CoverPagePreviewMetadata(
+                title=CoverPagePreviewLabel(
+                    id=metadata['title']['id'],
+                    text=metadata['title']['text'],
+                ),
+                columns=[CoverPagePreviewLabel(id=column['id'], text=column['text']) for column in metadata['columns']],
+                fields=[
+                    CoverPagePreviewField(id=field['id'], label=field['label'], preview=field['preview'])
+                    for field in metadata['fields']
+                ],
+                attribution=metadata['attribution'],
+            ),
+            history=CoverPagePreviewHistory(
+                id=history['id'],
+                title=CoverPagePreviewLabel(
+                    id=history['title']['id'],
+                    text=history['title']['text'],
+                ),
+                columns=[CoverPagePreviewLabel(id=column['id'], text=column['text']) for column in history['columns']],
+                preview=history['preview'],
+            ),
+            assigned_sections=[
+                CoverPagePreviewAssignmentSection(
+                    id=section['id'],
+                    title=section['title'],
+                    preview=section['preview'],
+                    fields=[
+                        CoverPagePreviewAssignmentField(id=field['id'], label=field['label'])
+                        for field in section['fields']
+                    ],
+                )
+                for section in definition['sections']
+            ],
+        )
+
+
 class PipelineRunRequest(ApiModel):
     questionnaire_uuid: UUID
     template_uuid: UUID
     language: str = Field(default='en', min_length=2, max_length=10, pattern=r'^[a-z]{2,3}(?:-[A-Z]{2})?$')
+    include_cover_page: bool = False
     llm_model: str
     llm_api_key: str
     llm_api_url: str

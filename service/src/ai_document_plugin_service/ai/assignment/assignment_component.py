@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class AssignmentComponentResult(TypedDict):
     assignments: list[SectionAssignment]
+    cover_page_assignments: list[SectionAssignment] | None
     stats: AssignmentStats
 
 
@@ -46,9 +47,15 @@ class AssignmentComponent:
     For example, it assigns question 'When will the project start?' to sections Introduction and Project Timeline
     """
 
-    def __init__(self, llm_client: LLMClient, config: Config) -> None:
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        config: Config,
+        cover_page_assignment_template: dict[str, Any],
+    ) -> None:
         self.llm_client = llm_client
         self.config = config
+        self.cover_page_assignment_template = cover_page_assignment_template
         self.section_id_generator = OpenAISectionIdGenerator(llm_client, config)
         self.section_matcher = OpenAILayerMatcher(self.llm_client, self.config)
 
@@ -68,18 +75,27 @@ class AssignmentComponent:
             record_ids = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
             result_mapping[question_path] = [record_id for record_id in record_ids if record_id is not None]
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(
+        assignments=list[SectionAssignment],
+        cover_page_assignments=list[SectionAssignment],
+        stats=AssignmentStats,
+    )
     async def run_async(
         self,
         data: list[QuestionData],
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        *,
+        include_cover_page: bool = False,
+        reuse_content: bool = False,
     ) -> AssignmentComponentResult:
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
-        sections = build_section_records(template_data)
+        cover_page_sections = build_section_records(self.cover_page_assignment_template) if include_cover_page else []
+        content_sections = [] if reuse_content else build_section_records(template_data)
+        sections = [*cover_page_sections, *content_sections]
         question_chunks, question_id_to_path = build_question_chunks(data)
         logger.info(
             'Starting question-to-section assignment',
@@ -142,17 +158,25 @@ class AssignmentComponent:
         stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
 
         return {
-            'assignments': assignments,
+            'assignments': assignments[len(cover_page_sections) :],
+            'cover_page_assignments': assignments[: len(cover_page_sections)] or None,
             'stats': stats,
         }
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(
+        assignments=list[SectionAssignment],
+        cover_page_assignments=list[SectionAssignment],
+        stats=AssignmentStats,
+    )
     def run(
         self,
         data: list[QuestionData],
         template_data: dict[str, Any],
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        *,
+        include_cover_page: bool = False,
+        reuse_content: bool = False,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'

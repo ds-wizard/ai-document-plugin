@@ -37,7 +37,6 @@ export default function ProjectTab({
     const userSelectedLanguage = useRef(false)
     const [includeCoverPage, setIncludeCoverPage] = useState(false)
 
-
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
     }, [])

@@ -14,7 +14,7 @@ class CoverPageComponent:
     """Prepend the cover page after LLM polishing has finished."""
 
     @component.output_types(markdown=str)
-    async def run_async(  # noqa: PLR6301
+    async def run_async(  # ruff: ignore[no-self-use]
         self,
         markdown: str,
         cover_page: str = '',

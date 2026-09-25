@@ -656,7 +656,7 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
     )
     cover_page_assignments = [
         SectionAssignment(
-            id='cover-page-details',
+            id=uuid.uuid4(),
             title='Research overview',
             assignments={
                 'itemQ': {
@@ -670,7 +670,7 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
     ]
     assignments = [
         SectionAssignment(
-            id='document',
+            id=uuid.uuid4(),
             title='Projects',
             assignments={
                 'itemQ': {
@@ -684,7 +684,7 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
     ]
     if nested:
         cover_page_assignments = [
-            SectionAssignment(id='cover-page-root', title='Overview', children=cover_page_assignments)
+            SectionAssignment(id=uuid.uuid4(), title='Overview', children=cover_page_assignments)
         ]
     replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
 
@@ -716,7 +716,7 @@ async def test_run_reuses_assignments_without_cover_page() -> None:
     assignments = _serialize_assignments(
         [
             SectionAssignment(
-                id='document',
+                id=uuid.uuid4(),
                 title='Document section',
                 assignments={
                     'itemQ': {
@@ -813,7 +813,7 @@ async def test_localized_cover_page_keeps_project_values_and_body_assignments():
     )
     cover_page_assignments = [
         SectionAssignment(
-            id='cover-page',
+            id=uuid.uuid4(),
             title='Research overview',
             assignments={
                 'itemQ': {
@@ -830,7 +830,7 @@ async def test_localized_cover_page_keeps_project_values_and_body_assignments():
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        db_assignments=[SectionAssignment(id='body', title='Research overview').to_dict()],
+        db_assignments=[SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict()],
         db_cover_page_assignments=cover_page_assignments,
         include_cover_page=True,
     )

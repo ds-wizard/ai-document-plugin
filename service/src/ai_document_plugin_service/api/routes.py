@@ -117,7 +117,7 @@ async def start_pipeline(
 
     run_id = await pipeline.enqueue_pipeline_job(
         payload,
-        template.title,
+        template,
         auth,
         config,
         getattr(request.state, 'trace_uuid', None),

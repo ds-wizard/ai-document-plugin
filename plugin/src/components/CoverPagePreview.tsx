@@ -46,15 +46,6 @@ export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
                         <h3 className={styles.title}>{definition.metadata.title.text}</h3>
                         <div className={styles.tableWrapper}>
                             <table className={styles.table}>
-                                <thead>
-                                    <tr>
-                                        {definition.metadata.columns.map((column) => (
-                                            <th key={column.id} scope="col">
-                                                {column.text}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
                                 <tbody>
                                     {definition.metadata.fields.map((field) => (
                                         <tr key={field.id}>

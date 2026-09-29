@@ -2,6 +2,8 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
+import pandas as pd
+
 from ai_document_plugin_service.cover_page.cover_page_resolvers import CoverDataSources, resolve_cover_data
 
 
@@ -27,6 +29,18 @@ def _history_value(value: object | None, column: dict[str, str]) -> str:
         return _table_cell(value)
 
 
+def _metadata_table(rows: list[list[str]]) -> str:
+    if not rows:
+        return ''
+
+    header, *body = rows
+    return pd.DataFrame(body, columns=header).to_markdown(
+        index=False,
+        tablefmt='github',
+        disable_numparse=True,
+    )
+
+
 @dataclass(frozen=True)
 class CoverPageRenderer:
     definition: dict
@@ -35,15 +49,15 @@ class CoverPageRenderer:
         metadata = self.definition['metadata']
         history = self.definition['history']
 
+        metadata_rows = [
+            [field['label'], _metadata_value(resolve_cover_data(field['resolver'], sources))]
+            for field in metadata['fields']
+        ]
         lines = [
             f'# {metadata["title"]["text"]}',
             '',
-            '| ' + ' | '.join(column['text'] for column in metadata['columns']) + ' |',
-            '| ' + ' | '.join('---' for _column in metadata['columns']) + ' |',
+            _metadata_table(metadata_rows),
         ]
-        for field in metadata['fields']:
-            value = resolve_cover_data(field['resolver'], sources)
-            lines.append(f'| {field["label"]} | {_metadata_value(value)} |')
 
         lines.extend(
             [

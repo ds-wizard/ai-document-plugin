@@ -39,7 +39,6 @@ export type CoverPagePreviewDefinition = {
     version: string
     metadata: {
         title: CoverPagePreviewLabel
-        columns: CoverPagePreviewLabel[]
         fields: Array<{
             id: string
             label: string

@@ -90,7 +90,6 @@ class CoverPagePreviewField(ApiModel):
 
 class CoverPagePreviewMetadata(ApiModel):
     title: CoverPagePreviewLabel
-    columns: list[CoverPagePreviewLabel]
     fields: list[CoverPagePreviewField]
     attribution: str
 
@@ -131,7 +130,6 @@ class CoverPagePreviewDefinition(ApiModel):
                     id=metadata['title']['id'],
                     text=metadata['title']['text'],
                 ),
-                columns=[CoverPagePreviewLabel(id=column['id'], text=column['text']) for column in metadata['columns']],
                 fields=[
                     CoverPagePreviewField(id=field['id'], label=field['label'], preview=field['preview'])
                     for field in metadata['fields']

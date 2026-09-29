@@ -4,11 +4,6 @@ metadata:
   title:
     id: document_title
     text: Data Management Plan
-  columns:
-    - id: field
-      text: Field
-    - id: value
-      text: Value
   fields:
     - id: project_name
       label: Project Name

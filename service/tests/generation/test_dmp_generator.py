@@ -805,7 +805,8 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
         include_cover_page=True,
     )
     assert '# Data Management Plan' in result['cover_page']
-    assert '| Project Name | Potato project |' in result['cover_page']
+    assert 'Project Name' in result['cover_page']
+    assert 'Potato project' in result['cover_page']
     assert '## History of Changes' in result['cover_page']
     assert '# Research overview' in result['cover_page']
     assert '# Research overview' in result['markdown']

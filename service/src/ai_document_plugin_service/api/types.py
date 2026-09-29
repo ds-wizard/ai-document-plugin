@@ -38,12 +38,14 @@ class TemplateScope(StrEnum):
 
 
 class TemplateListItem(ApiModel):
+    has_cover_page: bool = False
     uuid: UUID
     title: str
     scope: TemplateScope
 
 
 class TemplateDetail(ApiModel):
+    has_cover_page: bool = False
     uuid: UUID
     title: str
     content: dict
@@ -51,12 +53,14 @@ class TemplateDetail(ApiModel):
 
 
 class TemplateCreateRequest(ApiModel):
+    has_cover_page: bool = False
     title: str
     content: dict
     scope: TemplateScope = TemplateScope.PERSONAL
 
 
 class TemplateUpdateRequest(ApiModel):
+    has_cover_page: bool = False
     title: str
     content: dict
 
@@ -162,7 +166,6 @@ class PipelineRunRequest(ApiModel):
     questionnaire_uuid: UUID
     template_uuid: UUID
     language: str = Field(default='en', min_length=2, max_length=10, pattern=r'^[a-z]{2,3}(?:-[A-Z]{2})?$')
-    include_cover_page: bool = False
     llm_model: str
     llm_api_key: str
     llm_api_url: str

@@ -34,7 +34,6 @@ export default function ProjectTab({
     const [languageOptions, setLanguageOptions] = useState<LanguageOption[]>([])
     const [languagesLoading, setLanguagesLoading] = useState(true)
     const userSelectedLanguage = useRef(false)
-    const [includeCoverPage, setIncludeCoverPage] = useState(false)
 
     const handleSelectedUuidChange = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
@@ -130,7 +129,7 @@ export default function ProjectTab({
     }
 
     const handleRunPipeline = async () => {
-        const started = await history.startRun(selectedUuid, language, includeCoverPage)
+        const started = await history.startRun(selectedUuid, language)
         if (started) {
             setSelectedRunId(started.runId)
         }
@@ -164,11 +163,6 @@ export default function ProjectTab({
                                 languageOptions={languageOptions}
                                 languagesLoading={languagesLoading}
                                 onLanguageChange={handleLanguageChange}
-                                coverPageOption={{
-                                    checked: includeCoverPage,
-                                    onChange: setIncludeCoverPage,
-                                    disabled: history.isStarting,
-                                }}
                             />
 
                             <button

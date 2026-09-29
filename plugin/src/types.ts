@@ -4,6 +4,7 @@ export type TemplateOption = {
     uuid: string
     title: string
     scope: TemplateScope
+    hasCoverPage: boolean
 }
 
 export type PipelineErrorResponse = {
@@ -26,6 +27,7 @@ export type TemplateDetail = {
     title: string
     content: ApiTemplateContent
     scope: TemplateScope
+    hasCoverPage: boolean
 }
 
 export type CoverPagePreviewLabel = {

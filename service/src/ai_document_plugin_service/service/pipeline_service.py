@@ -33,6 +33,7 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    TemplateDetail,
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
@@ -182,7 +183,7 @@ class PipelineService:
     async def enqueue_pipeline_job(
         self,
         payload: PipelineRunRequest,
-        title: str,
+        template: TemplateDetail,
         auth: AuthenticatedUser,
         config: Config,
         trace_id: UUID | None,
@@ -193,13 +194,13 @@ class PipelineService:
             extra={
                 'questionnaire_uuid': str(payload.questionnaire_uuid),
                 'template_uuid': str(payload.template_uuid),
-                'include_cover_page': payload.include_cover_page,
+                'include_cover_page': template.has_cover_page,
             },
         )
         run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
-            title=title,
+            title=template.title,
             language=payload.language,
             user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
@@ -219,7 +220,7 @@ class PipelineService:
                 payload.questionnaire_uuid,
                 payload.template_uuid,
                 payload.language,
-                include_cover_page=payload.include_cover_page,
+                include_cover_page=template.has_cover_page,
                 auth=auth,
                 llm_config=llm_config,
                 config=config,

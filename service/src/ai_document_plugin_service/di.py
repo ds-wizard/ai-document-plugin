@@ -14,7 +14,7 @@ from ai_document_plugin_service.service.template_service import TemplateService
 def setup_app_state(app: fastapi.FastAPI, config: Config) -> None:
     app.state.config = config
     app.state.database = PostgresDB(config.database)
-    app.state.template_service = TemplateService(app.state.database)
+    app.state.template_service = TemplateService(app.state.database, str(config.cover_definition['version']))
     app.state.pipeline_queue_manager = PipelineQueueManager(config.max_parallel_executions)
     app.state.pipeline_service = PipelineService(app.state.pipeline_queue_manager, app.state.database)
     app.state.export_service = ExportService(app.state.database)

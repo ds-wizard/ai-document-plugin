@@ -35,6 +35,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('uuid', UUID(as_uuid=True), primary_key=True),
         Column('title', Text, nullable=False),
         Column('content', JSON, nullable=False),
+        # NULL means the template has no cover page; a value identifies the selected version.
+        Column('cover_page_version', Text, nullable=True),
         Column('tenant_uuid', UUID(as_uuid=True), nullable=False),
         # NULL user_uuid marks a tenant-wide template shared with the whole tenant;
         # a set user_uuid marks a personal template owned by that user.

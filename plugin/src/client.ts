@@ -205,7 +205,6 @@ type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
     language: string
-    includeCoverPage: boolean
     llmModel?: string | null
     llmApiKey?: string | null
     llmApiUrl?: string | null
@@ -216,7 +215,6 @@ export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
     language,
-    includeCoverPage,
     llmModel = null,
     llmApiKey = null,
     llmApiUrl = null,
@@ -232,7 +230,6 @@ export const runPipeline = async ({
             questionnaireUuid,
             templateUuid,
             language,
-            includeCoverPage,
             llmModel,
             llmApiKey,
             llmApiUrl,
@@ -262,12 +259,14 @@ export const runPipeline = async ({
 }
 
 type CreateTemplateParams = {
+    hasCoverPage: boolean
     title: string
     content: unknown
     scope: TemplateScope
 }
 
 export const createTemplate = async ({
+    hasCoverPage,
     title,
     content,
     scope,
@@ -281,6 +280,7 @@ export const createTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            hasCoverPage,
             scope,
         }),
     })
@@ -301,12 +301,14 @@ export const createTemplate = async ({
 }
 
 type UpdateTemplateParams = {
+    hasCoverPage: boolean
     uuid: string
     title: string
     content: unknown
 }
 
 export const updateTemplate = async ({
+    hasCoverPage,
     uuid,
     title,
     content,
@@ -320,6 +322,7 @@ export const updateTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            hasCoverPage,
         }),
     })
 

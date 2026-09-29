@@ -142,7 +142,10 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200
-    assert response.json() == [{'uuid': str(template_uuid), 'title': 'Template 1', 'scope': 'tenant'}]
+    assert response.json() == [{
+        'uuid': str(template_uuid), 'title': 'Template 1', 'scope': 'tenant',
+        'hasCoverPage': False,
+    }]
     mock_httpx_get.assert_called_once()
 
 
@@ -178,5 +181,8 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200
-    assert response.json() == [{'uuid': str(template_uuid), 'title': 'Template 1', 'scope': 'tenant'}]
+    assert response.json() == [{
+        'uuid': str(template_uuid), 'title': 'Template 1', 'scope': 'tenant',
+        'hasCoverPage': False,
+    }]
     mock_httpx_get.assert_called_once()

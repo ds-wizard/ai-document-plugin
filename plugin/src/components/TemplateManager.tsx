@@ -2,14 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { exportTemplateAsJson, getTemplate } from '@/client'
-import { type CoverPageOption, CustomTemplateSection } from '@/components/CustomTemplateSection'
+import { CustomTemplateSection } from '@/components/CustomTemplateSection'
 import styles from '@/components/TemplateManager.module.css'
 import { TemplatePreview } from '@/components/TemplatePreview'
 import type { UseTemplatesResult } from '@/hooks/useTemplates'
 import type { TemplateDetail, TemplateOption } from '@/types'
 
 type TemplateManagerProps = {
-    coverPageOption?: CoverPageOption
     selectedUuid: string
     templates: TemplateOption[]
     isLoading: boolean
@@ -24,7 +23,6 @@ type TemplateManagerProps = {
  * Preview and personal create/edit/delete for the selected template.
  */
 export function TemplateManager({
-    coverPageOption,
     selectedUuid,
     templates,
     isLoading,
@@ -230,13 +228,13 @@ export function TemplateManager({
 
             {isEditingSelected && detail ? (
                 <CustomTemplateSection
-                    coverPageOption={coverPageOption}
                     key={detail.uuid}
                     scope="personal"
                     editingTemplate={{
                         uuid: detail.uuid,
                         title: detail.title,
                         content: detail.content,
+                        hasCoverPage: detail.hasCoverPage,
                     }}
                     onSaved={handleSaved}
                     onCancel={cancelEditing}
@@ -245,7 +243,6 @@ export function TemplateManager({
 
             {isCreating ? (
                 <CustomTemplateSection
-                    coverPageOption={coverPageOption}
                     scope="personal"
                     onSaved={handleSaved}
                     onCancel={cancelCreating}

@@ -39,6 +39,11 @@ class TemplateRecord:
     content: dict
     tenant_uuid: UUID
     user_uuid: UUID | None
+    cover_page_version: str | None = None
+
+    @property
+    def has_cover_page(self) -> bool:
+        return self.cover_page_version is not None
 
     @property
     def scope(self) -> TemplateScope:
@@ -52,6 +57,7 @@ class TemplateRecord:
             content=row.content,
             tenant_uuid=row.tenant_uuid,
             user_uuid=row.user_uuid,
+            cover_page_version=row.cover_page_version,
         )
 
 
@@ -141,6 +147,8 @@ class Database(ABC):
         content: JsonValue,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
+        *,
+        cover_page_version: str | None = None,
     ) -> UUID:
         """Create a new template in a database backend. Return created template UUID.
 
@@ -155,6 +163,8 @@ class Database(ABC):
         tenant_uuid: UUID,
         title: str,
         content: JsonValue,
+        *,
+        cover_page_version: str | None = None,
     ) -> bool:
         """Update an existing template's title and content. Return whether a row was updated."""
 
@@ -445,11 +455,14 @@ class PostgresDB(Database):
         content: JsonValue,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
+        *,
+        cover_page_version: str | None = None,
     ) -> UUID:
         template_uuid = uuid4()
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=template_uuid,
+            cover_page_version=cover_page_version,
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
@@ -485,6 +498,8 @@ class PostgresDB(Database):
         tenant_uuid: UUID,
         title: str,
         content: JsonValue,
+        *,
+        cover_page_version: str | None = None,
     ) -> bool:
         await self._ensure_schema()
         statement = (
@@ -494,7 +509,11 @@ class PostgresDB(Database):
                 & (self.template_table.c.tenant_uuid == tenant_uuid)
                 & (self.template_table.c.deleted_at.is_(None)),
             )
-            .values(title=title, content=content)
+            .values(
+                title=title,
+                content=content,
+                cover_page_version=cover_page_version,
+            )
         )
 
         try:

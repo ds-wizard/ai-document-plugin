@@ -11,16 +11,10 @@ export type EditingTemplate = {
     uuid: string
     title: string
     content: ApiTemplateContent
-}
-
-export type CoverPageOption = {
-    checked: boolean
-    onChange: (checked: boolean) => void
-    disabled: boolean
+    hasCoverPage: boolean
 }
 
 type CustomTemplateSectionProps = {
-    coverPageOption?: CoverPageOption
     scope: TemplateScope
     onSaved: (template: TemplateOption) => void
     editingTemplate?: EditingTemplate | null
@@ -31,13 +25,13 @@ const scopeNoun = (scope: TemplateScope): string =>
     scope === 'tenant' ? 'tenant-wide template' : 'personal template'
 
 export function CustomTemplateSection({
-    coverPageOption,
     scope,
     onSaved,
     editingTemplate = null,
     onCancel,
 }: CustomTemplateSectionProps) {
     const isEditing = editingTemplate !== null
+    const [hasCoverPage, setHasCoverPage] = useState(editingTemplate?.hasCoverPage ?? false)
     const [title, setTitle] = useState(editingTemplate?.title ?? '')
     const [json, setJson] = useState(
         editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '',
@@ -133,14 +127,17 @@ export function CustomTemplateSection({
                       uuid: editingTemplate.uuid,
                       title: trimmedTitle,
                       content: parsed,
+                      hasCoverPage,
                   })
                 : await createTemplate({
                       title: trimmedTitle,
                       content: parsed,
+                      hasCoverPage,
                       scope,
                   })
 
             if (!isEditing) {
+                setHasCoverPage(false)
                 setTitle('')
                 setJson('')
                 setFileName('')
@@ -186,20 +183,18 @@ export function CustomTemplateSection({
                 />
             </label>
 
-            {coverPageOption && (
-                <div className={styles.metadataSection}>
-                    <label className={styles.metadataOption}>
-                        <input
-                            type="checkbox"
-                            checked={coverPageOption.checked}
-                            onChange={(event) => coverPageOption.onChange(event.target.checked)}
-                            disabled={coverPageOption.disabled || isSaving}
-                        />
-                        <span>Include a cover page with DMP metadata and project information</span>
-                    </label>
-                    <CoverPagePreview />
-                </div>
-            )}
+            <div className={styles.metadataSection}>
+                <label className={styles.metadataOption}>
+                    <input
+                        type="checkbox"
+                        checked={hasCoverPage}
+                        onChange={(event) => setHasCoverPage(event.target.checked)}
+                        disabled={isSaving}
+                    />
+                    <span>Include a cover page with DMP metadata and project information</span>
+                </label>
+                <CoverPagePreview />
+            </div>
 
             <div className="ai-doc-field">
                 <span className="ai-doc-field-label">Template structure</span>

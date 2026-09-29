@@ -73,7 +73,7 @@ async def test_list_scopes_query_to_tenant_and_user() -> None:
         _record(template_uuid=personal_template_uuid, user_uuid=USER_UUID, title='Mine'),
     ]
 
-    result = await TemplateService(database).list(_user())
+    result = await TemplateService(database, '1').list(_user())
 
     database.list_templates.assert_awaited_once_with(TENANT_UUID, USER_UUID)
     assert result[0].uuid == tenant_template_uuid
@@ -87,7 +87,7 @@ async def test_get_returns_tenant_wide_template() -> None:
     database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
-    detail = await TemplateService(database).get(_user(), template_uuid)
+    detail = await TemplateService(database, '1').get(_user(), template_uuid)
 
     assert detail.uuid == template_uuid
     assert detail.scope is TemplateScope.TENANT
@@ -98,7 +98,7 @@ async def test_get_returns_own_personal_template() -> None:
     database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=USER_UUID)
 
-    detail = await TemplateService(database).get(_user(), template_uuid)
+    detail = await TemplateService(database, '1').get(_user(), template_uuid)
 
     assert detail.scope is TemplateScope.PERSONAL
 
@@ -109,7 +109,7 @@ async def test_get_hides_other_users_personal_template() -> None:
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).get(_user(), template_uuid)
+        await TemplateService(database, '1').get(_user(), template_uuid)
 
 
 async def test_get_raises_not_found_when_missing() -> None:
@@ -117,7 +117,7 @@ async def test_get_raises_not_found_when_missing() -> None:
     database.get_template.return_value = None
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).get(_user(), uuid.uuid4())
+        await TemplateService(database, '1').get(_user(), uuid.uuid4())
 
 
 async def test_create_personal_template_sets_owner() -> None:
@@ -126,13 +126,14 @@ async def test_create_personal_template_sets_owner() -> None:
     database.create_template.return_value = template_uuid
     payload = TemplateCreateRequest(title='  My template  ', content=VALID_CONTENT, scope=TemplateScope.PERSONAL)
 
-    detail = await TemplateService(database).create(_user(), payload)
+    detail = await TemplateService(database, '1').create(_user(), payload)
 
     database.create_template.assert_awaited_once_with(
         title='My template',
         content=VALID_CONTENT,
         tenant_uuid=TENANT_UUID,
         user_uuid=USER_UUID,
+        cover_page_version=None,
     )
     assert detail.title == 'My template'
     assert detail.scope is TemplateScope.PERSONAL
@@ -144,13 +145,14 @@ async def test_create_tenant_template_by_admin_has_no_owner() -> None:
     database.create_template.return_value = template_uuid
     payload = TemplateCreateRequest(title='Common', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
-    detail = await TemplateService(database).create(_user(is_admin=True), payload)
+    detail = await TemplateService(database, '1').create(_user(is_admin=True), payload)
 
     database.create_template.assert_awaited_once_with(
         title='Common',
         content=VALID_CONTENT,
         tenant_uuid=TENANT_UUID,
         user_uuid=None,
+        cover_page_version=None,
     )
     assert detail.scope is TemplateScope.TENANT
 
@@ -160,7 +162,7 @@ async def test_create_tenant_template_by_non_admin_is_denied() -> None:
     payload = TemplateCreateRequest(title='Common', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).create(_user(is_admin=False), payload)
+        await TemplateService(database, '1').create(_user(is_admin=False), payload)
 
     database.create_template.assert_not_awaited()
 
@@ -172,7 +174,7 @@ async def test_create_authorizes_before_validating() -> None:
     payload = TemplateCreateRequest(title='', content={}, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).create(_user(is_admin=False), payload)
+        await TemplateService(database, '1').create(_user(is_admin=False), payload)
 
 
 async def test_create_rejects_blank_title() -> None:
@@ -180,7 +182,7 @@ async def test_create_rejects_blank_title() -> None:
     payload = TemplateCreateRequest(title='   ', content=VALID_CONTENT)
 
     with pytest.raises(ValidationError):
-        await TemplateService(database).create(_user(), payload)
+        await TemplateService(database, '1').create(_user(), payload)
 
     database.create_template.assert_not_awaited()
 
@@ -190,7 +192,7 @@ async def test_create_rejects_content_without_sections() -> None:
     payload = TemplateCreateRequest(title='My template', content={'not_sections': 1})
 
     with pytest.raises(ValidationError):
-        await TemplateService(database).create(_user(), payload)
+        await TemplateService(database, '1').create(_user(), payload)
 
 
 async def test_create_maps_title_conflict_to_conflict_error() -> None:
@@ -199,7 +201,7 @@ async def test_create_maps_title_conflict_to_conflict_error() -> None:
     payload = TemplateCreateRequest(title='My template', content=VALID_CONTENT)
 
     with pytest.raises(ConflictError):
-        await TemplateService(database).create(_user(), payload)
+        await TemplateService(database, '1').create(_user(), payload)
 
 
 async def test_update_own_personal_template() -> None:
@@ -209,13 +211,14 @@ async def test_update_own_personal_template() -> None:
     database.update_template.return_value = True
     payload = TemplateUpdateRequest(title='  Renamed  ', content=VALID_CONTENT)
 
-    detail = await TemplateService(database).update(_user(), template_uuid, payload)
+    detail = await TemplateService(database, '1').update(_user(), template_uuid, payload)
 
     database.update_template.assert_awaited_once_with(
         template_uuid=template_uuid,
         tenant_uuid=TENANT_UUID,
         title='Renamed',
         content=VALID_CONTENT,
+        cover_page_version=None,
     )
     assert detail.title == 'Renamed'
     assert detail.scope is TemplateScope.PERSONAL
@@ -228,7 +231,7 @@ async def test_update_tenant_template_by_admin() -> None:
     database.update_template.return_value = True
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
-    detail = await TemplateService(database).update(_user(is_admin=True), template_uuid, payload)
+    detail = await TemplateService(database, '1').update(_user(is_admin=True), template_uuid, payload)
 
     assert detail.scope is TemplateScope.TENANT
     database.update_template.assert_awaited_once()
@@ -241,7 +244,7 @@ async def test_update_tenant_template_by_non_admin_is_denied() -> None:
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).update(_user(is_admin=False), template_uuid, payload)
+        await TemplateService(database, '1').update(_user(is_admin=False), template_uuid, payload)
 
     database.update_template.assert_not_awaited()
 
@@ -253,7 +256,7 @@ async def test_update_other_users_personal_template_is_hidden() -> None:
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).update(_user(), template_uuid, payload)
+        await TemplateService(database, '1').update(_user(), template_uuid, payload)
 
     database.update_template.assert_not_awaited()
 
@@ -264,7 +267,7 @@ async def test_update_missing_template_raises_not_found() -> None:
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).update(_user(), uuid.uuid4(), payload)
+        await TemplateService(database, '1').update(_user(), uuid.uuid4(), payload)
 
 
 async def test_update_maps_title_conflict_to_conflict_error() -> None:
@@ -275,7 +278,7 @@ async def test_update_maps_title_conflict_to_conflict_error() -> None:
     payload = TemplateUpdateRequest(title='Renamed', content=VALID_CONTENT)
 
     with pytest.raises(ConflictError):
-        await TemplateService(database).update(_user(), template_uuid, payload)
+        await TemplateService(database, '1').update(_user(), template_uuid, payload)
 
 
 async def test_delete_own_personal_template() -> None:
@@ -283,7 +286,7 @@ async def test_delete_own_personal_template() -> None:
     database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=USER_UUID)
 
-    await TemplateService(database).delete(_user(), template_uuid)
+    await TemplateService(database, '1').delete(_user(), template_uuid)
 
     database.delete_template.assert_awaited_once_with(template_uuid, TENANT_UUID)
 
@@ -293,7 +296,7 @@ async def test_delete_tenant_template_by_admin() -> None:
     database = _database()
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
-    await TemplateService(database).delete(_user(is_admin=True), template_uuid)
+    await TemplateService(database, '1').delete(_user(is_admin=True), template_uuid)
 
     database.delete_template.assert_awaited_once_with(template_uuid, TENANT_UUID)
 
@@ -304,7 +307,7 @@ async def test_delete_tenant_template_by_non_admin_is_denied() -> None:
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=None)
 
     with pytest.raises(AccessDeniedError):
-        await TemplateService(database).delete(_user(is_admin=False), template_uuid)
+        await TemplateService(database, '1').delete(_user(is_admin=False), template_uuid)
 
     database.delete_template.assert_not_awaited()
 
@@ -315,7 +318,7 @@ async def test_delete_other_users_personal_template_is_hidden() -> None:
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).delete(_user(), template_uuid)
+        await TemplateService(database, '1').delete(_user(), template_uuid)
 
     database.delete_template.assert_not_awaited()
 
@@ -325,7 +328,7 @@ async def test_delete_other_users_by_admin_is_hidden() -> None:
     database.get_template.return_value = _record(template_uuid=template_uuid, user_uuid=OTHER_USER_UUID)
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).delete(_user(is_admin=True), template_uuid)
+        await TemplateService(database, '1').delete(_user(is_admin=True), template_uuid)
 
     database.delete_template.assert_not_awaited()
 
@@ -335,6 +338,49 @@ async def test_delete_missing_template_raises_not_found() -> None:
     database.get_template.return_value = None
 
     with pytest.raises(NotFoundError):
-        await TemplateService(database).delete(_user(), uuid.uuid4())
+        await TemplateService(database, '1').delete(_user(), uuid.uuid4())
 
     database.delete_template.assert_not_awaited()
+
+
+@pytest.mark.parametrize('scope', [TemplateScope.PERSONAL, TemplateScope.TENANT])
+@pytest.mark.parametrize('enabled', [False, True])
+async def test_cover_page_setting_is_saved_and_returned(scope, enabled):
+    database = _database()
+    database.create_template.return_value = uuid.uuid4()
+    service = TemplateService(database, '7')
+    detail = await service.create(
+        _user(is_admin=True),
+        TemplateCreateRequest(title='Cover template', content=VALID_CONTENT, scope=scope, has_cover_page=enabled),
+    )
+    version = '7' if enabled else None
+    assert detail.has_cover_page is enabled
+    assert database.create_template.await_args.kwargs['cover_page_version'] == version
+    record = TemplateRecord(
+        uuid=detail.uuid, title=detail.title, content=detail.content,
+        tenant_uuid=TENANT_UUID, user_uuid=None if scope is TemplateScope.TENANT else USER_UUID,
+        cover_page_version=version,
+    )
+    database.get_template.return_value = record
+    database.list_templates.return_value = [record]
+    reloaded = await service.get(_user(), detail.uuid)
+    listed = (await service.list(_user()))[0]
+    assert reloaded.has_cover_page is enabled
+    assert listed.has_cover_page is enabled
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+async def test_editing_cover_page_setting_updates_version(enabled):
+    database = _database()
+    template_uuid = uuid.uuid4()
+    database.get_template.return_value = TemplateRecord(
+        uuid=template_uuid, title='Existing', content=VALID_CONTENT,
+        tenant_uuid=TENANT_UUID, user_uuid=USER_UUID,
+        cover_page_version='1',
+    )
+    detail = await TemplateService(database, '2').update(
+        _user(), template_uuid,
+        TemplateUpdateRequest(title='Existing', content=VALID_CONTENT, has_cover_page=enabled),
+    )
+    assert detail.has_cover_page is enabled
+    assert database.update_template.await_args.kwargs['cover_page_version'] == ('2' if enabled else None)

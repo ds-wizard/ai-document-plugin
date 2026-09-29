@@ -33,6 +33,7 @@ export function TenantTemplateSection() {
                 uuid: detail.uuid,
                 title: detail.title,
                 content: detail.content,
+                hasCoverPage: detail.hasCoverPage,
             })
         } catch (editError) {
             toast.error(

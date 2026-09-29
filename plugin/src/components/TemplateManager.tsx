@@ -179,6 +179,7 @@ export function TemplateManager({
                 <TemplatePreview
                     content={isDetailForSelected ? detail.content : undefined}
                     isLoading={isLoadingDetail || !isDetailForSelected}
+                    hasCoverPage={detail.hasCoverPage}
                 />
             ) : null}
 
@@ -234,6 +235,7 @@ export function TemplateManager({
                         uuid: detail.uuid,
                         title: detail.title,
                         content: detail.content,
+                        hasCoverPage: detail.hasCoverPage,
                     }}
                     onSaved={handleSaved}
                     onCancel={cancelEditing}

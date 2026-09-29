@@ -26,6 +26,51 @@
     margin-top: 1rem;
 }
 
+.embedded {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.embedded .page {
+    padding: 0.75rem;
+    border-radius: 3px;
+}
+
+.embedded .title {
+    margin-bottom: 0.65rem;
+    font-size: 1rem;
+}
+
+.embedded .heading {
+    margin: 1rem 0 0.5rem;
+    font-size: 0.9rem;
+}
+
+.embedded .table {
+    font-size: 0.8rem;
+}
+
+.embedded .table th,
+.embedded .table td {
+    padding: 0.35rem 0.45rem;
+}
+
+.embedded .attribution,
+.embedded .note,
+.embedded .fields {
+    font-size: 0.75rem;
+}
+
+.embedded .attribution {
+    margin-top: 0.5rem;
+}
+
+.embedded .fields {
+    margin-top: 0.5rem;
+    line-height: 1.5;
+}
+
 .note,
 .pageBreak {
     margin: 0;

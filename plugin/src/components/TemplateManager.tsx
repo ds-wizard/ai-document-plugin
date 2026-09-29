@@ -179,6 +179,7 @@ export function TemplateManager({
                 <TemplatePreview
                     content={isDetailForSelected ? detail.content : undefined}
                     isLoading={isLoadingDetail || !isDetailForSelected}
+                    hasCoverPage={detail.hasCoverPage}
                 />
             ) : null}
 

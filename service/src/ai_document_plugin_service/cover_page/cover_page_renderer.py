@@ -31,29 +31,28 @@ def _history_value(value: object | None, column: dict[str, str]) -> str:
 class CoverPageRenderer:
     definition: dict
 
-    def render(self, sources: CoverDataSources, labels: dict[str, str] | None = None) -> str:
-        translated = labels or {}
+    def render(self, sources: CoverDataSources) -> str:
         metadata = self.definition['metadata']
         history = self.definition['history']
 
         lines = [
-            f'# {translated.get(metadata["title"]["id"], metadata["title"]["text"])}',
+            f'# {metadata["title"]["text"]}',
             '',
-            '| ' + ' | '.join(translated.get(column['id'], column['text']) for column in metadata['columns']) + ' |',
+            '| ' + ' | '.join(column['text'] for column in metadata['columns']) + ' |',
             '| ' + ' | '.join('---' for _column in metadata['columns']) + ' |',
         ]
         for field in metadata['fields']:
             value = resolve_cover_data(field['resolver'], sources)
-            lines.append(f'| {translated.get(field["id"], field["label"])} | {_metadata_value(value)} |')
+            lines.append(f'| {field["label"]} | {_metadata_value(value)} |')
 
         lines.extend(
             [
                 '',
                 metadata['attribution'],
                 '',
-                f'## {translated.get(history["title"]["id"], history["title"]["text"])}',
+                f'## {history["title"]["text"]}',
                 '',
-                '| ' + ' | '.join(translated.get(column['id'], column['text']) for column in history['columns']) + ' |',
+                '| ' + ' | '.join(column['text'] for column in history['columns']) + ' |',
                 '| ' + ' | '.join('---' for _column in history['columns']) + ' |',
             ]
         )

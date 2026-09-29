@@ -1,24 +1,21 @@
 from pathlib import Path
 
 from ai_document_plugin_service.ai.common.config import load_config
-from typing import Optional, cast
+from typing import Optional
 import pytest
 import uuid
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
 )
-from ai_document_plugin_service.ai.generation.cover_page_translation import CoverPageTranslator
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
-    cover_page_translation_labels,
 )
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 
@@ -30,14 +27,10 @@ def _component(
     gen_llm: GenerationLLM | None = None,
     cover_page_generation_prompt: str = '',
 ) -> DmpGeneratorComponent:
+    gen_llm = gen_llm or StubGenerationLLM()
     return DmpGeneratorComponent(
-        dmp_generator_llm=gen_llm or StubGenerationLLM(),
-        cover_page_translator=CoverPageTranslator(
-            cast(LLMClient, object()),
-            'en',
-            TEST_CONFIG.cover_page_translation,
-            labels=cover_page_translation_labels(TEST_CONFIG.cover_definition),
-        ),
+        dmp_generator_llm=gen_llm,
+        cover_page_llm=gen_llm,
         cover_page_generation_prompt=cover_page_generation_prompt,
         cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
         cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
@@ -777,37 +770,14 @@ async def test_cover_page_boundary_requires_both_parts(cover_page: str, body: st
     assert '<!-- ai-cover-page-end -->' not in result['markdown']
 
 
-async def test_localized_cover_page_keeps_project_values_and_body_assignments():
-    import json
+async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
     from copy import deepcopy
-    from types import SimpleNamespace
-    from unittest.mock import AsyncMock
 
-    translations = {
-        **cover_page_translation_labels(TEST_CONFIG.cover_definition),
-        'document_title': 'Plán správy dat',
-        'project_name': 'Název projektu',
-        'history_title': 'Historie změn',
-        'section_0': 'Přehled výzkumu',
-        'funding': 'Financování',
-    }
-    client = SimpleNamespace(
-        completion=AsyncMock(
-            return_value=SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(translations)))],
-                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
-            )
-        )
-    )
     stub = StubGenerationLLM()
+    cover_stub = StubGenerationLLM()
     component = DmpGeneratorComponent(
         stub,
-        cover_page_translator=CoverPageTranslator(
-            cast(LLMClient, client),
-            'cs',
-            load_config(TEST_CONFIG_PATH).cover_page_translation,
-            labels=cover_page_translation_labels(TEST_CONFIG.cover_definition),
-        ),
+        cover_page_llm=cover_stub,
         cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
         cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
     )
@@ -834,20 +804,66 @@ async def test_localized_cover_page_keeps_project_values_and_body_assignments():
         db_cover_page_assignments=cover_page_assignments,
         include_cover_page=True,
     )
-    assert '# Plán správy dat' in result['cover_page']
-    assert '| Název projektu | Potato project |' in result['cover_page']
-    assert '## Historie změn' in result['cover_page']
-    assert '# Přehled výzkumu' in result['cover_page']
+    assert '# Data Management Plan' in result['cover_page']
+    assert '| Project Name | Potato project |' in result['cover_page']
+    assert '## History of Changes' in result['cover_page']
+    assert '# Research overview' in result['cover_page']
     assert '# Research overview' in result['markdown']
-    assert 'Funding: Financování' in stub.section_calls[0]
+    assert 'Use these exact English field labels:' in cover_stub.section_calls[0]
+    assert 'Funding' in cover_stub.section_calls[0]
+    assert not stub.section_calls
     assert cover_page_assignments == original
-    client.completion.assert_awaited_once()
 
 
-async def test_no_cover_page_skips_translation():
-    from unittest.mock import AsyncMock
-
-    translator = AsyncMock()
-    component = DmpGeneratorComponent(StubGenerationLLM(), cover_page_translator=translator, cover_page_field_labels={})
+async def test_no_cover_page_skips_cover_generation():
+    cover_stub = StubGenerationLLM()
+    component = DmpGeneratorComponent(
+        StubGenerationLLM(), cover_page_llm=cover_stub, cover_page_field_labels={}
+    )
     await component.run_async(replies={}, km=_km_fixture(), new_assignments=[])
-    translator.translate.assert_not_called()
+    assert not cover_stub.section_calls
+
+
+async def test_czech_pipeline_generates_cover_in_english_and_body_in_czech():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+
+    from ai_document_plugin_service.ai.run_pipeline import build_pipeline
+
+    client = Mock()
+    client.get_max_workers.return_value = 1
+    client.completion = AsyncMock(return_value=SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content='Generated text'))],
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+    ))
+    pipeline = build_pipeline(Mock(), Mock(), TEST_CONFIG, client, 'cs')
+    generator = pipeline.get_component('dmp_generator_component')
+    assert isinstance(generator, DmpGeneratorComponent)
+    assignment = SectionAssignment(
+        id=uuid.uuid4(),
+        title='Projects',
+        assignments={
+            'itemQ': {
+                'question_path': 'ch.itemQ',
+                'question_title': 'Item',
+                'question_text': 'Item text',
+                'children': {},
+            },
+        },
+    ).to_dict()
+    await generator.run_async(
+        replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
+        km=_km_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        db_assignments=[assignment],
+        db_cover_page_assignments=[assignment],
+        include_cover_page=True,
+    )
+    assert client.completion.await_count == 2
+    for call in client.completion.await_args_list:
+        messages = call.kwargs['messages']
+        is_cover = 'Use these exact English field labels:' in messages[1]['content']
+        expected_language = 'English' if is_cover else 'Czech'
+        assert messages[0]['content'] == TEST_CONFIG.dmp_generation.system_message.replace(
+            '{language}', expected_language
+        )

@@ -81,19 +81,15 @@ def test_render_matches_current_cover_markdown() -> None:
     )
 
 
-def test_render_uses_translated_labels_without_changing_values() -> None:
-    markdown = _renderer().render(
-        _sources(),
-        labels={
-            'document_title': 'Plán správy dat',
-            'project_name': 'Název projektu',
-            'history_title': 'Historie změn',
-        },
-    )
+def test_render_keeps_english_labels_and_original_project_values() -> None:
+    sources = _sources()
+    assert sources.questionnaire_detail is not None
+    sources.questionnaire_detail['name'] = 'Český projekt'
+    markdown = _renderer().render(sources)
 
-    assert '# Plán správy dat' in markdown
-    assert '| Název projektu | Potato project |' in markdown
-    assert '## Historie změn' in markdown
+    assert '# Data Management Plan' in markdown
+    assert '| Project Name | Český projekt |' in markdown
+    assert '## History of Changes' in markdown
 
 
 def test_render_escapes_pipe_in_metadata_value() -> None:

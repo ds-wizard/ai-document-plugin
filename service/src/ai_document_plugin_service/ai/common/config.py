@@ -63,7 +63,6 @@ class Config:
     assignment: SystemAndUserPrompt
     section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
-    cover_page_translation: SystemPrompt
     cover_page_generation: str
     dmp_polishing: SystemAndUserPrompt
     cover_definition: dict[str, Any]
@@ -271,11 +270,6 @@ def load_config(config_path: str | None = None) -> Config:
             temperature=float(_get(prompts, 'dmp_generation', 'temperature')),
             max_tokens=int(_get(prompts, 'dmp_generation', 'max_tokens')),
             system_message=_get(prompts, 'dmp_generation', 'system_message'),
-        ),
-        cover_page_translation=SystemPrompt(
-            temperature=float(_get(prompts, 'cover_page_translation', 'temperature')),
-            max_tokens=int(_get(prompts, 'cover_page_translation', 'max_tokens')),
-            system_message=_get(prompts, 'cover_page_translation', 'system_message'),
         ),
         cover_page_generation=_get(prompts, 'cover_page_generation', 'instruction'),
         dmp_polishing=SystemAndUserPrompt(

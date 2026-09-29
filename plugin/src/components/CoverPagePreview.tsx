@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react'
 
 import { getCoverPagePreview } from '@/client'
 import styles from '@/components/CoverPagePreview.module.css'
-import { getLanguageOption, type LanguageOption } from '@/data/languages'
 import type { CoverPagePreviewDefinition } from '@/types'
 
-type CoverPagePreviewProps = {
-    language: string
-    languageOptions: LanguageOption[]
-}
-
-export function CoverPagePreview({ language, languageOptions }: CoverPagePreviewProps) {
-    const languageName = getLanguageOption(languageOptions, language)?.englishLabel ?? language
+export function CoverPagePreview() {
     const [definition, setDefinition] = useState<CoverPagePreviewDefinition | null>(null)
     const [error, setError] = useState<string | null>(null)
 
@@ -43,12 +36,9 @@ export function CoverPagePreview({ language, languageOptions }: CoverPagePreview
                 {!error && !definition && <p className={styles.note}>Loading preview...</p>}
                 {definition && (
                     <>
-                        {language.toLowerCase().split('-')[0] !== 'en' && (
-                            <p className={styles.note}>
-                                Labels are shown here in English and will be translated into{' '}
-                                {languageName} during generation.
-                            </p>
-                        )}
+                        <p className={styles.note}>
+                            The cover page is always in English.
+                        </p>
 
                         <section aria-label="Cover page structure" className={styles.page}>
                             <h3 className={styles.title}>{definition.metadata.title.text}</h3>

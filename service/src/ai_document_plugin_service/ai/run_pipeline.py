@@ -22,7 +22,6 @@ from ai_document_plugin_service.ai.common import (
 )
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
-from ai_document_plugin_service.ai.generation.cover_page_translation import CoverPageTranslator
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
@@ -36,7 +35,6 @@ from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPo
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
-    cover_page_translation_labels,
 )
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 
@@ -66,26 +64,17 @@ class CoverPagePipelineDependencies:
     assignment_template: dict[str, object]
     generation_prompt: str
     field_labels: dict[str, str]
-    translator: CoverPageTranslator
     renderer: CoverPageRenderer
 
 
 def _collect_cover_page_dependencies(
     config: Config,
-    llm_client: LLMClient,
-    language: str,
 ) -> CoverPagePipelineDependencies:
     definition = config.cover_definition
     return CoverPagePipelineDependencies(
         assignment_template=definition,
         generation_prompt=config.cover_page_generation,
         field_labels=cover_page_assignment_field_labels(definition),
-        translator=CoverPageTranslator(
-            llm_client,
-            language,
-            config.cover_page_translation,
-            labels=cover_page_translation_labels(definition),
-        ),
         renderer=CoverPageRenderer(definition),
     )
 
@@ -94,7 +83,7 @@ def build_pipeline(
     database: Database, saver: DBSaver, config: Config, llm_client: LLMClient, language: str
 ) -> AsyncPipeline:
     pipeline = AsyncPipeline()
-    cover_page = _collect_cover_page_dependencies(config, llm_client, language)
+    cover_page = _collect_cover_page_dependencies(config)
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent(llm_client, config, cover_page.assignment_template)
@@ -102,7 +91,7 @@ def build_pipeline(
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
         cover_page_generation_prompt=cover_page.generation_prompt,
-        cover_page_translator=cover_page.translator,
+        cover_page_llm=SectionGenerationLLM(llm_client, config, 'en'),
         cover_page_field_labels=cover_page.field_labels,
         cover_page_renderer=cover_page.renderer,
     )

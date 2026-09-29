@@ -183,10 +183,7 @@ export default function ProjectTab({
                                     </span>
                                 </label>
 
-                                <CoverPagePreview
-                                    language={language}
-                                    languageOptions={languageOptions}
-                                />
+                                <CoverPagePreview />
                             </div>
 
                             <button

@@ -14,7 +14,6 @@ from haystack import component
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
-from ai_document_plugin_service.ai.generation.cover_page_translation import CoverPageTranslator
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
 )
@@ -49,14 +48,14 @@ class DmpGeneratorComponent:
     def __init__(
         self,
         dmp_generator_llm: GenerationLLM,
-        cover_page_translator: CoverPageTranslator,
+        cover_page_llm: GenerationLLM,
         cover_page_field_labels: dict[str, str],
         cover_page_generation_prompt: str = '',
         cover_page_renderer: CoverPageRenderer | None = None,
     ) -> None:
         self.dmp_generator_llm = dmp_generator_llm
         self.cover_page_generation_prompt = cover_page_generation_prompt
-        self.cover_page_translator = cover_page_translator
+        self.cover_page_llm = cover_page_llm
         self.cover_page_field_labels = dict(cover_page_field_labels)
         self.cover_page_renderer = cover_page_renderer
 
@@ -96,19 +95,11 @@ class DmpGeneratorComponent:
         )
 
         stats = AssignmentStats()
-        cover_page_labels: dict[str, str] = {}
         cover_page_instruction = self.cover_page_generation_prompt
         if include_cover_page or cover_page_assignments:
-            if on_progress is not None:
-                on_progress('Preparing cover page labels')
-            cover_page_labels, cover_page_assignments = await self.cover_page_translator.translate(
-                cover_page_assignments, stats
-            )
-            field_labels = '\n'.join(
-                f'{label}: {cover_page_labels[field_id]}' for field_id, label in self.cover_page_field_labels.items()
-            )
+            field_labels = '\n'.join(self.cover_page_field_labels.values())
             cover_page_instruction += (
-                '\n\nUse these exact field labels instead of their English equivalents:\n'
+                '\n\nUse these exact English field labels:\n'
                 + field_labels
                 + '\nPreserve the original project names in subsection headings.'
             )
@@ -130,7 +121,7 @@ class DmpGeneratorComponent:
                 depth=0,
                 replies=replies,
                 km=km,
-                llm=self.dmp_generator_llm,
+                llm=self.cover_page_llm,
                 stats=stats,
                 generation_instruction=cover_page_instruction,
             )
@@ -182,7 +173,6 @@ class DmpGeneratorComponent:
                     project_versions=project_versions or [],
                     generated_on=datetime.now().astimezone().date(),
                 ),
-                labels=cover_page_labels,
             )
         if cover_page_sections:
             cover_page_parts = [self._render_scheduled_section(section) for section in cover_page_sections]

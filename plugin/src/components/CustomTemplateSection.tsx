@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createTemplate, updateTemplate } from '@/client'
+import { CoverPagePreview } from '@/components/CoverPagePreview'
 import styles from '@/components/CustomTemplateSection.module.css'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
@@ -12,7 +13,14 @@ export type EditingTemplate = {
     content: ApiTemplateContent
 }
 
+export type CoverPageOption = {
+    checked: boolean
+    onChange: (checked: boolean) => void
+    disabled: boolean
+}
+
 type CustomTemplateSectionProps = {
+    coverPageOption?: CoverPageOption
     scope: TemplateScope
     onSaved: (template: TemplateOption) => void
     editingTemplate?: EditingTemplate | null
@@ -23,6 +31,7 @@ const scopeNoun = (scope: TemplateScope): string =>
     scope === 'tenant' ? 'tenant-wide template' : 'personal template'
 
 export function CustomTemplateSection({
+    coverPageOption,
     scope,
     onSaved,
     editingTemplate = null,
@@ -176,6 +185,21 @@ export function CustomTemplateSection({
                     className="form-control"
                 />
             </label>
+
+            {coverPageOption && (
+                <div className={styles.metadataSection}>
+                    <label className={styles.metadataOption}>
+                        <input
+                            type="checkbox"
+                            checked={coverPageOption.checked}
+                            onChange={(event) => coverPageOption.onChange(event.target.checked)}
+                            disabled={coverPageOption.disabled || isSaving}
+                        />
+                        <span>Include a cover page with DMP metadata and project information</span>
+                    </label>
+                    <CoverPagePreview />
+                </div>
+            )}
 
             <div className="ai-doc-field">
                 <span className="ai-doc-field-label">Template structure</span>

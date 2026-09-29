@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import type { CoverPageOption } from '@/components/CustomTemplateSection'
 import { LanguageDropdown } from '@/components/LanguageDropdown'
 import styles from '@/components/ProjectTemplatePanel.module.css'
 import { TemplateDropdown } from '@/components/TemplateDropdown'
@@ -8,6 +9,7 @@ import type { LanguageOption } from '@/data/languages'
 import type { UseTemplatesResult } from '@/hooks/useTemplates'
 
 type ProjectTemplatePanelProps = {
+    coverPageOption?: CoverPageOption
     templates: UseTemplatesResult
     disabled: boolean
     onSelectedUuidChange: (uuid: string) => void
@@ -22,6 +24,7 @@ type ProjectTemplatePanelProps = {
  * Data comes from {@link useTemplates}; this component owns the dropdown selection.
  */
 export function ProjectTemplatePanel({
+    coverPageOption,
     templates,
     disabled,
     onSelectedUuidChange,
@@ -65,6 +68,7 @@ export function ProjectTemplatePanel({
             </div>
 
             <TemplateManager
+                coverPageOption={coverPageOption}
                 selectedUuid={selectedUuid}
                 templates={options}
                 isLoading={isLoading}

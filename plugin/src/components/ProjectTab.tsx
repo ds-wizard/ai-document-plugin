@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { getAvailableLanguages, getQuestionnaireLanguage } from '@/client'
-import { CoverPagePreview } from '@/components/CoverPagePreview'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import styles from '@/components/ProjectTab.module.css'
@@ -165,26 +164,12 @@ export default function ProjectTab({
                                 languageOptions={languageOptions}
                                 languagesLoading={languagesLoading}
                                 onLanguageChange={handleLanguageChange}
+                                coverPageOption={{
+                                    checked: includeCoverPage,
+                                    onChange: setIncludeCoverPage,
+                                    disabled: history.isStarting,
+                                }}
                             />
-
-                            <div className={styles.metadataSection}>
-                                <label className={styles.metadataOption}>
-                                    <input
-                                        type="checkbox"
-                                        checked={includeCoverPage}
-                                        onChange={(event) =>
-                                            setIncludeCoverPage(event.target.checked)
-                                        }
-                                        disabled={history.isStarting}
-                                    />
-                                    <span>
-                                        Include a cover page with DMP metadata and project
-                                        information
-                                    </span>
-                                </label>
-
-                                <CoverPagePreview />
-                            </div>
 
                             <button
                                 type="button"

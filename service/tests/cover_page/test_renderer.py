@@ -61,7 +61,7 @@ def test_render_matches_current_cover_markdown() -> None:
     assert markdown == (
         '# Data Management Plan\n'
         '\n'
-        '| Field | Value |\n'
+        '| Metadata | Details |\n'
         '| --- | --- |\n'
         '| Project Name | Potato project |\n'
         '| Based On | DSW Knowledge Model, 1.2.0 (dsw:root:1.2.0) |\n'

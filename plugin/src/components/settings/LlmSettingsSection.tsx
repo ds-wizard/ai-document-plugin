@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { getLlmSettings, updateLlmSettings } from '@/client'
+import { FeedbackAlert } from '@/components/FeedbackAlert'
 import styles from '@/components/settings/LlmSettingsSection.module.css'
 
 // Shown in the API key field while a key is saved; the real key never reaches the browser.
@@ -15,6 +16,7 @@ export function LlmSettingsSection() {
     const [apiKeySet, setApiKeySet] = useState(false)
     const [isApiKeyFocused, setIsApiKeyFocused] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
+    const [loadError, setLoadError] = useState<string | null>(null)
     const [isSaving, setIsSaving] = useState(false)
 
     useEffect(() => {
@@ -32,7 +34,7 @@ export function LlmSettingsSection() {
             })
             .catch((error: unknown) => {
                 if (isMounted) {
-                    toast.error(
+                    setLoadError(
                         error instanceof Error ? error.message : 'Failed to load the LLM settings.',
                     )
                 }
@@ -83,6 +85,16 @@ export function LlmSettingsSection() {
             <section className={styles.root}>
                 <h4 className={styles.heading}>LLM Settings</h4>
                 <p className={styles.muted}>Loading LLM settings...</p>
+            </section>
+        )
+    }
+
+    // Without the stored settings the form would look unconfigured and saving it would overwrite them.
+    if (loadError) {
+        return (
+            <section className={styles.root}>
+                <h4 className={styles.heading}>LLM Settings</h4>
+                <FeedbackAlert kind="error">{loadError}</FeedbackAlert>
             </section>
         )
     }

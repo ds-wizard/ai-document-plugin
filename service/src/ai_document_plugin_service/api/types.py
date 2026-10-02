@@ -14,9 +14,13 @@ class ApiModel(BaseModel):
 
 
 class ErrorType(StrEnum):
-    """Error of a pipeline run, each type carries the message shown to the user."""
+    """
+    Error of a pipeline run, each type carries the message shown to the user.
 
-    AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED'
+    Note: The values are stored in the DB. Changing them requires a migration.
+    """
+
+    LLM_AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED'
     LLM_CONNECTION_FAILED = 'LLM_CONNECTION_FAILED'
     LLM_NOT_FOUND = 'LLM_NOT_FOUND'
     LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
@@ -31,7 +35,7 @@ class ErrorType(StrEnum):
 
 
 _ERROR_MESSAGES = {
-    ErrorType.AUTHENTICATION_FAILED: (
+    ErrorType.LLM_AUTHENTICATION_FAILED: (
         'The AI provider rejected the API token. Check the token in the AI configuration.'
     ),
     ErrorType.LLM_CONNECTION_FAILED: (

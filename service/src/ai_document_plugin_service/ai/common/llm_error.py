@@ -4,7 +4,7 @@ from ai_document_plugin_service.api.types import ErrorType
 
 HTTP_INTERNAL_SERVER_ERROR = 500
 STATUS_CODE_ERROR_TYPES = {
-    401: ErrorType.AUTHENTICATION_FAILED,
+    401: ErrorType.LLM_AUTHENTICATION_FAILED,
     404: ErrorType.LLM_NOT_FOUND,
     429: ErrorType.LLM_RATE_LIMITED,
 }

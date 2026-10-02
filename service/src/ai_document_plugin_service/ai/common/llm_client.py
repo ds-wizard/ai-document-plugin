@@ -27,6 +27,10 @@ class InvalidLLMConfigError(ValueError):
         )
 
 
+class OutputTruncatedError(RuntimeError):
+    """Raised when the LLM response was cut off by the configured token limit."""
+
+
 class MissingTokenUsageError(ValueError):
     """Raised when a model response has no usage token information."""
 
@@ -238,6 +242,13 @@ class LLMClient:
                 request_kwargs=kwargs,
                 response=result,
             )
+            if result.choices and result.choices[0].finish_reason == 'length':
+                logger.error(
+                    'LLM response was cut off by the token limit',
+                    extra={'req_id': req_id, 'max_tokens': kwargs.get('max_tokens')},
+                )
+                msg = 'LLM response was cut off by the token limit.'
+                raise OutputTruncatedError(msg)
             return result
 
     def _log_llm_completion(

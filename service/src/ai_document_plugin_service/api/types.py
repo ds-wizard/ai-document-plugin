@@ -20,7 +20,7 @@ class ErrorType(StrEnum):
     LLM_CONNECTION_FAILED = 'LLM_CONNECTION_FAILED'
     LLM_NOT_FOUND = 'LLM_NOT_FOUND'
     LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
-    LLM_GENERAL_ERROR = 'LLM_REQUEST_REJECTED'
+    LLM_GENERAL_ERROR = 'LLM_GENERAL_ERROR'
     LLM_UNAVAILABLE = 'LLM_UNAVAILABLE'
     SERVER_ERROR = 'SERVER_ERROR'
     TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND'
@@ -44,7 +44,7 @@ _ERROR_MESSAGES = {
     ErrorType.LLM_RATE_LIMITED: (
         'The rate limit of the AI provider was reached. Decrease the maximum parallel requests in the plugin settings.'
     ),
-    ErrorType.LLM_GENERAL_ERROR: ( # update the text
+    ErrorType.LLM_GENERAL_ERROR: (
         'The AI provider request failed. Verify the plugin configuration, it should be OpenAI compatible API.'
     ),
     ErrorType.LLM_UNAVAILABLE: 'The AI provider is currently unavailable. Please try again later.',

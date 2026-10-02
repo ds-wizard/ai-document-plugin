@@ -14,9 +14,47 @@ class ApiModel(BaseModel):
 
 
 class ErrorType(StrEnum):
+    """Error of a pipeline run, each type carries the message shown to the user."""
+
     AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED'
+    LLM_CONNECTION_FAILED = 'LLM_CONNECTION_FAILED'
+    LLM_NOT_FOUND = 'LLM_NOT_FOUND'
+    LLM_PERMISSION_DENIED = 'LLM_PERMISSION_DENIED'
+    LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
+    LLM_REQUEST_REJECTED = 'LLM_REQUEST_REJECTED'
+    LLM_UNAVAILABLE = 'LLM_UNAVAILABLE'
     SERVER_ERROR = 'SERVER_ERROR'
     TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND'
+
+    @property
+    def message(self) -> str:
+        return _ERROR_MESSAGES[self]
+
+
+_ERROR_MESSAGES = {
+    ErrorType.AUTHENTICATION_FAILED: (
+        'The AI provider rejected the API token. Check the token in the AI configuration.'
+    ),
+    ErrorType.LLM_CONNECTION_FAILED: (
+        'The AI provider could not be reached. Check the API URL in the AI configuration or try again later.'
+    ),
+    ErrorType.LLM_NOT_FOUND: (
+        'The AI provider did not find the configured model or endpoint. Check the model name and API URL '
+        'in the AI configuration.'
+    ),
+    ErrorType.LLM_PERMISSION_DENIED: (
+        'The AI provider denied access. Check that the API token is allowed to use the configured model.'
+    ),
+    ErrorType.LLM_RATE_LIMITED: (
+        'The limit of the AI provider was reached. Try again later or check the limits and credit of your AI account.'
+    ),
+    ErrorType.LLM_REQUEST_REJECTED: (
+        'The AI provider rejected the request. The configured model may not be compatible with this plugin.'
+    ),
+    ErrorType.LLM_UNAVAILABLE: 'The AI provider is currently unavailable. Please try again later.',
+    ErrorType.SERVER_ERROR: 'The action could not be completed. Please try again later.',
+    ErrorType.TEMPLATE_NOT_FOUND: 'Template not found.',
+}
 
 
 class PipelineStatus(StrEnum):

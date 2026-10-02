@@ -4,11 +4,12 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
 from ai_document_plugin_service.ai.common.execution_logging import log_llm_event
+from ai_document_plugin_service.ai.common.llm_error import LLMError, llm_error_from_exception
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats
@@ -137,21 +138,19 @@ class LLMClient:
         stats: 'AssignmentStats | None' = None,
         **kwargs: Any,  # ruff: ignore[any-type]
     ) -> ChatCompletion:
-        """Call the LLM, retrying on transient OpenAI network/rate-limit errors.
+        """Call the LLM, retrying on transient network/rate-limit errors.
 
         Raises:
-            APIConnectionError: If the retries are exhausted on a connection error.
-            APITimeoutError: If the retries are exhausted on a timeout.
-            RateLimitError: If the retries are exhausted on a rate-limit error.
+            LLMError: If the error is not transient or the retries are exhausted.
             RuntimeError: If max_retries is lower than 1.
         """
         for attempt in range(1, self.max_retries + 1):
             try:
                 return await self._completion(*args, stats=stats, **kwargs)
-            except (APIConnectionError, APITimeoutError, RateLimitError) as error:
-                if attempt == self.max_retries:
+            except LLMError as error:
+                if not error.retryable or attempt == self.max_retries:
                     raise
-                logger.warning('Error calling LLM, retrying: %s', error)
+                logger.warning('Error calling LLM, retrying: %s', error.__cause__ or error)
                 await asyncio.sleep(self.retry_delay)
         msg = 'max_retries must be at least 1'
         raise RuntimeError(msg)
@@ -229,6 +228,9 @@ class LLMClient:
                     request_kwargs=kwargs,
                     error=error,
                 )
+                llm_error = llm_error_from_exception(error)
+                if llm_error is not None:
+                    raise llm_error from error
                 raise
 
             duration_s = time.perf_counter() - call_start

@@ -4,7 +4,7 @@ import threading
 from asyncio import Task
 from uuid import UUID
 
-from openai import AuthenticationError
+from haystack.core.errors import PipelineRuntimeError
 
 from ai_document_plugin_service.ai.common.config import (
     Config,
@@ -13,7 +13,7 @@ from ai_document_plugin_service.ai.common.config import (
 from ai_document_plugin_service.ai.common.execution_logging import (
     log_timing_event,
 )
-from ai_document_plugin_service.ai.common.llm_client import LLMClient
+from ai_document_plugin_service.ai.common.llm_client import LLMClient, LLMError
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
@@ -39,21 +39,19 @@ from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQu
 
 logger = logging.getLogger(__name__)
 
-AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
-SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
-TEMPLATE_NOT_FOUND_MESSAGE = 'Template not found.'
-
 
 def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
-    if isinstance(error, AuthenticationError) or isinstance(error.__cause__, AuthenticationError):
-        return PipelineErrorResponse(
-            type=ErrorType.AUTHENTICATION_FAILED,
-            message=AUTHORIZATION_ERROR_MESSAGE,
-        )
+    # If error is "PipelineError, get the root cause
+    if isinstance(error, PipelineRuntimeError):
+        if error.__cause__ is not None:
+            error = error.__cause__
+    # Handle llm errors
+    if isinstance(error, LLMError):
+        return PipelineErrorResponse(type=error.error_type, message=error.message)
 
     return PipelineErrorResponse(
         type=ErrorType.SERVER_ERROR,
-        message=SERVER_ERROR_MESSAGE,
+        message=ErrorType.SERVER_ERROR.message,
     )
 
 
@@ -297,7 +295,7 @@ class PipelineService:
                     auth.tenant_uuid,
                     status=PipelineStatus.FAILED,
                     error_type=ErrorType.TEMPLATE_NOT_FOUND,
-                    error_message=TEMPLATE_NOT_FOUND_MESSAGE,
+                    error_message=ErrorType.TEMPLATE_NOT_FOUND.message,
                 )
                 await self.database.create_generation_stats(run_id, get_trace_uuid())
             logger.error(

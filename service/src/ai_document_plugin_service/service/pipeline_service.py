@@ -13,7 +13,8 @@ from ai_document_plugin_service.ai.common.config import (
 from ai_document_plugin_service.ai.common.execution_logging import (
     log_timing_event,
 )
-from ai_document_plugin_service.ai.common.llm_client import LLMClient, LLMError
+from ai_document_plugin_service.ai.common.llm_client import LLMClient
+from ai_document_plugin_service.ai.common.llm_error import LLMError
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
@@ -42,9 +43,8 @@ logger = logging.getLogger(__name__)
 
 def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
     # If error is "PipelineError, get the root cause
-    if isinstance(error, PipelineRuntimeError):
-        if error.__cause__ is not None:
-            error = error.__cause__
+    if isinstance(error, PipelineRuntimeError) and error.__cause__ is not None:
+        error = error.__cause__
     # Handle llm errors
     if isinstance(error, LLMError):
         return PipelineErrorResponse(type=error.error_type, message=error.message)

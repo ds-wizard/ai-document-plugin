@@ -81,8 +81,6 @@ class LLMClient:
         self.api_key = None
         self.api_url = None
         self.client: AsyncOpenAI | None = None
-        self.max_retries = MAX_RETRIES
-        self.retry_delay = RETRY_DELAY_S
 
     def update_config(self, model: str, api_key: str, api_url: str, parallel_workers: int | None) -> None:
         """
@@ -142,18 +140,16 @@ class LLMClient:
 
         Raises:
             LLMError: If the error is not transient or the retries are exhausted.
-            RuntimeError: If max_retries is lower than 1.
         """
-        for attempt in range(1, self.max_retries + 1):
+        for _ in range(MAX_RETRIES - 1):
             try:
                 return await self._completion(*args, stats=stats, **kwargs)
             except LLMError as error:
-                if not error.retryable or attempt == self.max_retries:
+                if not error.retryable:
                     raise
                 logger.warning('Error calling LLM, retrying: %s', error.__cause__ or error)
-                await asyncio.sleep(self.retry_delay)
-        msg = 'max_retries must be at least 1'
-        raise RuntimeError(msg)
+                await asyncio.sleep(RETRY_DELAY_S)
+        return await self._completion(*args, stats=stats, **kwargs)
 
     async def _completion(
         self,

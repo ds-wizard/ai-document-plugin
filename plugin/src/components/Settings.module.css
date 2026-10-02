@@ -3,8 +3,3 @@
     display: grid;
     gap: 1rem;
 }
-
-.lead {
-    margin: 0.5rem 0 0;
-    color: var(--ai-doc-color-slate-600);
-}

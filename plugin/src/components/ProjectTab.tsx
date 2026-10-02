@@ -25,7 +25,7 @@ export default function ProjectTab({
         reloadKey: settings.serviceUrl,
         onLoadError: toast.error,
     })
-    const history = useGenerationHistory(project, settings)
+    const history = useGenerationHistory(project)
     const projectUuid = project?.uuid
 
     const [selectedUuid, setSelectedUuid] = useState('')

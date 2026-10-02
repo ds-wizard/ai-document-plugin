@@ -8,6 +8,8 @@ from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
     LanguageOptionResponse,
+    LlmSettingsResponse,
+    LlmSettingsUpdateRequest,
     PipelineExportRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
@@ -24,6 +26,7 @@ from ai_document_plugin_service.di import (
     AuthenticatedDI,
     ConfigDI,
     ExportServiceDI,
+    LlmSettingsServiceDI,
     PipelineServiceDI,
     TemplateServiceDI,
 )
@@ -96,6 +99,18 @@ async def export_template_as_json(
 ) -> fastapi.Response:
     export = await exports.export_template_as_json(template_uuid, auth)
     return fastapi.Response(content=export.content, media_type=JSON_MEDIA_TYPE)
+
+
+@protected_router.get('/settings/llm')
+async def get_llm_settings(llm_settings: LlmSettingsServiceDI, auth: AuthenticatedDI) -> LlmSettingsResponse:
+    return await llm_settings.get(auth)
+
+
+@protected_router.put('/settings/llm')
+async def update_llm_settings(
+    payload: LlmSettingsUpdateRequest, llm_settings: LlmSettingsServiceDI, auth: AuthenticatedDI
+) -> LlmSettingsResponse:
+    return await llm_settings.update(auth, payload)
 
 
 @protected_router.post('/pipelines/run')

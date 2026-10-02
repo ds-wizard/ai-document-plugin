@@ -2,6 +2,8 @@ import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type { LanguageDefinition } from '@/data/languages'
 import type {
+    LlmSettings,
+    LlmSettingsUpdate,
     PipelineStatusResponse,
     PipelineSummaryItem,
     TemplateDetail,
@@ -84,6 +86,8 @@ export const getAvailableLanguages = async (): Promise<LanguageDefinition[]> => 
     return data as LanguageDefinition[]
 }
 
+const CONNECTION_ERROR_MESSAGE = 'Cannot connect to the server.'
+
 const buildAuthHeaders = (): Record<string, string> => {
     const { apiUrl, token } = getApiUrlAndToken()
     if (!token) {
@@ -101,14 +105,22 @@ const buildAuthHeaders = (): Record<string, string> => {
 
 // false positive for global type RequestInit
 // eslint-disable-next-line no-undef
-const apiFetch = (url: string, init?: RequestInit): Promise<Response> =>
-    fetch(url, {
-        ...init,
-        headers: {
-            ...buildAuthHeaders(),
-            ...init?.headers,
-        },
-    })
+const apiFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    const headers = {
+        ...buildAuthHeaders(),
+        ...init?.headers,
+    }
+
+    try {
+        return await fetch(url, { ...init, headers })
+    } catch (error) {
+        // fetch rejects with a TypeError ("Failed to fetch") when the request never gets a response.
+        if (error instanceof TypeError) {
+            throw new Error(CONNECTION_ERROR_MESSAGE, { cause: error })
+        }
+        throw error
+    }
+}
 
 export const getTemplates = async (): Promise<TemplateOption[]> => {
     const url = `${getApiBaseUrl()}/templates`
@@ -177,20 +189,12 @@ type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
     language: string
-    llmModel?: string | null
-    llmApiKey?: string | null
-    llmApiUrl?: string | null
-    llmMaxWorkers?: number | null
 }
 
 export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
     language,
-    llmModel = null,
-    llmApiKey = null,
-    llmApiUrl = null,
-    llmMaxWorkers = null,
 }: RunPipelineParams): Promise<PipelineStatusResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/run`
     const response = await apiFetch(url, {
@@ -202,10 +206,6 @@ export const runPipeline = async ({
             questionnaireUuid,
             templateUuid,
             language,
-            llmModel,
-            llmApiKey,
-            llmApiUrl,
-            llmMaxWorkers,
         }),
     })
 
@@ -214,7 +214,7 @@ export const runPipeline = async ({
     if (!response.ok) {
         if (response.status == 422) {
             throw new Error(
-                'Plugin is not configured. Set the model, API key, and API URL in the plugin settings.',
+                'Plugin is not configured. Ask your administrator to set the model, API key, and API URL in the plugin settings.',
             )
         }
         const detail = 'detail' in data ? data.detail : undefined
@@ -228,6 +228,42 @@ export const runPipeline = async ({
     }
 
     return data
+}
+
+export const getLlmSettings = async (): Promise<LlmSettings> => {
+    const url = `${getApiBaseUrl()}/settings/llm`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<LlmSettings | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to load the LLM settings.',
+        )
+    }
+
+    return data as LlmSettings
+}
+
+export const updateLlmSettings = async (settings: LlmSettingsUpdate): Promise<LlmSettings> => {
+    const url = `${getApiBaseUrl()}/settings/llm`
+    const response = await apiFetch(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+    })
+
+    const data = await readApiResponse<LlmSettings | { detail?: unknown }>(response, url)
+
+    if (!response.ok) {
+        const detail = 'detail' in data ? data.detail : undefined
+        throw new Error(
+            typeof detail === 'string' && detail ? detail : 'Failed to save the LLM settings.',
+        )
+    }
+
+    return data as LlmSettings
 }
 
 type CreateTemplateParams = {

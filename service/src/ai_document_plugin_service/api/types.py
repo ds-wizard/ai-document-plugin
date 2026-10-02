@@ -19,9 +19,8 @@ class ErrorType(StrEnum):
     AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED'
     LLM_CONNECTION_FAILED = 'LLM_CONNECTION_FAILED'
     LLM_NOT_FOUND = 'LLM_NOT_FOUND'
-    LLM_PERMISSION_DENIED = 'LLM_PERMISSION_DENIED'
     LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
-    LLM_REQUEST_REJECTED = 'LLM_REQUEST_REJECTED'
+    LLM_GENERAL_ERROR = 'LLM_REQUEST_REJECTED'
     LLM_UNAVAILABLE = 'LLM_UNAVAILABLE'
     SERVER_ERROR = 'SERVER_ERROR'
     TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND'
@@ -42,14 +41,11 @@ _ERROR_MESSAGES = {
         'The AI provider did not find the configured model or endpoint. Check the model name and API URL '
         'in the AI configuration.'
     ),
-    ErrorType.LLM_PERMISSION_DENIED: (
-        'The AI provider denied access. Check that the API token is allowed to use the configured model.'
-    ),
     ErrorType.LLM_RATE_LIMITED: (
-        'The limit of the AI provider was reached. Try again later or check the limits and credit of your AI account.'
+        'The rate limit of the AI provider was reached. Decrease the maximum parallel requests in the plugin settings.'
     ),
-    ErrorType.LLM_REQUEST_REJECTED: (
-        'The AI provider rejected the request. The configured model may not be compatible with this plugin.'
+    ErrorType.LLM_GENERAL_ERROR: ( # update the text
+        'The AI provider request failed. Verify the plugin configuration, it should be OpenAI compatible API.'
     ),
     ErrorType.LLM_UNAVAILABLE: 'The AI provider is currently unavailable. Please try again later.',
     ErrorType.SERVER_ERROR: 'The action could not be completed. Please try again later.',

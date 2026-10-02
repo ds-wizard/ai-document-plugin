@@ -14,9 +14,47 @@ class ApiModel(BaseModel):
 
 
 class ErrorType(StrEnum):
-    AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED'
+    """
+    Error of a pipeline run, each type carries the message shown to the user.
+
+    Note: The values are stored in the DB. Changing them requires a migration.
+    """
+
+    LLM_AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED'
+    LLM_CONNECTION_FAILED = 'LLM_CONNECTION_FAILED'
+    LLM_NOT_FOUND = 'LLM_NOT_FOUND'
+    LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
+    LLM_GENERAL_ERROR = 'LLM_GENERAL_ERROR'
+    LLM_UNAVAILABLE = 'LLM_UNAVAILABLE'
     SERVER_ERROR = 'SERVER_ERROR'
     TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND'
+
+    @property
+    def message(self) -> str:
+        return _ERROR_MESSAGES[self]
+
+
+_ERROR_MESSAGES = {
+    ErrorType.LLM_AUTHENTICATION_FAILED: (
+        'The AI provider rejected the API token. Check the token in the AI configuration.'
+    ),
+    ErrorType.LLM_CONNECTION_FAILED: (
+        'The AI provider could not be reached. Check the API URL in the AI configuration or try again later.'
+    ),
+    ErrorType.LLM_NOT_FOUND: (
+        'The AI provider did not find the configured model or endpoint. Check the model name and API URL '
+        'in the AI configuration.'
+    ),
+    ErrorType.LLM_RATE_LIMITED: (
+        'The rate limit of the AI provider was reached. Decrease the maximum parallel requests in the plugin settings.'
+    ),
+    ErrorType.LLM_GENERAL_ERROR: (
+        'The AI provider request failed. Verify the plugin configuration, it should be OpenAI compatible API.'
+    ),
+    ErrorType.LLM_UNAVAILABLE: 'The AI provider is currently unavailable. Please try again later.',
+    ErrorType.SERVER_ERROR: 'The action could not be completed. Please try again later.',
+    ErrorType.TEMPLATE_NOT_FOUND: 'Template not found.',
+}
 
 
 class PipelineStatus(StrEnum):

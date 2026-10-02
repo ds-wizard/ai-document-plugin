@@ -2,7 +2,6 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
@@ -16,6 +15,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIES = 3
+RETRY_DELAY_S = 2.0
+
 
 class InvalidLLMConfigError(ValueError):
     def __init__(self, var_name: str, tenant: uuid.UUID) -> None:
@@ -26,31 +28,6 @@ class InvalidLLMConfigError(ValueError):
 
 class MissingTokenUsageError(ValueError):
     """Raised when a model response has no usage token information."""
-
-
-async def call_with_retry[T](
-    fn: Callable[[], Awaitable[T]],
-    max_retries: int = 3,
-    delay: float = 2.0,
-) -> T:
-    """Retry fn on transient OpenAI network/rate-limit errors.
-
-    Raises:
-        RuntimeError: If no result or exception is produced by the retry loop.
-    """
-    err: APIConnectionError | APITimeoutError | RateLimitError | None = None
-    for attempt in range(max_retries):
-        try:
-            return await fn()
-        except (APIConnectionError, APITimeoutError, RateLimitError) as exc:
-            err = exc
-            if attempt < max_retries - 1:
-                logger.warning('Error calling LLM, retrying: %s', exc)
-                await asyncio.sleep(delay)
-    if err is not None:
-        raise err
-    msg = 'call_with_retry finished without result or exception'
-    raise RuntimeError(msg)
 
 
 def extract_usage_tokens(response: object) -> tuple[int, int]:
@@ -103,6 +80,8 @@ class LLMClient:
         self.api_key = None
         self.api_url = None
         self.client: AsyncOpenAI | None = None
+        self.max_retries = MAX_RETRIES
+        self.retry_delay = RETRY_DELAY_S
 
     def update_config(self, model: str, api_key: str, api_url: str, parallel_workers: int | None) -> None:
         """
@@ -153,6 +132,31 @@ class LLMClient:
         return self.model
 
     async def completion(
+        self,
+        *args: Any,  # ruff: ignore[any-type]
+        stats: 'AssignmentStats | None' = None,
+        **kwargs: Any,  # ruff: ignore[any-type]
+    ) -> ChatCompletion:
+        """Call the LLM, retrying on transient OpenAI network/rate-limit errors.
+
+        Raises:
+            APIConnectionError: If the retries are exhausted on a connection error.
+            APITimeoutError: If the retries are exhausted on a timeout.
+            RateLimitError: If the retries are exhausted on a rate-limit error.
+            RuntimeError: If max_retries is lower than 1.
+        """
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                return await self._completion(*args, stats=stats, **kwargs)
+            except (APIConnectionError, APITimeoutError, RateLimitError) as error:
+                if attempt == self.max_retries:
+                    raise
+                logger.warning('Error calling LLM, retrying: %s', error)
+                await asyncio.sleep(self.retry_delay)
+        msg = 'max_retries must be at least 1'
+        raise RuntimeError(msg)
+
+    async def _completion(
         self,
         *args: Any,  # ruff: ignore[any-type]
         stats: 'AssignmentStats | None' = None,

@@ -6,6 +6,21 @@ export type TemplateOption = {
     scope: TemplateScope
 }
 
+export type LlmSettings = {
+    model: string | null
+    apiUrl: string | null
+    maxWorkers: number | null
+    apiKeySet: boolean
+}
+
+export type LlmSettingsUpdate = {
+    model: string
+    apiUrl: string
+    /** Null keeps the API key that is already stored. */
+    apiKey: string | null
+    maxWorkers: number | null
+}
+
 export type PipelineErrorResponse = {
     type: string
     message: string

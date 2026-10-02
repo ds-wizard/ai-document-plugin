@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
-import { SettingsData } from '@/data/settings-data'
 import { pollRunStatus } from '@/runPoller'
 import type { PipelineErrorResponse, PipelineStatusResponse, PipelineSummaryItem } from '@/types'
 
@@ -61,10 +60,7 @@ const isSettled = (status: RunStatusValue): boolean => status === 'succeeded' ||
  * The sidebar and the detail view both read the same `RunRecord`s from here, so they
  * can never disagree with each other.
  */
-export function useGenerationHistory(
-    project: PipelineProject,
-    settings: SettingsData,
-): UseGenerationHistoryResult {
+export function useGenerationHistory(project: PipelineProject): UseGenerationHistoryResult {
     const [runs, setRuns] = useState<Record<string, RunRecord>>({})
     const [isLoading, setIsLoading] = useState(false)
     const [isStarting, setIsStarting] = useState(false)
@@ -194,10 +190,6 @@ export function useGenerationHistory(
                     questionnaireUuid: project.uuid,
                     templateUuid,
                     language,
-                    llmModel: settings.model || null,
-                    llmApiKey: settings.apiKey || null,
-                    llmApiUrl: settings.apiUrl || null,
-                    llmMaxWorkers: settings.maxWorkers ?? null,
                 })
                 const record = applyStatus(status)
                 if (!isSettled(record.status)) {
@@ -211,15 +203,7 @@ export function useGenerationHistory(
                 setIsStarting(false)
             }
         },
-        [
-            project,
-            settings.model,
-            settings.apiKey,
-            settings.apiUrl,
-            settings.maxWorkers,
-            applyStatus,
-            beginPolling,
-        ],
+        [project, applyStatus, beginPolling],
     )
 
     const ensureDetailLoaded = useCallback(

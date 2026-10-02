@@ -6,10 +6,7 @@ from uuid import UUID
 
 from openai import AuthenticationError
 
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-    LLMConfig,
-)
+from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.execution_logging import (
     log_timing_event,
 )
@@ -34,7 +31,7 @@ from ai_document_plugin_service.api.types import (
     PipelineStatusResponse,
     PipelineSummaryResponse,
 )
-from ai_document_plugin_service.service.errors import ConflictError, NotFoundError
+from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
@@ -187,7 +184,13 @@ class PipelineService:
         config: Config,
         trace_id: UUID | None,
     ) -> UUID:
-        """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
+        """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``.
+
+        Raises:
+            NotConfiguredError: If the tenant has no LLM settings saved.
+        """
+        if await self.database.get_llm_settings(auth.tenant_uuid) is None:
+            raise NotConfiguredError
         run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
@@ -198,12 +201,6 @@ class PipelineService:
             status=PipelineStatus.QUEUED,
         )
 
-        llm_config = LLMConfig(
-            model=payload.llm_model,
-            api_key=payload.llm_api_key,
-            api_url=payload.llm_api_url,
-            parallel_workers=payload.llm_max_workers,
-        )
         self.pipeline_queue_manager.enqueue(
             run_id,
             lambda: self._run_pipeline_job(
@@ -212,7 +209,6 @@ class PipelineService:
                 payload.template_uuid,
                 payload.language,
                 auth,
-                llm_config,
                 config,
             ),
             trace_id=trace_id,
@@ -246,7 +242,6 @@ class PipelineService:
         template_uuid: UUID,
         language: str,
         auth: AuthenticatedUser,
-        llm_config: LLMConfig,
         config: Config,
     ) -> None:
         try:
@@ -256,7 +251,6 @@ class PipelineService:
                 template_uuid,
                 language,
                 auth,
-                llm_config,
                 config,
             )
         except Exception as error:
@@ -286,7 +280,6 @@ class PipelineService:
         template_uuid: UUID,
         language: str,
         auth: AuthenticatedUser,
-        llm_config: LLMConfig,
         config: Config,
     ) -> None:
         template = await self.database.get_template(template_uuid, auth.tenant_uuid)
@@ -312,6 +305,11 @@ class PipelineService:
             status=PipelineStatus.RUNNING,
             progress_message='Starting pipeline...',
         )
+
+        # Read at the start of every run so a queued job uses the settings saved at that moment.
+        llm_config = await self.database.get_llm_settings(auth.tenant_uuid)
+        if llm_config is None:
+            raise NotConfiguredError
 
         llm_client = self._llm_clients.get_llm_client(auth.tenant_uuid)
         llm_client.update_config(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)

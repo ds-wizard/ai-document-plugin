@@ -86,6 +86,8 @@ export const getAvailableLanguages = async (): Promise<LanguageDefinition[]> => 
     return data as LanguageDefinition[]
 }
 
+const CONNECTION_ERROR_MESSAGE = 'Cannot connect to the server.'
+
 const buildAuthHeaders = (): Record<string, string> => {
     const { apiUrl, token } = getApiUrlAndToken()
     if (!token) {
@@ -103,14 +105,22 @@ const buildAuthHeaders = (): Record<string, string> => {
 
 // false positive for global type RequestInit
 // eslint-disable-next-line no-undef
-const apiFetch = (url: string, init?: RequestInit): Promise<Response> =>
-    fetch(url, {
-        ...init,
-        headers: {
-            ...buildAuthHeaders(),
-            ...init?.headers,
-        },
-    })
+const apiFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    const headers = {
+        ...buildAuthHeaders(),
+        ...init?.headers,
+    }
+
+    try {
+        return await fetch(url, { ...init, headers })
+    } catch (error) {
+        // fetch rejects with a TypeError ("Failed to fetch") when the request never gets a response.
+        if (error instanceof TypeError) {
+            throw new Error(CONNECTION_ERROR_MESSAGE, { cause: error })
+        }
+        throw error
+    }
+}
 
 export const getTemplates = async (): Promise<TemplateOption[]> => {
     const url = `${getApiBaseUrl()}/templates`

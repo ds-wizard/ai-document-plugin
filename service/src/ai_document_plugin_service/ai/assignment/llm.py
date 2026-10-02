@@ -23,10 +23,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ModelDidNotStopError(RuntimeError):
-    """Raised when LLM generation does not finish with stop reason."""
-
-
 class UnableToParseResponseError(ValueError):
     """Raised when LLM response cannot be parsed as expected JSON."""
 
@@ -81,15 +77,7 @@ class OpenAILayerMatcher(LayerMatcher):
             max_tokens=self.config.assignment.max_tokens,
             reasoning_effort='low',
         )
-        choice = response.choices[0]
-        if choice.finish_reason != 'stop':
-            logger.error(
-                'Model did not stop generating naturally',
-                extra={'finish_reason': choice.finish_reason},
-            )
-            msg = 'Model did not stop generating naturally.'
-            raise ModelDidNotStopError(msg)
-        content = (choice.message.content or '').strip()
+        content = (response.choices[0].message.content or '').strip()
         add_usage(stats, response)
         try:
             return self._parse_json_question_to_sections(content)

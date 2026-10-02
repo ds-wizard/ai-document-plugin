@@ -41,7 +41,7 @@ from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQu
 logger = logging.getLogger(__name__)
 
 
-def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
+def _pipeline_error_from_exception(error: BaseException) -> PipelineErrorResponse:
     # If error is "PipelineError, get the root cause
     if isinstance(error, PipelineRuntimeError) and error.__cause__ is not None:
         error = error.__cause__

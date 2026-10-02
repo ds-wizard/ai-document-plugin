@@ -27,8 +27,8 @@ class InvalidLLMConfigError(ValueError):
         )
 
 
-class OutputTruncatedError(RuntimeError):
-    """Raised when the LLM response was cut off by the configured token limit."""
+class ModelDidNotStopError(RuntimeError):
+    """Raised when LLM generation does not finish with stop reason, e.g. it was cut off by the token limit."""
 
 
 class MissingTokenUsageError(ValueError):
@@ -242,13 +242,14 @@ class LLMClient:
                 request_kwargs=kwargs,
                 response=result,
             )
-            if result.choices and result.choices[0].finish_reason == 'length':
+            finish_reason = result.choices[0].finish_reason if result.choices else None
+            if finish_reason != 'stop':
                 logger.error(
-                    'LLM response was cut off by the token limit',
-                    extra={'req_id': req_id, 'max_tokens': kwargs.get('max_tokens')},
+                    'Model did not stop generating naturally',
+                    extra={'req_id': req_id, 'finish_reason': finish_reason, 'max_tokens': kwargs.get('max_tokens')},
                 )
-                msg = 'LLM response was cut off by the token limit.'
-                raise OutputTruncatedError(msg)
+                msg = 'Model did not stop generating naturally.'
+                raise ModelDidNotStopError(msg)
             return result
 
     def _log_llm_completion(

@@ -80,7 +80,7 @@ class OpenAILayerMatcher(LayerMatcher):
                 stats=stats,
                 messages=messages,
                 temperature=self.config.assignment.temperature,
-                max_tokens=self.config.assignment.max_tokens,
+                max_completion_tokens=self.config.assignment.max_tokens,
                 reasoning_effort='low',
             )
             choice = response.choices[0]

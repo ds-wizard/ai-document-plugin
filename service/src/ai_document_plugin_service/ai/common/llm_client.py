@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from openai import AsyncOpenAI
+from openai import APIError, AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
@@ -224,9 +224,8 @@ class LLMClient:
                     request_kwargs=kwargs,
                     error=error,
                 )
-                llm_error = llm_error_from_exception(error)
-                if llm_error is not None:
-                    raise llm_error from error
+                if isinstance(error, APIError):
+                    raise llm_error_from_exception(error) from error
                 raise
 
             duration_s = time.perf_counter() - call_start

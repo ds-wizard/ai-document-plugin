@@ -1,4 +1,4 @@
-from openai import APIStatusError, APIConnectionError
+from openai import APIConnectionError, APIError, APIStatusError
 
 from ai_document_plugin_service.api.types import ErrorType
 
@@ -31,13 +31,13 @@ def _status_code_error_type(status_code: int) -> ErrorType:
     return ErrorType.LLM_GENERAL_ERROR
 
 
-def llm_error_from_exception(error: Exception) -> LLMError | None:
+def llm_error_from_exception(error: APIError) -> LLMError:
     """Classify the OpenAI client error only by its HTTP status code.
 
-    Errors without a response are connection failures, other errors are not classified.
+    Errors without a response are connection failures, other errors are general errors.
     """
     if isinstance(error, APIStatusError):
         return LLMError(_status_code_error_type(error.status_code))
     if isinstance(error, APIConnectionError):
         return LLMError(ErrorType.LLM_CONNECTION_FAILED)
-    return None
+    return LLMError(ErrorType.LLM_GENERAL_ERROR)

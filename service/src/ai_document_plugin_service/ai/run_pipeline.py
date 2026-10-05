@@ -61,7 +61,6 @@ class PipelineOutput:
 
 @dataclass(frozen=True)
 class CoverPagePipelineDependencies:
-    assignment_template: dict[str, object]
     generation_prompt: str
     field_labels: dict[str, str]
     renderer: CoverPageRenderer
@@ -72,7 +71,6 @@ def _collect_cover_page_dependencies(
 ) -> CoverPagePipelineDependencies:
     definition = config.cover_definition
     return CoverPagePipelineDependencies(
-        assignment_template=definition,
         generation_prompt=config.cover_page_generation,
         field_labels=cover_page_assignment_field_labels(definition),
         renderer=CoverPageRenderer(definition),
@@ -86,7 +84,7 @@ def build_pipeline(
     cover_page = _collect_cover_page_dependencies(config)
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
-    assignment_component = AssignmentComponent(llm_client, config, cover_page.assignment_template)
+    assignment_component = AssignmentComponent(llm_client, config)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
@@ -95,7 +93,9 @@ def build_pipeline(
         cover_page_field_labels=cover_page.field_labels,
         cover_page_renderer=cover_page.renderer,
     )
-    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
+    dmp_polisher_component = DmpPolisherComponent(
+        SectionPolishingLLM(llm_client, config, language), len(config.cover_definition['sections'])
+    )
     cover_page_component = CoverPageComponent()
 
     # ROUTES
@@ -129,9 +129,6 @@ def build_pipeline(
     # loader_component -> router
     pipeline.connect('loader_component.assignments', 'router.assignments')
     pipeline.connect('loader_component.found', 'router.found')
-    pipeline.connect('loader_component.reuse_content', 'assignment_component.reuse_content')
-    pipeline.connect('loader_component.assignments', 'assignment_saver_component.existing_assignments')
-    pipeline.connect('loader_component.cover_page_assignments', 'dmp_generator_component.db_cover_page_assignments')
     # no assignments saved -> continue to parser_component
     pipeline.connect('router.missing_assignment', 'parser_component.trigger')
     # assignments already done -> continue to dmp_generator_component
@@ -140,13 +137,9 @@ def build_pipeline(
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
-    pipeline.connect('assignment_component.cover_page_assignments', 'assignment_saver_component.cover_page_assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
-    pipeline.connect(
-        'assignment_saver_component.cover_page_assignments', 'dmp_generator_component.new_cover_page_assignments'
-    )
     # dmp_generator_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
     # Add the cover page only after the LLM has polished the document body.
@@ -208,14 +201,12 @@ async def run_pipeline(
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
                     'template_uuid': template_uuid,
-                    'include_cover_page_assignments': include_cover_page,
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
                     'template_data': dict(template_data),
                     'km': km,
                     'on_progress': on_progress,
-                    'include_cover_page': include_cover_page,
                 },
                 'assignment_saver_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
@@ -236,6 +227,7 @@ async def run_pipeline(
                 },
                 'dmp_polisher_component': {
                     'template_data': template_data,
+                    'include_cover_page': include_cover_page,
                     'on_progress': on_progress,
                 },
             },

@@ -685,10 +685,8 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
         replies=replies,
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        new_assignments=None if cached else _serialize_assignments(assignments),
-        new_cover_page_assignments=None if cached else _serialize_assignments(cover_page_assignments),
-        db_assignments=_serialize_assignments(assignments) if cached else None,
-        db_cover_page_assignments=_serialize_assignments(cover_page_assignments) if cached else None,
+        new_assignments=None if cached else _serialize_assignments(cover_page_assignments + assignments),
+        db_assignments=_serialize_assignments(cover_page_assignments + assignments) if cached else None,
         include_cover_page=True,
     )
 
@@ -701,6 +699,18 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
     body_prompt = next(prompt for prompt in stub.section_calls if 'Projects' in prompt)
     assert 'Use the answered project title' in cover_page_prompt
     assert 'Use the answered project title' not in body_prompt
+
+    import io
+    import docx
+    from ai_document_plugin_service.utils.docx_export import markdown_to_docx
+
+    complete = await CoverPageComponent().run_async(markdown=result['markdown'], cover_page=result['cover_page'])
+    document = docx.Document(io.BytesIO(markdown_to_docx(complete['markdown'])))
+    paragraphs = document.paragraphs
+    boundary = next(i for i, p in enumerate(paragraphs) if p._p.xpath('.//w:br[@w:type="page"]'))
+    assert any(p.text == 'Research overview' for p in paragraphs[:boundary])
+    assert any(p.text == 'Projects' for p in paragraphs[boundary + 1:])
+    assert len(document.element.xpath('//w:br[@w:type="page"]')) == 1
 
 
 async def test_run_reuses_assignments_without_cover_page() -> None:
@@ -728,13 +738,11 @@ async def test_run_reuses_assignments_without_cover_page() -> None:
         replies=replies,
         km=_km_fixture(),
         new_assignments=assignments,
-        new_cover_page_assignments=None,
     )
     repeated = await component.run_async(
         replies=replies,
         km=_km_fixture(),
         db_assignments=assignments,
-        db_cover_page_assignments=None,
     )
 
     assert repeated['markdown'] == first['markdown']
@@ -800,8 +808,7 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        db_assignments=[SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict()],
-        db_cover_page_assignments=cover_page_assignments,
+        db_assignments=cover_page_assignments + [SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict()],
         include_cover_page=True,
     )
     assert '# Data Management Plan' in result['cover_page']
@@ -856,8 +863,7 @@ async def test_czech_pipeline_generates_cover_in_english_and_body_in_czech():
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        db_assignments=[assignment],
-        db_cover_page_assignments=[assignment],
+        db_assignments=[assignment, assignment],
         include_cover_page=True,
     )
     assert client.completion.await_count == 2
@@ -868,3 +874,17 @@ async def test_czech_pipeline_generates_cover_in_english_and_body_in_czech():
         assert messages[0]['content'] == TEST_CONFIG.dmp_generation.system_message.replace(
             '{language}', expected_language
         )
+
+
+async def test_polishing_excludes_stored_cover_sections():
+    from unittest.mock import AsyncMock
+
+    from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
+
+    llm = AsyncMock()
+    llm.polish_dmp.return_value = '# Body\n\nPolished'
+    component = DmpPolisherComponent(llm, len(TEST_CONFIG.cover_definition['sections']))
+    template = {'sections': TEST_CONFIG.cover_definition['sections'] + [{'title': 'Body'}]}
+    await component.run_async(markdown='# Body', template_data=template, include_cover_page=True)
+    assert llm.polish_dmp.await_args.kwargs['structure_str'] == '# Body'
+    assert template['sections'][0]['id'] == 'projects'

@@ -182,13 +182,12 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        content_assignments: list[SerializedSectionAssignment] | None,
-        cover_page_assignments: list[SerializedSectionAssignment] | None,
+        assignments: list[SerializedSectionAssignment],
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist content or cover page assignments in a database backend."""
+        """Persist assignments in a database backend."""
 
     @abstractmethod
     async def save_template(
@@ -205,10 +204,8 @@ class Database(ABC):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-        *,
-        include_cover_page_assignments: bool = False,
     ) -> list[SerializedSectionAssignment] | None:
-        """Get content assignments or cover-page assignments from a database backend."""
+        """Get assignments from a database backend."""
 
     @abstractmethod
     async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
@@ -390,8 +387,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        content_assignments: list[SerializedSectionAssignment] | None,
-        cover_page_assignments: list[SerializedSectionAssignment] | None,
+        assignments: list[SerializedSectionAssignment],
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -403,8 +399,7 @@ class PostgresDB(Database):
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
-            content_assignments=content_assignments,
-            cover_page_assignments=cover_page_assignments,
+            assignments=assignments,
             stats=stats,
             template_uuid=template_uuid,
         )
@@ -415,16 +410,7 @@ class PostgresDB(Database):
             ],
             set_={
                 'created_at': statement.excluded.created_at,
-                **(
-                    {'content_assignments': statement.excluded.content_assignments}
-                    if content_assignments is not None
-                    else {}
-                ),
-                **(
-                    {'cover_page_assignments': statement.excluded.cover_page_assignments}
-                    if cover_page_assignments is not None
-                    else {}
-                ),
+                'assignments': statement.excluded.assignments,
             },
         )
 
@@ -436,15 +422,12 @@ class PostgresDB(Database):
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'content_assignment_count': (len(content_assignments) if content_assignments is not None else None),
-                'cover_page_assignment_count': (
-                    len(cover_page_assignments) if cover_page_assignments is not None else None
-                ),
+                'assignment_count': len(assignments),
                 'db.schema': self.schema_name,
             },
         )
         logger.debug(
-            'Saved assignments for KM package id=%s to %s.assignment columns',
+            'Saved assignments for KM package id=%s to %s.assignments',
             knowledge_model_uuid,
             self.schema_name,
         )
@@ -518,6 +501,20 @@ class PostgresDB(Database):
 
         try:
             async with self._connect() as connection:
+                await connection.execute(
+                    self.assignment_table.delete().where(
+                        self.assignment_table.c.template_uuid.in_(
+                            self.template_table.select()
+                            .with_only_columns(self.template_table.c.uuid)
+                            .where(
+                                self.template_table.c.uuid == template_uuid,
+                                self.template_table.c.tenant_uuid == tenant_uuid,
+                                self.template_table.c.deleted_at.is_(None),
+                                self.template_table.c.cover_page_version.is_distinct_from(cover_page_version),
+                            ),
+                        ),
+                    ),
+                )
                 result = await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -587,8 +584,6 @@ class PostgresDB(Database):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-        *,
-        include_cover_page_assignments: bool = False,
     ) -> list[SerializedSectionAssignment] | None:
         await self._ensure_schema()
 
@@ -613,13 +608,12 @@ class PostgresDB(Database):
             return None
 
         logger.debug(
-            'Loaded %s assignments for KM package id=%s from %s.assignment',
-            'cover page' if include_cover_page_assignments else 'content',
+            'Loaded assignments for KM package id=%s from %s.assignments',
             knowledge_model_uuid,
             self.schema_name,
         )
 
-        return row.cover_page_assignments if include_cover_page_assignments else row.content_assignments
+        return row.assignments
 
     def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""

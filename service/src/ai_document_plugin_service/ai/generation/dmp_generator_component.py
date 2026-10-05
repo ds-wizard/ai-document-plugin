@@ -69,9 +69,7 @@ class DmpGeneratorComponent:
         *,
         include_cover_page: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
-        new_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
-        db_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         started = time.perf_counter()
@@ -82,9 +80,13 @@ class DmpGeneratorComponent:
         """
         logger.debug('Step 2: Generating DMP markdown...')
         document_assignments = db_assignments if db_assignments is not None else new_assignments or []
-        cover_page_assignments = (
-            db_cover_page_assignments if db_assignments is not None else new_cover_page_assignments
-        ) or []
+        cover_page_section_count = (
+            len(self.cover_page_renderer.definition['sections'])
+            if include_cover_page and self.cover_page_renderer is not None
+            else 0
+        )
+        cover_page_assignments = document_assignments[:cover_page_section_count]
+        document_assignments = document_assignments[cover_page_section_count:]
         replies = self._filter_reachable_replies(replies, km)
         logger.info(
             'Starting DMP generation',
@@ -215,9 +217,7 @@ class DmpGeneratorComponent:
         *,
         include_cover_page: bool = False,
         new_assignments: list[SerializedSectionAssignment] | None = None,
-        new_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
-        db_cover_page_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""

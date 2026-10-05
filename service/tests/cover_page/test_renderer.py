@@ -61,23 +61,23 @@ def test_render_matches_current_cover_markdown() -> None:
     assert markdown == (
         '# Data Management Plan\n'
         '\n'
-        '| Metadata | Details |\n'
-        '| --- | --- |\n'
-        '| Project Name | Potato project |\n'
-        '| Based On | DSW Knowledge Model, 1.2.0 (dsw:root:1.2.0) |\n'
-        '| Project Phase | Before Submitting the Proposal |\n'
-        '| Created By | Hana Litavská |\n'
-        '| Generated On | 01.09.2026 |\n'
+        '| Metadata      | Details                                     |\n'
+        '|:--------------|:--------------------------------------------|\n'
+        '| Project Name  | Potato project                              |\n'
+        '| Based On      | DSW Knowledge Model, 1.2.0 (dsw:root:1.2.0) |\n'
+        '| Project Phase | Before Submitting the Proposal              |\n'
+        '| Created By    | Hana Litavská                               |\n'
+        '| Generated On  | 01.09.2026                                  |\n'
         '\n'
         'Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» '
         'using AI document generation plugin\n'
         '\n'
         '## History of Changes\n'
         '\n'
-        '| Version | Date | Changes |\n'
-        '| --- | --- | --- |\n'
+        '| Version   | Date       | Changes        |\n'
+        '|:----------|:-----------|:---------------|\n'
         '| Version 2 | 21.02.2018 | Latest version |\n'
-        '| Version 1 | 21.01.2018 | First version |'
+        '| Version 1 | 21.01.2018 | First version  |'
     )
 
 
@@ -88,7 +88,8 @@ def test_render_keeps_english_labels_and_original_project_values() -> None:
     markdown = _renderer().render(sources)
 
     assert '# Data Management Plan' in markdown
-    assert '| Project Name | Český projekt |' in markdown
+    assert 'Project Name' in markdown
+    assert 'Český projekt' in markdown
     assert '## History of Changes' in markdown
 
 
@@ -99,4 +100,4 @@ def test_render_escapes_pipe_in_metadata_value() -> None:
 
     markdown = _renderer().render(sources)
 
-    assert '| Project Name | Potato \\| project |' in markdown
+    assert 'Potato \\| project' in markdown

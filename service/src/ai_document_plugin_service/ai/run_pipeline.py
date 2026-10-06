@@ -21,6 +21,7 @@ from ai_document_plugin_service.ai.common import (
     get_component_stats,
 )
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
+from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
@@ -32,6 +33,10 @@ from ai_document_plugin_service.ai.persistence.assignment_saver_component import
 )
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
+from ai_document_plugin_service.cover_page.cover_page_definition import (
+    cover_page_assignment_field_labels,
+)
+from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 
 if TYPE_CHECKING:
     from haystack.components.routers.conditional_router import Route
@@ -54,16 +59,44 @@ class PipelineOutput:
     stats: PipelineStats
 
 
+@dataclass(frozen=True)
+class CoverPagePipelineDependencies:
+    generation_prompt: str
+    field_labels: dict[str, str]
+    renderer: CoverPageRenderer
+
+
+def _collect_cover_page_dependencies(
+    config: Config,
+) -> CoverPagePipelineDependencies:
+    definition = config.cover_definition
+    return CoverPagePipelineDependencies(
+        generation_prompt=config.cover_page_generation,
+        field_labels=cover_page_assignment_field_labels(definition),
+        renderer=CoverPageRenderer(definition),
+    )
+
+
 def build_pipeline(
     database: Database, saver: DBSaver, config: Config, llm_client: LLMClient, language: str
 ) -> AsyncPipeline:
     pipeline = AsyncPipeline()
+    cover_page = _collect_cover_page_dependencies(config)
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent(llm_client, config)
     assignment_saver_component = AssignmentSaverComponent(saver=saver)
-    dmp_generator_component = DmpGeneratorComponent(SectionGenerationLLM(llm_client, config, language))
-    dmp_polisher_component = DmpPolisherComponent(SectionPolishingLLM(llm_client, config, language))
+    dmp_generator_component = DmpGeneratorComponent(
+        SectionGenerationLLM(llm_client, config, language),
+        cover_page_generation_prompt=cover_page.generation_prompt,
+        cover_page_llm=SectionGenerationLLM(llm_client, config, 'en'),
+        cover_page_field_labels=cover_page.field_labels,
+        cover_page_renderer=cover_page.renderer,
+    )
+    dmp_polisher_component = DmpPolisherComponent(
+        SectionPolishingLLM(llm_client, config, language), len(config.cover_definition['sections'])
+    )
+    cover_page_component = CoverPageComponent()
 
     # ROUTES
     routes: list[Route] = [
@@ -90,6 +123,7 @@ def build_pipeline(
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
     pipeline.add_component('dmp_generator_component', dmp_generator_component)
     pipeline.add_component('dmp_polisher_component', dmp_polisher_component)
+    pipeline.add_component('cover_page_component', cover_page_component)
 
     # CONNECTIONS
     # loader_component -> router
@@ -108,6 +142,9 @@ def build_pipeline(
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
     # dmp_generator_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
+    # Add the cover page only after the LLM has polished the document body.
+    pipeline.connect('dmp_generator_component.cover_page', 'cover_page_component.cover_page')
+    pipeline.connect('dmp_polisher_component.markdown', 'cover_page_component.markdown')
 
     return pipeline
 
@@ -120,6 +157,8 @@ async def run_pipeline(
     tenant_uuid: UUID,
     pipeline: AsyncPipeline,
     dsw_client: DSWClient,
+    *,
+    include_cover_page: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> PipelineOutput:
     pipeline_total_started = time.perf_counter()
@@ -133,6 +172,18 @@ async def run_pipeline(
         'questionnaire_detail_loaded',
         duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
+    project_versions: list[dict] = []
+    if include_cover_page:
+        project_versions_fetch_started = time.perf_counter()
+        try:
+            project_versions = await dsw_client.get_project_versions(project_uuid=questionnaire_uuid)
+        except Exception:
+            logger.exception('Failed to load project versions', extra={'questionnaire_uuid': str(questionnaire_uuid)})
+            raise
+        log_timing_event(
+            'project_versions_loaded',
+            duration_ms=round((time.perf_counter() - project_versions_fetch_started) * 1000, 3),
+        )
 
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -153,7 +204,7 @@ async def run_pipeline(
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
-                    'template_data': template_data,
+                    'template_data': dict(template_data),
                     'km': km,
                     'on_progress': on_progress,
                 },
@@ -169,10 +220,14 @@ async def run_pipeline(
                 'dmp_generator_component': {
                     'replies': replies,
                     'km': km,
+                    'questionnaire_detail': km_data,
+                    'project_versions': project_versions,
+                    'include_cover_page': include_cover_page,
                     'on_progress': on_progress,
                 },
                 'dmp_polisher_component': {
                     'template_data': template_data,
+                    'include_cover_page': include_cover_page,
                     'on_progress': on_progress,
                 },
             },
@@ -180,6 +235,7 @@ async def run_pipeline(
                 'assignment_saver_component',
                 'dmp_generator_component',
                 'dmp_polisher_component',
+                'cover_page_component',
             },
         )
     except Exception:
@@ -194,9 +250,10 @@ async def run_pipeline(
     )
     total_time = time.perf_counter() - pipeline_total_started
 
-    result_markdown = get_component_markdown(result, 'dmp_polisher_component')
+    # Persist the complete document, including the cover page added after polishing.
+    result_markdown = get_component_markdown(result, 'cover_page_component')
     if result_markdown is None:
-        msg = 'Missing markdown output from dmp_polisher_component'
+        msg = 'Missing markdown output from cover_page_component'
         logger.error(msg, extra={'template_uuid': str(template_uuid)})
         raise RuntimeError(msg)
 

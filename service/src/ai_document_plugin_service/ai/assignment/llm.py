@@ -11,7 +11,6 @@ from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     LLMClient,
     add_usage,
-    call_with_retry,
 )
 
 if TYPE_CHECKING:
@@ -22,10 +21,6 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
-
-
-class ModelDidNotStopError(RuntimeError):
-    """Raised when LLM generation does not finish with stop reason."""
 
 
 class UnableToParseResponseError(ValueError):
@@ -75,32 +70,21 @@ class OpenAILayerMatcher(LayerMatcher):
     ) -> dict[str, list[str]]:
         messages = self._assignment_messages(sections_xml, question_chunk_xml)
 
-        async def call_and_parse() -> dict[str, list[str]]:
-            response = await self.client.completion(
-                stats=stats,
-                messages=messages,
-                temperature=self.config.assignment.temperature,
-                max_tokens=self.config.assignment.max_tokens,
-                reasoning_effort='low',
-            )
-            choice = response.choices[0]
-            if choice.finish_reason != 'stop':
-                logger.error(
-                    'Model did not stop generating naturally',
-                    extra={'finish_reason': choice.finish_reason},
-                )
-                msg = 'Model did not stop generating naturally.'
-                raise ModelDidNotStopError(msg)
-            content = (choice.message.content or '').strip()
-            add_usage(stats, response)
-            try:
-                return self._parse_json_question_to_sections(content)
-            except JSONDecodeError as e:
-                msg = 'Unable to parse: ' + content
-                logger.exception('Unable to parse LLM assignment response as JSON', exc_info=e)
-                raise UnableToParseResponseError(msg) from e
-
-        return await call_with_retry(call_and_parse)
+        response = await self.client.completion(
+            stats=stats,
+            messages=messages,
+            temperature=self.config.assignment.temperature,
+            max_tokens=self.config.assignment.max_tokens,
+            reasoning_effort='low',
+        )
+        content = (response.choices[0].message.content or '').strip()
+        add_usage(stats, response)
+        try:
+            return self._parse_json_question_to_sections(content)
+        except JSONDecodeError as e:
+            msg = 'Unable to parse: ' + content
+            logger.exception('Unable to parse LLM assignment response as JSON', exc_info=e)
+            raise UnableToParseResponseError(msg) from e
 
     @staticmethod
     def _parse_json_question_to_sections(content: str) -> dict[str, list[str]]:

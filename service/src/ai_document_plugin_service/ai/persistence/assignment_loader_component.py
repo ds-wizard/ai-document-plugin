@@ -4,7 +4,8 @@ from uuid import UUID
 
 from haystack import component
 
-from ai_document_plugin_service.ai.persistence.database import Database, JsonValue
+from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.persistence.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class AssignmentLoaderComponent:
         self.database = database
 
     @component.output_types(
-        assignments=JsonValue | None,
+        assignments=list[SerializedSectionAssignment] | None,
         found=bool,
     )
     async def run_async(self, knowledge_model_uuid: UUID, template_uuid: UUID) -> dict[str, Any]:
@@ -39,7 +40,7 @@ class AssignmentLoaderComponent:
         }
 
     @component.output_types(
-        assignments=JsonValue | None,
+        assignments=list[SerializedSectionAssignment] | None,
         found=bool,
     )
     def run(self, knowledge_model_uuid: UUID, template_uuid: UUID) -> dict[str, Any]:

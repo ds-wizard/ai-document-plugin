@@ -2,6 +2,7 @@ import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type { LanguageDefinition } from '@/data/languages'
 import type {
+    CoverPagePreviewDefinition,
     LlmSettings,
     LlmSettingsUpdate,
     PipelineStatusResponse,
@@ -132,6 +133,33 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     }
 
     return templates
+}
+
+export const getCoverPagePreview = async (): Promise<CoverPagePreviewDefinition> => {
+    const url = `${getApiBaseUrl()}/cover-page/preview`
+    const response = await apiFetch(url)
+    const definition = await readApiResponse<CoverPagePreviewDefinition | { detail?: string }>(
+        response,
+        url,
+    )
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in definition && definition.detail
+                ? definition.detail
+                : `Failed to load the cover page preview (${response.status}).`,
+        )
+    }
+
+    if (
+        !('metadata' in definition) ||
+        !('history' in definition) ||
+        !('assignedSections' in definition)
+    ) {
+        throw new Error('Invalid cover page preview returned.')
+    }
+
+    return definition
 }
 
 export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
@@ -267,12 +295,14 @@ export const updateLlmSettings = async (settings: LlmSettingsUpdate): Promise<Ll
 }
 
 type CreateTemplateParams = {
+    hasCoverPage: boolean
     title: string
     content: unknown
     scope: TemplateScope
 }
 
 export const createTemplate = async ({
+    hasCoverPage,
     title,
     content,
     scope,
@@ -286,6 +316,7 @@ export const createTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            hasCoverPage,
             scope,
         }),
     })
@@ -306,12 +337,14 @@ export const createTemplate = async ({
 }
 
 type UpdateTemplateParams = {
+    hasCoverPage: boolean
     uuid: string
     title: string
     content: unknown
 }
 
 export const updateTemplate = async ({
+    hasCoverPage,
     uuid,
     title,
     content,
@@ -325,6 +358,7 @@ export const updateTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            hasCoverPage,
         }),
     })
 

@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createTemplate, updateTemplate } from '@/client'
+import { CoverPagePreview } from '@/components/CoverPagePreview'
 import styles from '@/components/CustomTemplateSection.module.css'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
@@ -10,6 +11,7 @@ export type EditingTemplate = {
     uuid: string
     title: string
     content: ApiTemplateContent
+    hasCoverPage: boolean
 }
 
 type CustomTemplateSectionProps = {
@@ -29,6 +31,7 @@ export function CustomTemplateSection({
     onCancel,
 }: CustomTemplateSectionProps) {
     const isEditing = editingTemplate !== null
+    const [hasCoverPage, setHasCoverPage] = useState(editingTemplate?.hasCoverPage ?? false)
     const [title, setTitle] = useState(editingTemplate?.title ?? '')
     const [json, setJson] = useState(
         editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '',
@@ -124,14 +127,17 @@ export function CustomTemplateSection({
                       uuid: editingTemplate.uuid,
                       title: trimmedTitle,
                       content: parsed,
+                      hasCoverPage,
                   })
                 : await createTemplate({
                       title: trimmedTitle,
                       content: parsed,
+                      hasCoverPage,
                       scope,
                   })
 
             if (!isEditing) {
+                setHasCoverPage(false)
                 setTitle('')
                 setJson('')
                 setFileName('')
@@ -176,6 +182,19 @@ export function CustomTemplateSection({
                     className="form-control"
                 />
             </label>
+
+            <div className={styles.metadataSection}>
+                <label className={styles.metadataOption}>
+                    <input
+                        type="checkbox"
+                        checked={hasCoverPage}
+                        onChange={(event) => setHasCoverPage(event.target.checked)}
+                        disabled={isSaving}
+                    />
+                    <span>Include a cover page with DMP metadata and project information</span>
+                </label>
+                <CoverPagePreview />
+            </div>
 
             <div className="ai-doc-field">
                 <span className="ai-doc-field-label">Template structure</span>

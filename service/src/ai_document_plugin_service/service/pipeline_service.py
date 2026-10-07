@@ -4,13 +4,14 @@ import threading
 from asyncio import Task
 from uuid import UUID
 
-from openai import AuthenticationError
+from haystack.core.errors import PipelineRuntimeError
 
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.execution_logging import (
     log_timing_event,
 )
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
+from ai_document_plugin_service.ai.common.llm_error import LLMError
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
@@ -30,27 +31,25 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    TemplateDetail,
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
 
-AUTHORIZATION_ERROR_MESSAGE = 'Authorization error, invalid or expired token.'
-SERVER_ERROR_MESSAGE = 'The action could not be completed. Please try again later.'
-TEMPLATE_NOT_FOUND_MESSAGE = 'Template not found.'
 
-
-def _pipeline_error_from_exception(error: Exception) -> PipelineErrorResponse:
-    if isinstance(error, AuthenticationError) or isinstance(error.__cause__, AuthenticationError):
-        return PipelineErrorResponse(
-            type=ErrorType.AUTHENTICATION_FAILED,
-            message=AUTHORIZATION_ERROR_MESSAGE,
-        )
+def _pipeline_error_from_exception(error: BaseException) -> PipelineErrorResponse:
+    # If error is "PipelineError, get the root cause
+    if isinstance(error, PipelineRuntimeError) and error.__cause__ is not None:
+        error = error.__cause__
+    # Handle llm errors
+    if isinstance(error, LLMError):
+        return PipelineErrorResponse(type=error.error_type, message=error.message)
 
     return PipelineErrorResponse(
         type=ErrorType.SERVER_ERROR,
-        message=SERVER_ERROR_MESSAGE,
+        message=ErrorType.SERVER_ERROR.message,
     )
 
 
@@ -179,7 +178,7 @@ class PipelineService:
     async def enqueue_pipeline_job(
         self,
         payload: PipelineRunRequest,
-        title: str,
+        template: TemplateDetail,
         auth: AuthenticatedUser,
         config: Config,
         trace_id: UUID | None,
@@ -191,10 +190,18 @@ class PipelineService:
         """
         if await self.database.get_llm_settings(auth.tenant_uuid) is None:
             raise NotConfiguredError
+        logger.info(
+            'Queueing pipeline job',
+            extra={
+                'questionnaire_uuid': str(payload.questionnaire_uuid),
+                'template_uuid': str(payload.template_uuid),
+                'include_cover_page': template.has_cover_page,
+            },
+        )
         run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
-            title=title,
+            title=template.title,
             language=payload.language,
             user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
@@ -208,8 +215,9 @@ class PipelineService:
                 payload.questionnaire_uuid,
                 payload.template_uuid,
                 payload.language,
-                auth,
-                config,
+                include_cover_page=template.has_cover_page,
+                auth=auth,
+                config=config,
             ),
             trace_id=trace_id,
         )
@@ -241,6 +249,8 @@ class PipelineService:
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         language: str,
+        *,
+        include_cover_page: bool,
         auth: AuthenticatedUser,
         config: Config,
     ) -> None:
@@ -250,8 +260,9 @@ class PipelineService:
                 questionnaire_uuid,
                 template_uuid,
                 language,
-                auth,
-                config,
+                include_cover_page=include_cover_page,
+                auth=auth,
+                config=config,
             )
         except Exception as error:
             logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
@@ -279,6 +290,8 @@ class PipelineService:
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         language: str,
+        *,
+        include_cover_page: bool,
         auth: AuthenticatedUser,
         config: Config,
     ) -> None:
@@ -290,7 +303,7 @@ class PipelineService:
                     auth.tenant_uuid,
                     status=PipelineStatus.FAILED,
                     error_type=ErrorType.TEMPLATE_NOT_FOUND,
-                    error_message=TEMPLATE_NOT_FOUND_MESSAGE,
+                    error_message=ErrorType.TEMPLATE_NOT_FOUND.message,
                 )
                 await self.database.create_generation_stats(run_id, get_trace_uuid())
             logger.error(
@@ -347,6 +360,7 @@ class PipelineService:
             pipeline=pipeline,
             on_progress=on_progress,
             dsw_client=DSWClient(auth.token, auth.api_url),
+            include_cover_page=include_cover_page,
         )
         log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
 

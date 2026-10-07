@@ -4,6 +4,7 @@ export type TemplateOption = {
     uuid: string
     title: string
     scope: TemplateScope
+    hasCoverPage: boolean
 }
 
 export type LlmSettings = {
@@ -41,6 +42,41 @@ export type TemplateDetail = {
     title: string
     content: ApiTemplateContent
     scope: TemplateScope
+    hasCoverPage: boolean
+}
+
+export type CoverPagePreviewLabel = {
+    id: string
+    text: string
+}
+
+export type CoverPagePreviewDefinition = {
+    version: string
+    metadata: {
+        title: CoverPagePreviewLabel
+        columns: CoverPagePreviewLabel[]
+        fields: Array<{
+            id: string
+            label: string
+            preview: string
+        }>
+        attribution: string
+    }
+    history: {
+        id: string
+        title: CoverPagePreviewLabel
+        columns: CoverPagePreviewLabel[]
+        preview: string
+    }
+    assignedSections: Array<{
+        id: string
+        title: string
+        preview: string
+        fields: Array<{
+            id: string
+            label: string
+        }>
+    }>
 }
 
 export type PipelineStatusResponse = {

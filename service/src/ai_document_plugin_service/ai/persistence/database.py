@@ -14,6 +14,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
+from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
@@ -38,6 +39,11 @@ class TemplateRecord:
     content: dict
     tenant_uuid: UUID
     user_uuid: UUID | None
+    cover_page_version: str | None = None
+
+    @property
+    def has_cover_page(self) -> bool:
+        return self.cover_page_version is not None
 
     @property
     def scope(self) -> TemplateScope:
@@ -51,6 +57,7 @@ class TemplateRecord:
             content=row.content,
             tenant_uuid=row.tenant_uuid,
             user_uuid=row.user_uuid,
+            cover_page_version=row.cover_page_version,
         )
 
 
@@ -140,6 +147,8 @@ class Database(ABC):
         content: JsonValue,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
+        *,
+        cover_page_version: str | None = None,
     ) -> UUID:
         """Create a new template in a database backend. Return created template UUID.
 
@@ -154,6 +163,8 @@ class Database(ABC):
         tenant_uuid: UUID,
         title: str,
         content: JsonValue,
+        *,
+        cover_page_version: str | None = None,
     ) -> bool:
         """Update an existing template's title and content. Return whether a row was updated."""
 
@@ -171,7 +182,7 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: JsonValue,
+        assignments: list[SerializedSectionAssignment],
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -193,7 +204,7 @@ class Database(ABC):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> JsonValue | None:
+    ) -> list[SerializedSectionAssignment] | None:
         """Get assignments from a database backend."""
 
     @abstractmethod
@@ -392,7 +403,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: JsonValue,
+        assignments: list[SerializedSectionAssignment],
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -427,7 +438,7 @@ class PostgresDB(Database):
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'assignment_count': len(assignments) if isinstance(assignments, Sequence) else None,
+                'assignment_count': len(assignments),
                 'db.schema': self.schema_name,
             },
         )
@@ -443,11 +454,14 @@ class PostgresDB(Database):
         content: JsonValue,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
+        *,
+        cover_page_version: str | None = None,
     ) -> UUID:
         template_uuid = uuid4()
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=template_uuid,
+            cover_page_version=cover_page_version,
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
@@ -483,6 +497,8 @@ class PostgresDB(Database):
         tenant_uuid: UUID,
         title: str,
         content: JsonValue,
+        *,
+        cover_page_version: str | None = None,
     ) -> bool:
         await self._ensure_schema()
         statement = (
@@ -492,11 +508,29 @@ class PostgresDB(Database):
                 & (self.template_table.c.tenant_uuid == tenant_uuid)
                 & (self.template_table.c.deleted_at.is_(None)),
             )
-            .values(title=title, content=content)
+            .values(
+                title=title,
+                content=content,
+                cover_page_version=cover_page_version,
+            )
         )
 
         try:
             async with self._connect() as connection:
+                await connection.execute(
+                    self.assignment_table.delete().where(
+                        self.assignment_table.c.template_uuid.in_(
+                            self.template_table.select()
+                            .with_only_columns(self.template_table.c.uuid)
+                            .where(
+                                self.template_table.c.uuid == template_uuid,
+                                self.template_table.c.tenant_uuid == tenant_uuid,
+                                self.template_table.c.deleted_at.is_(None),
+                                self.template_table.c.cover_page_version.is_distinct_from(cover_page_version),
+                            ),
+                        ),
+                    ),
+                )
                 result = await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -566,7 +600,7 @@ class PostgresDB(Database):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> JsonValue | None:
+    ) -> list[SerializedSectionAssignment] | None:
         await self._ensure_schema()
 
         statement = self.assignment_table.select().where(

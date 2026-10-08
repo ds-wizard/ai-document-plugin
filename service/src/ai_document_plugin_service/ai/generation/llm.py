@@ -5,7 +5,6 @@ from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     LLMClient,
     add_usage,
-    call_with_retry,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.data.languages import get_language_name
@@ -64,13 +63,11 @@ class SectionGenerationLLM(GenerationLLM):
     ) -> str:
         _ = previously_generated
         messages = self._section_from_qa_messages(prompt)
-        response = await call_with_retry(
-            lambda: self.client.completion(
-                stats=stats,
-                messages=messages,
-                temperature=self.config.dmp_generation.temperature,
-                max_completion_tokens=self.config.dmp_generation.max_tokens,
-            ),
+        response = await self.client.completion(
+            stats=stats,
+            messages=messages,
+            temperature=self.config.dmp_generation.temperature,
+            max_completion_tokens=self.config.dmp_generation.max_tokens,
         )
         add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

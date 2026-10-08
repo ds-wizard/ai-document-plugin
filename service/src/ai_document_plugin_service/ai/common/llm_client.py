@@ -2,19 +2,22 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
+from openai import APIError, AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
 from ai_document_plugin_service.ai.common.execution_logging import log_llm_event
+from ai_document_plugin_service.ai.common.llm_error import LLMError, llm_error_from_exception
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 3
+RETRY_DELAY_S = 2.0
 
 
 class InvalidLLMConfigError(ValueError):
@@ -24,33 +27,12 @@ class InvalidLLMConfigError(ValueError):
         )
 
 
+class ModelDidNotStopError(RuntimeError):
+    """Raised when LLM generation does not finish with stop reason, e.g. it was cut off by the token limit."""
+
+
 class MissingTokenUsageError(ValueError):
     """Raised when a model response has no usage token information."""
-
-
-async def call_with_retry[T](
-    fn: Callable[[], Awaitable[T]],
-    max_retries: int = 3,
-    delay: float = 2.0,
-) -> T:
-    """Retry fn on transient OpenAI network/rate-limit errors.
-
-    Raises:
-        RuntimeError: If no result or exception is produced by the retry loop.
-    """
-    err: APIConnectionError | APITimeoutError | RateLimitError | None = None
-    for attempt in range(max_retries):
-        try:
-            return await fn()
-        except (APIConnectionError, APITimeoutError, RateLimitError) as exc:
-            err = exc
-            if attempt < max_retries - 1:
-                logger.warning('Error calling LLM, retrying: %s', exc)
-                await asyncio.sleep(delay)
-    if err is not None:
-        raise err
-    msg = 'call_with_retry finished without result or exception'
-    raise RuntimeError(msg)
 
 
 def extract_usage_tokens(response: object) -> tuple[int, int]:
@@ -158,6 +140,27 @@ class LLMClient:
         stats: 'AssignmentStats | None' = None,
         **kwargs: Any,  # ruff: ignore[any-type]
     ) -> ChatCompletion:
+        """Call the LLM, retrying on transient network/rate-limit errors.
+
+        Raises:
+            LLMError: If the error is not transient or the retries are exhausted.
+        """
+        for _ in range(MAX_RETRIES - 1):
+            try:
+                return await self._completion(*args, stats=stats, **kwargs)
+            except LLMError as error:
+                if not error.retryable:
+                    raise
+                logger.warning('Error calling LLM, retrying: %s', error.__cause__ or error)
+                await asyncio.sleep(RETRY_DELAY_S)
+        return await self._completion(*args, stats=stats, **kwargs)
+
+    async def _completion(
+        self,
+        *args: Any,  # ruff: ignore[any-type]
+        stats: 'AssignmentStats | None' = None,
+        **kwargs: Any,  # ruff: ignore[any-type]
+    ) -> ChatCompletion:
         if self.model is None:
             logger.error('LLM completion failed: model is not configured', extra={'tenant_uuid': str(self.tenant_uuid)})
             raise InvalidLLMConfigError('model', self.tenant_uuid)  # ruff: ignore[raw-string-in-exception]
@@ -225,6 +228,8 @@ class LLMClient:
                     request_kwargs=kwargs,
                     error=error,
                 )
+                if isinstance(error, APIError):
+                    raise llm_error_from_exception(error) from error
                 raise
 
             duration_s = time.perf_counter() - call_start
@@ -237,6 +242,14 @@ class LLMClient:
                 request_kwargs=kwargs,
                 response=result,
             )
+            finish_reason = result.choices[0].finish_reason if result.choices else None
+            if finish_reason != 'stop':
+                logger.error(
+                    'Model did not stop generating naturally',
+                    extra={'req_id': req_id, 'finish_reason': finish_reason, 'max_tokens': kwargs.get('max_tokens')},
+                )
+                msg = 'Model did not stop generating naturally.'
+                raise ModelDidNotStopError(msg)
             return result
 
     def _log_llm_completion(

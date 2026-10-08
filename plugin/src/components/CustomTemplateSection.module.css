@@ -99,3 +99,37 @@
     gap: 0.5rem;
     align-items: center;
 }
+
+.metadataSection {
+    min-width: 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--ai-doc-color-slate-200);
+    border-radius: 6px;
+    background: var(--ai-doc-color-slate-50);
+}
+
+.metadataOption {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    max-width: 38rem;
+    color: var(--ai-doc-color-slate-700);
+    cursor: pointer;
+    line-height: 1.45;
+}
+
+.metadataSection details {
+    margin: 0.75rem 0 0 1.65rem;
+    padding-left: 0.9rem;
+    border-left: 2px solid var(--ai-doc-color-slate-300);
+}
+
+.metadataOption input {
+    margin-top: 0.25rem;
+    accent-color: var(--ai-doc-color-blue-700);
+}
+
+.metadataOption:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.65;
+}

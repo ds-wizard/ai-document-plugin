@@ -25,8 +25,10 @@ class TemplateService:
     TITLE_REQUIRED_MESSAGE = 'Template title is required'
     SECTIONS_REQUIRED_MESSAGE = 'Template JSON must contain a top-level "sections" array.'
 
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, cover_definition: dict) -> None:
         self._database = database
+        self._cover_page_version = str(cover_definition['version'])
+        self._cover_page_sections = cover_definition['sections']
 
     async def list(self, auth: AuthenticatedUser) -> list[TemplateListItem]:
         records = await self._database.list_templates(auth.tenant_uuid, auth.user_uuid)
@@ -45,12 +47,19 @@ class TemplateService:
 
         trimmed_title = self._validate_payload(payload.title, payload.content)
 
+        content = payload.content.copy()
+        sections = payload.content['sections'].copy()
+        if payload.has_cover_page:
+            sections = self._cover_page_sections + sections
+        content['sections'] = sections
+
         try:
             template_uuid = await self._database.create_template(
                 title=trimmed_title,
-                content=payload.content,
+                content=content,
                 tenant_uuid=auth.tenant_uuid,
                 user_uuid=owner_uuid,
+                cover_page_version=self._cover_page_version if payload.has_cover_page else None,
             )
         except TemplateTitleConflictError as error:
             raise ConflictError(str(error)) from error
@@ -59,6 +68,7 @@ class TemplateService:
             uuid=template_uuid,
             title=trimmed_title,
             content=payload.content,
+            has_cover_page=payload.has_cover_page,
             scope=payload.scope,
         )
 
@@ -79,12 +89,19 @@ class TemplateService:
 
             trimmed_title = self._validate_payload(payload.title, payload.content)
 
+            content = payload.content.copy()
+            sections = payload.content['sections'].copy()
+            if payload.has_cover_page:
+                sections = self._cover_page_sections + sections
+            content['sections'] = sections
+
             try:
                 await self._database.update_template(
                     template_uuid=template_uuid,
                     tenant_uuid=auth.tenant_uuid,
                     title=trimmed_title,
-                    content=payload.content,
+                    content=content,
+                    cover_page_version=self._cover_page_version if payload.has_cover_page else None,
                 )
             except TemplateTitleConflictError as error:
                 raise ConflictError(str(error)) from error
@@ -93,6 +110,7 @@ class TemplateService:
             uuid=template_uuid,
             title=trimmed_title,
             content=payload.content,
+            has_cover_page=payload.has_cover_page,
             scope=record.scope,
         )
 
@@ -123,15 +141,22 @@ class TemplateService:
             uuid=record.uuid,
             title=record.title,
             scope=record.scope,
+            has_cover_page=record.has_cover_page,
         )
 
-    @staticmethod
-    def _to_detail(record: TemplateRecord) -> TemplateDetail:
+    def _to_detail(self, record: TemplateRecord) -> TemplateDetail:
+        content = record.content.copy()
+        sections = record.content['sections'].copy()
+        if record.has_cover_page:
+            sections = sections[len(self._cover_page_sections) :]
+        content['sections'] = sections
+
         return TemplateDetail(
             uuid=record.uuid,
             title=record.title,
-            content=record.content,
+            content=content,
             scope=record.scope,
+            has_cover_page=record.has_cover_page,
         )
 
     def _validate_payload(self, title: str, content: dict) -> str:

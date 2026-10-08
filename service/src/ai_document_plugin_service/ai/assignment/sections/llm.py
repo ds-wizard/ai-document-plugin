@@ -8,7 +8,6 @@ from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import (
     LLMClient,
     add_usage,
-    call_with_retry,
 )
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 
@@ -59,16 +58,14 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                 .replace('{section_title}', leaf.title)
                 .replace('{section_content}', content_block)
             )
-            response = await call_with_retry(
-                lambda um=user_msg: self.client.completion(
-                    messages=[
-                        {'role': 'system', 'content': system_msg},
-                        {'role': 'user', 'content': um},
-                    ],
-                    reasoning_effort='low',
-                    temperature=self.config.section_id.temperature,
-                    max_completion_tokens=self.config.section_id.max_tokens,
-                ),
+            response = await self.client.completion(
+                messages=[
+                    {'role': 'system', 'content': system_msg},
+                    {'role': 'user', 'content': user_msg},
+                ],
+                reasoning_effort='low',
+                temperature=self.config.section_id.temperature,
+                max_completion_tokens=self.config.section_id.max_tokens,
             )
             add_usage(stats, response)
             choice = response.choices[0]

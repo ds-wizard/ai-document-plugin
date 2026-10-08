@@ -24,8 +24,9 @@ class DmpPolisherComponentResult(TypedDict):
 
 @component
 class DmpPolisherComponent:
-    def __init__(self, section_polishing_llm: SectionPolishingLLM) -> None:
+    def __init__(self, section_polishing_llm: SectionPolishingLLM, cover_page_section_count: int = 0) -> None:
         self.section_polishing_llm = section_polishing_llm
+        self.cover_page_section_count = cover_page_section_count
 
     @component.output_types(markdown=str, stats=AssignmentStats)
     async def run_async(
@@ -33,6 +34,8 @@ class DmpPolisherComponent:
         markdown: str,
         template_data: dict | None = None,
         on_progress: Callable[[str], None] | None = None,
+        *,
+        include_cover_page: bool = False,
     ) -> DmpPolisherComponentResult:
         started = time.perf_counter()
         """Polish the DMP by moving content to relevant sections and improving structure.
@@ -57,6 +60,9 @@ class DmpPolisherComponent:
         )
         if on_progress is not None:
             on_progress('Polishing document')
+        if include_cover_page and template_data is not None:
+            template_data = template_data.copy()
+            template_data['sections'] = template_data['sections'][self.cover_page_section_count :]
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
         polished = await self.section_polishing_llm.polish_dmp(
             markdown=markdown,
@@ -83,6 +89,8 @@ class DmpPolisherComponent:
         markdown: str,
         template_data: dict | None = None,
         on_progress: Callable[[str], None] | None = None,
+        *,
+        include_cover_page: bool = False,
     ) -> DmpPolisherComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'

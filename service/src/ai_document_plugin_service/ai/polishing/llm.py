@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from ai_document_plugin_service.ai.common import AssignmentStats, Config
-from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage, call_with_retry
+from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage
 from ai_document_plugin_service.data.languages import get_language_name
 
 if TYPE_CHECKING:
@@ -48,13 +48,11 @@ class SectionPolishingLLM:
             user_message,
         ]
 
-        response = await call_with_retry(
-            lambda: self.client.completion(
-                stats=stats,
-                messages=messages,
-                temperature=self.config.dmp_polishing.temperature,
-                max_completion_tokens=self.config.dmp_polishing.max_tokens,
-            ),
+        response = await self.client.completion(
+            stats=stats,
+            messages=messages,
+            temperature=self.config.dmp_polishing.temperature,
+            max_completion_tokens=self.config.dmp_polishing.max_tokens,
         )
         add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

@@ -1,9 +1,11 @@
+import { CoverPagePreview } from '@/components/CoverPagePreview'
 import styles from '@/components/TemplatePreview.module.css'
 import type { ApiTemplateContent, ApiTemplateSection } from '@/types'
 
 type TemplatePreviewProps = {
     content?: ApiTemplateContent
     isLoading: boolean
+    hasCoverPage?: boolean
 }
 
 type PreviewSectionNodeProps = {
@@ -42,13 +44,18 @@ function PreviewSectionNode({ section, depth, path }: PreviewSectionNodeProps) {
     )
 }
 
-export function TemplatePreview({ content, isLoading }: TemplatePreviewProps) {
+export function TemplatePreview({
+    content,
+    isLoading,
+    hasCoverPage = false,
+}: TemplatePreviewProps) {
     const sections = content?.sections ?? []
 
     return (
         <section className="ai-doc-card" aria-label="Template preview">
             <div className={styles.label}>
                 <h5 className="ai-doc-title">Template preview:</h5>
+                {hasCoverPage ? <CoverPagePreview embedded /> : null}
                 <div className="ai-doc-scroll-list">
                     {isLoading ? (
                         <p className={styles.status}>Loading template structure...</p>

@@ -17,3 +17,15 @@
     background: var(--ai-doc-color-slate-50);
     color: var(--ai-doc-color-slate-700);
 }
+
+.heading {
+    display: grid;
+    gap: 0.25rem;
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.85rem;
+}
+
+.heading h4 {
+    color: var(--ai-doc-color-slate-950);
+    margin: 0;
+}

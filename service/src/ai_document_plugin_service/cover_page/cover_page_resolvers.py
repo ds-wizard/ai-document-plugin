@@ -10,6 +10,7 @@ type ResolvedCoverData = str | list[dict[str, Any]]
 class CoverDataSources:
     questionnaire_detail: dict[str, Any] | None
     knowledge_model: dict[str, Any]
+    # Already ordered newest first by DSWClient.
     project_versions: list[dict[str, Any]]
     generated_on: date
 
@@ -85,11 +86,7 @@ def _generated_on(sources: CoverDataSources) -> str:
 
 
 def _project_versions(sources: CoverDataSources) -> list[dict[str, Any]]:
-    def updated_at(version: dict[str, Any]) -> str:
-        value = version.get('updatedAt')
-        return value if isinstance(value, str) else ''
-
-    return sorted(sources.project_versions, key=updated_at, reverse=True)
+    return sources.project_versions
 
 
 COVER_DATA_RESOLVERS: dict[str, CoverDataResolver] = {

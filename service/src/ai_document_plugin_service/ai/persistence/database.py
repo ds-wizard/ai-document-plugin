@@ -68,6 +68,7 @@ class GenerationUpdate(TypedDict, total=False):
     error_message: str | None
     result_markdown: str | None
     progress_message: str | None
+    named_version: str | None
 
 
 class GenerationStats(TypedDict, total=False):
@@ -104,6 +105,7 @@ class GenerationRecord:
     progress_message: str | None
     created_at: datetime
     updated_at: datetime
+    named_version: str | None = None
 
     @classmethod
     def from_row(cls, row: Row) -> 'GenerationRecord':
@@ -123,6 +125,7 @@ class GenerationRecord:
             progress_message=row.progress_message,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            named_version=row.named_version,
         )
 
 
@@ -235,6 +238,7 @@ class Database(ABC):
         user_uuid: UUID,
         tenant_uuid: UUID,
         status: str,
+        named_version: str | None = None,
     ) -> UUID:
         """Create a new generation (pipeline run) row. Return the created run id."""
 
@@ -689,6 +693,7 @@ class PostgresDB(Database):
         user_uuid: UUID,
         tenant_uuid: UUID,
         status: str,
+        named_version: str | None = None,
     ) -> UUID:
         run_id = uuid4()
         await self._ensure_schema()
@@ -701,6 +706,7 @@ class PostgresDB(Database):
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
             status=status,
+            named_version=named_version,
         )
 
         async with self._connect() as connection:

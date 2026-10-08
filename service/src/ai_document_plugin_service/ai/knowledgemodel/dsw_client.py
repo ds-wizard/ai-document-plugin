@@ -4,6 +4,7 @@ from uuid import UUID
 import httpx
 
 from ai_document_plugin_service.ai.common.logging_payloads import summarize_payload
+from ai_document_plugin_service.ai.knowledgemodel.project_version import sort_project_versions
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class DSWClient:
         return payload
 
     async def get_project_versions(self, project_uuid: str | UUID) -> list[dict]:
+        # Fetch versions once and return them newest first for all consumers.
         url = f'{self.api_url}/projects/{project_uuid}/versions'
         logger.info(
             'Fetching project versions from DSW',
@@ -83,4 +85,4 @@ class DSWClient:
             )
             return []
 
-        return [version for version in payload if isinstance(version, dict)]
+        return sort_project_versions([version for version in payload if isinstance(version, dict)])

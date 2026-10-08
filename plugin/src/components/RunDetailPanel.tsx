@@ -3,7 +3,11 @@ import { useEffect } from 'react'
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
 import styles from '@/components/RunDetailPanel.module.css'
-import type { UseGenerationHistoryResult } from '@/hooks/useGenerationHistory'
+import {
+    getRunTimeLabel,
+    getRunVersionLabel,
+    type UseGenerationHistoryResult,
+} from '@/hooks/useGenerationHistory'
 
 type RunDetailPanelProps = {
     runId: string
@@ -31,10 +35,18 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
         )
     }
 
+    const heading = (
+        <header className={styles.heading}>
+            <h4>{run.templateTitle}</h4>
+            <div>{getRunVersionLabel(run)}</div>
+            <div>{getRunTimeLabel(run)}</div>
+        </header>
+    )
+
     if (run.status === 'queued' || run.status === 'running') {
         return (
             <div className={styles.root}>
-                <h4>{run.templateTitle}</h4>
+                {heading}
                 <div className={styles.progress}>
                     <i className="fas fa-spinner fa-spin" aria-hidden="true" />
                     {run.progressMessage ||
@@ -49,7 +61,7 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
     if (run.status === 'failed') {
         return (
             <div className={styles.root}>
-                <h4>{run.templateTitle}</h4>
+                {heading}
                 <FeedbackAlert kind="error">
                     {run.error?.message || 'Pipeline generation failed.'}
                 </FeedbackAlert>
@@ -60,7 +72,7 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
     if (!run.hasDetail) {
         return (
             <div className={styles.root}>
-                <h4>{run.templateTitle}</h4>
+                {heading}
                 <div className={styles.progress}>
                     <i className="fas fa-spinner fa-spin" aria-hidden="true" />
                     Loading generated document...
@@ -71,7 +83,7 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
 
     return (
         <div className={styles.root}>
-            <h4>{run.templateTitle}</h4>
+            {heading}
             <PipelineResultPanel
                 resultMarkdown={run.resultMarkdown}
                 resultRunId={run.runId}

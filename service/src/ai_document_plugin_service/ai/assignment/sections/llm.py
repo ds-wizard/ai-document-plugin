@@ -65,7 +65,7 @@ class OpenAISectionIdGenerator(SectionIdGenerator):
                 ],
                 reasoning_effort='low',
                 temperature=self.config.section_id.temperature,
-                max_tokens=self.config.section_id.max_tokens,
+                max_completion_tokens=self.config.section_id.max_tokens,
             )
             add_usage(stats, response)
             choice = response.choices[0]

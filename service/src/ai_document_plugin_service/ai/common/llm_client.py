@@ -274,7 +274,7 @@ class LLMClient:
             'total_llm_ms': _duration_ms(wait_s + duration_s),
             'message_count': _count_messages(request_kwargs.get('messages')),
             'temperature': request_kwargs.get('temperature'),
-            'max_tokens': request_kwargs.get('max_tokens'),
+            'max_completion_tokens': request_kwargs.get('max_completion_tokens'),
             'reasoning_effort': request_kwargs.get('reasoning_effort'),
         }
         if response is not None:

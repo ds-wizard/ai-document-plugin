@@ -52,7 +52,7 @@ class SectionPolishingLLM:
             stats=stats,
             messages=messages,
             temperature=self.config.dmp_polishing.temperature,
-            max_tokens=self.config.dmp_polishing.max_tokens,
+            max_completion_tokens=self.config.dmp_polishing.max_tokens,
         )
         add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

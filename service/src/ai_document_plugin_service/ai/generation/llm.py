@@ -67,7 +67,7 @@ class SectionGenerationLLM(GenerationLLM):
             stats=stats,
             messages=messages,
             temperature=self.config.dmp_generation.temperature,
-            max_tokens=self.config.dmp_generation.max_tokens,
+            max_completion_tokens=self.config.dmp_generation.max_tokens,
         )
         add_usage(stats, response)
         return (response.choices[0].message.content or '').strip()

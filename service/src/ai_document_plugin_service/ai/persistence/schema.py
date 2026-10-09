@@ -99,6 +99,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('error_message', Text, nullable=True),
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
+        Column('named_version', Text, nullable=True),
         Column(
             'created_at',
             DateTime(timezone=True),

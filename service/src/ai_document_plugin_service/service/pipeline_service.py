@@ -3,6 +3,7 @@ import logging
 import threading
 from asyncio import Task
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from haystack.core.errors import PipelineRuntimeError
 
@@ -14,6 +15,7 @@ from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.llm_error import LLMError
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
+from ai_document_plugin_service.ai.knowledgemodel.project_version import resolve_named_version
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
 from ai_document_plugin_service.ai.persistence.database import (
     Database,
@@ -70,8 +72,10 @@ def _generation_record_to_status_response(record: GenerationRecord) -> PipelineS
         error=_generation_error(record),
         result_format='markdown' if record.result_markdown is not None else None,
         result_markdown=record.result_markdown,
+        created_at=record.created_at.isoformat(),
         progress_message=record.progress_message,
         updated_at=record.updated_at.isoformat(),
+        named_version=record.named_version,
     )
 
 
@@ -84,6 +88,7 @@ def _generation_record_to_summary_response(record: GenerationRecord) -> Pipeline
         progress_message=record.progress_message,
         created_at=record.created_at.isoformat(),
         updated_at=record.updated_at.isoformat(),
+        named_version=record.named_version,
     )
 
 
@@ -198,6 +203,7 @@ class PipelineService:
                 'include_cover_page': template.has_cover_page,
             },
         )
+        project_versions = await DSWClient(auth.token, auth.api_url).get_project_versions(payload.questionnaire_uuid)
         run_id = await self.database.create_generation(
             questionnaire_uuid=payload.questionnaire_uuid,
             template_uuid=payload.template_uuid,
@@ -206,6 +212,7 @@ class PipelineService:
             user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
             status=PipelineStatus.QUEUED,
+            named_version=resolve_named_version(project_versions),
         )
 
         self.pipeline_queue_manager.enqueue(
@@ -216,6 +223,8 @@ class PipelineService:
                 payload.template_uuid,
                 payload.language,
                 include_cover_page=template.has_cover_page,
+                time_zone=payload.time_zone,
+                project_versions=project_versions,
                 auth=auth,
                 config=config,
             ),
@@ -251,6 +260,8 @@ class PipelineService:
         language: str,
         *,
         include_cover_page: bool,
+        time_zone: str,
+        project_versions: list[dict],
         auth: AuthenticatedUser,
         config: Config,
     ) -> None:
@@ -261,6 +272,8 @@ class PipelineService:
                 template_uuid,
                 language,
                 include_cover_page=include_cover_page,
+                time_zone=time_zone,
+                project_versions=project_versions,
                 auth=auth,
                 config=config,
             )
@@ -292,6 +305,8 @@ class PipelineService:
         language: str,
         *,
         include_cover_page: bool,
+        time_zone: str,
+        project_versions: list[dict],
         auth: AuthenticatedUser,
         config: Config,
     ) -> None:
@@ -312,12 +327,14 @@ class PipelineService:
             )
             return
 
-        await self.database.update_generation(
+        record = await self.database.update_generation(
             run_id,
             auth.tenant_uuid,
             status=PipelineStatus.RUNNING,
             progress_message='Starting pipeline...',
         )
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
 
         # Read at the start of every run so a queued job uses the settings saved at that moment.
         llm_config = await self.database.get_llm_settings(auth.tenant_uuid)
@@ -360,6 +377,8 @@ class PipelineService:
             pipeline=pipeline,
             on_progress=on_progress,
             dsw_client=DSWClient(auth.token, auth.api_url),
+            created_at=record.created_at.astimezone(ZoneInfo(time_zone)),
+            project_versions=project_versions,
             include_cover_page=include_cover_page,
         )
         log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))

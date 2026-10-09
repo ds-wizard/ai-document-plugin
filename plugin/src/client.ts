@@ -234,6 +234,7 @@ export const runPipeline = async ({
             questionnaireUuid,
             templateUuid,
             language,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
     })
 

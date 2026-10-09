@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -159,8 +160,11 @@ async def run_pipeline(
     dsw_client: DSWClient,
     *,
     include_cover_page: bool = False,
+    created_at: datetime | None = None,
+    project_versions: list[dict],
     on_progress: ProgressCallback | None = None,
 ) -> PipelineOutput:
+    created_at = created_at or datetime.now(tz=UTC)
     pipeline_total_started = time.perf_counter()
     questionnaire_fetch_started = time.perf_counter()
     try:
@@ -172,19 +176,6 @@ async def run_pipeline(
         'questionnaire_detail_loaded',
         duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
-    project_versions: list[dict] = []
-    if include_cover_page:
-        project_versions_fetch_started = time.perf_counter()
-        try:
-            project_versions = await dsw_client.get_project_versions(project_uuid=questionnaire_uuid)
-        except Exception:
-            logger.exception('Failed to load project versions', extra={'questionnaire_uuid': str(questionnaire_uuid)})
-            raise
-        log_timing_event(
-            'project_versions_loaded',
-            duration_ms=round((time.perf_counter() - project_versions_fetch_started) * 1000, 3),
-        )
-
     replies = km_data['replies']
     km = km_data['knowledgeModel']
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
@@ -222,6 +213,7 @@ async def run_pipeline(
                     'km': km,
                     'questionnaire_detail': km_data,
                     'project_versions': project_versions,
+                    'created_at': created_at,
                     'include_cover_page': include_cover_page,
                     'on_progress': on_progress,
                 },

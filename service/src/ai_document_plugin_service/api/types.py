@@ -1,8 +1,9 @@
 from enum import StrEnum
 from typing import Annotated, Self
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic.alias_generators import to_camel
 
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -203,9 +204,20 @@ class CoverPagePreviewDefinition(ApiModel):
 
 
 class PipelineRunRequest(ApiModel):
+    time_zone: str = 'UTC'
     questionnaire_uuid: UUID
     template_uuid: UUID
     language: str = Field(default='en', min_length=2, max_length=10, pattern=r'^[a-z]{2,3}(?:-[A-Z]{2})?$')
+
+    @field_validator('time_zone')
+    @classmethod
+    def validate_time_zone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as error:
+            msg = 'Unknown time zone.'
+            raise ValueError(msg) from error
+        return value
 
 
 class LlmSettingsResponse(ApiModel):
@@ -248,6 +260,7 @@ class PipelineSummaryResponse(ApiModel):
     progress_message: str | None = None
     created_at: str
     updated_at: str
+    named_version: str | None = None
 
 
 class PipelineStatusResponse(ApiModel):
@@ -260,5 +273,7 @@ class PipelineStatusResponse(ApiModel):
     error: PipelineErrorResponse | None = None
     result_format: str | None = None
     result_markdown: str | None = None
+    created_at: str
     progress_message: str | None = None
     updated_at: str
+    named_version: str | None = None

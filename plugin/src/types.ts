@@ -91,8 +91,10 @@ export type PipelineStatusResponse = {
     error: PipelineErrorResponse | null
     resultFormat: string | null
     resultMarkdown: string | null
+    createdAt: string
     progressMessage: string | null
     updatedAt: string
+    namedVersion: string | null
 }
 
 export type PipelineSummaryItem = {
@@ -103,6 +105,7 @@ export type PipelineSummaryItem = {
     progressMessage: string | null
     createdAt: string
     updatedAt: string
+    namedVersion: string | null
 }
 
 export type ResultRenderMode = 'formatted' | 'raw'

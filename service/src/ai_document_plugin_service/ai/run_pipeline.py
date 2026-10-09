@@ -21,6 +21,7 @@ from ai_document_plugin_service.ai.common import (
     get_component_stats,
 )
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
+from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
@@ -196,7 +197,8 @@ async def run_pipeline(
 
     pipeline_started = time.perf_counter()
     try:
-        result = await pipeline.run_async(
+        result = await run_haystack_pipeline(
+            pipeline,
             data={
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,

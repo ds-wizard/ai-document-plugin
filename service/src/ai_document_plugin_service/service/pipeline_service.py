@@ -4,8 +4,6 @@ import threading
 from asyncio import Task
 from uuid import UUID
 
-from haystack.core.errors import PipelineRuntimeError
-
 from ai_document_plugin_service.ai.common.config import (
     Config,
     LLMConfig,
@@ -43,9 +41,6 @@ logger = logging.getLogger(__name__)
 
 
 def _pipeline_error_from_exception(error: BaseException) -> PipelineErrorResponse:
-    # If error is "PipelineError, get the root cause
-    if isinstance(error, PipelineRuntimeError) and error.__cause__ is not None:
-        error = error.__cause__
     # Handle llm errors
     if isinstance(error, LLMError):
         return PipelineErrorResponse(type=error.error_type, message=error.message)

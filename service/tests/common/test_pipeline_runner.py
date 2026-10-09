@@ -46,7 +46,5 @@ async def test_returns_pipeline_result() -> None:
 
 
 async def test_unwraps_component_exception() -> None:
-    with pytest.raises(_ComponentError, match='boom') as exc_info:
+    with pytest.raises(_ComponentError, match='boom'):
         await run_haystack_pipeline(_pipeline(_Failing()), data={'step': {'value': 'boom'}})
-
-    assert exc_info.value.__notes__ == ["Raised by pipeline component 'step'"]

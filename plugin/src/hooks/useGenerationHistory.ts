@@ -35,7 +35,11 @@ export const getRunVersionLabel = (run: RunRecord): string =>
 export const getRunTimeLabel = (run: RunRecord): string => {
     const date = new Date(run.createdAt)
     if (Number.isNaN(date.getTime())) return 'Time unavailable'
-    return date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' })
+    const dateLabel = date.toLocaleDateString(undefined, { dateStyle: 'short' })
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${dateLabel}, ${hours}:${minutes}:${seconds}`
 }
 
 export type UseGenerationHistoryResult = {

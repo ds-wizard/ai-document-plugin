@@ -38,8 +38,12 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
     const heading = (
         <header className={styles.heading}>
             <h4>{run.templateTitle}</h4>
-            <div>{getRunVersionLabel(run)}</div>
-            <div>{getRunTimeLabel(run)}</div>
+            <div className={styles.metadata}>
+                <span className={`badge bg-secondary ${styles.versionBadge}`}>
+                    {getRunVersionLabel(run)}
+                </span>
+                <span>{getRunTimeLabel(run)}</span>
+            </div>
         </header>
     )
 

@@ -13,7 +13,6 @@ type TemplateManagerProps = {
     templates: TemplateOption[]
     isLoading: boolean
     disabled: boolean
-    isDeleting: boolean
     upsertSaved: UseTemplatesResult['upsertSaved']
     deleteByUuid: UseTemplatesResult['deleteByUuid']
     onSelectedUuidChange: (uuid: string) => void
@@ -27,7 +26,6 @@ export function TemplateManager({
     templates,
     isLoading,
     disabled,
-    isDeleting,
     upsertSaved,
     deleteByUuid,
     onSelectedUuidChange,
@@ -36,7 +34,6 @@ export function TemplateManager({
     const [isEditing, setIsEditing] = useState(false)
     const [detail, setDetail] = useState<TemplateDetail | null>(null)
     const [isLoadingDetail, setIsLoadingDetail] = useState(false)
-    const [isExporting, setIsExporting] = useState(false)
 
     const selected = templates.find((template) => template.uuid === selectedUuid)
     const canManageSelected = selected?.scope === 'personal'
@@ -149,7 +146,6 @@ export function TemplateManager({
             return
         }
 
-        setIsExporting(true)
         try {
             const blob = await exportTemplateAsJson(selected.uuid)
             const fileName = `${selected.title}.json`
@@ -168,8 +164,6 @@ export function TemplateManager({
                     ? exportError.message
                     : 'Failed to export the template as JSON.',
             )
-        } finally {
-            setIsExporting(false)
         }
     }, [selected])
 
@@ -180,39 +174,11 @@ export function TemplateManager({
                     content={isDetailForSelected ? detail.content : undefined}
                     isLoading={isLoadingDetail || !isDetailForSelected}
                     hasCoverPage={detail.hasCoverPage}
+                    canManage={showActions}
+                    onEdit={startEditing}
+                    onExport={handleExport}
+                    onDelete={handleDelete}
                 />
-            ) : null}
-
-            {showActions ? (
-                <div className={styles.templateActions}>
-                    <button
-                        type="button"
-                        className="btn btn-outline-secondary with-icon"
-                        onClick={startEditing}
-                        disabled={isDeleting || isExporting}
-                    >
-                        <i className="fas fa-pen" aria-hidden="true" />
-                        Edit template
-                    </button>
-                    <button
-                        type="button"
-                        className="btn btn-outline-secondary with-icon"
-                        onClick={() => void handleExport()}
-                        disabled={isDeleting || isExporting}
-                    >
-                        <i className="fas fa-download" aria-hidden="true" />
-                        {isExporting ? 'Exporting...' : 'Export template'}
-                    </button>
-                    <button
-                        type="button"
-                        className="btn btn-outline-danger with-icon"
-                        onClick={() => void handleDelete()}
-                        disabled={isDeleting}
-                    >
-                        <i className="fas fa-trash" aria-hidden="true" />
-                        {isDeleting ? 'Deleting...' : 'Delete template'}
-                    </button>
-                </div>
             ) : null}
 
             {showCreateButton ? (

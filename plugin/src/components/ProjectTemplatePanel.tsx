@@ -30,7 +30,7 @@ export function ProjectTemplatePanel({
     languagesLoading,
     onLanguageChange,
 }: ProjectTemplatePanelProps) {
-    const { templates: options, isLoading, isDeleting, upsertSaved, deleteByUuid } = templates
+    const { templates: options, isLoading, upsertSaved, deleteByUuid } = templates
 
     const [selectedUuid, setSelectedUuid] = useState('')
 
@@ -69,7 +69,6 @@ export function ProjectTemplatePanel({
                 templates={options}
                 isLoading={isLoading}
                 disabled={disabled}
-                isDeleting={isDeleting}
                 upsertSaved={upsertSaved}
                 deleteByUuid={deleteByUuid}
                 onSelectedUuidChange={setSelectedUuid}

@@ -45,7 +45,7 @@ h11==0.16.0
     # via
     #   httpcore
     #   httpcore2
-haystack-ai==2.31.0
+haystack-ai==3.3.0
     # via
     #   ai-document-plugin-service (pyproject.toml)
     #   haystack-experimental

@@ -37,7 +37,7 @@ export function TemplateManager({
 
     const selected = templates.find((template) => template.uuid === selectedUuid)
     const canManageSelected = selected?.scope === 'personal'
-    const showPreview = Boolean(selectedUuid) && !isCreating && !isLoading
+    const showPreview = Boolean(selectedUuid) && !isLoading
 
     useEffect(() => {
         if (!showPreview) {
@@ -168,7 +168,7 @@ export function TemplateManager({
 
     return (
         <>
-            {detail && !isEditingSelected ? (
+            {detail ? (
                 <TemplatePreview
                     content={isDetailForSelected ? detail.content : undefined}
                     isLoading={isLoadingDetail || !isDetailForSelected}

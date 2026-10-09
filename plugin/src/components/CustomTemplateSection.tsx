@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { createTemplate, updateTemplate } from '@/client'
 import { CoverPagePreview } from '@/components/CoverPagePreview'
 import styles from '@/components/CustomTemplateSection.module.css'
+import { Modal } from '@/components/Modal'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
 
@@ -18,7 +19,7 @@ type CustomTemplateSectionProps = {
     scope: TemplateScope
     onSaved: (template: TemplateOption) => void
     editingTemplate?: EditingTemplate | null
-    onCancel?: () => void
+    onCancel: () => void
 }
 
 const scopeNoun = (scope: TemplateScope): string =>
@@ -167,11 +168,31 @@ export function CustomTemplateSection({
     const savingLabel = isEditing ? 'Updating template...' : 'Saving template...'
 
     return (
-        <section className="ai-doc-card">
-            <div>
-                <h5 className="ai-doc-title">{heading}</h5>
-            </div>
-
+        <Modal
+            title={heading}
+            onClose={onCancel}
+            closeDisabled={isSaving}
+            footer={
+                <>
+                    <button
+                        type="button"
+                        onClick={() => void handleSave()}
+                        disabled={isSaving}
+                        className="btn btn-primary btn-wide"
+                    >
+                        {isSaving ? savingLabel : saveLabel}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        disabled={isSaving}
+                        className="btn btn-outline-secondary"
+                    >
+                        Cancel
+                    </button>
+                </>
+            }
+        >
             <label className="ai-doc-field">
                 <span className="ai-doc-field-label">Template title</span>
                 <input
@@ -252,28 +273,6 @@ export function CustomTemplateSection({
                     </label>
                 )}
             </div>
-
-            <div className={styles.actions}>
-                <button
-                    type="button"
-                    onClick={() => void handleSave()}
-                    disabled={isSaving}
-                    className={`${styles.saveButton} btn btn-primary btn-wide`}
-                >
-                    {isSaving ? savingLabel : saveLabel}
-                </button>
-
-                {onCancel ? (
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        disabled={isSaving}
-                        className="btn btn-outline-secondary"
-                    >
-                        Cancel
-                    </button>
-                ) : null}
-            </div>
-        </section>
+        </Modal>
     )
 }

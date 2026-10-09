@@ -163,25 +163,25 @@ export function TenantTemplateSection() {
                 </ul>
             )}
 
+            <button
+                type="button"
+                className="btn btn-primary with-icon"
+                onClick={() => {
+                    setIsCreating(true)
+                    setEditingTemplate(null)
+                }}
+            >
+                <i className="fas fa-plus" aria-hidden="true" />
+                Create tenant-wide template
+            </button>
+
             {isCreating ? (
                 <CustomTemplateSection
                     scope="tenant"
                     onSaved={handleSaved}
                     onCancel={() => setIsCreating(false)}
                 />
-            ) : (
-                <button
-                    type="button"
-                    className="btn btn-primary with-icon"
-                    onClick={() => {
-                        setIsCreating(true)
-                        setEditingTemplate(null)
-                    }}
-                >
-                    <i className="fas fa-plus" aria-hidden="true" />
-                    Create tenant-wide template
-                </button>
-            )}
+            ) : null}
         </section>
     )
 }

@@ -44,7 +44,6 @@ export function ProjectTemplatePanel({
     }, [])
 
     const startCreating = useCallback(() => {
-        setSelectedUuid('')
         setIsCreating(true)
     }, [])
 

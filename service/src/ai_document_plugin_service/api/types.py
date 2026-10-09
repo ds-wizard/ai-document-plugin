@@ -1,10 +1,12 @@
 from enum import StrEnum
-from typing import Self
+from typing import Annotated, Self
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic.alias_generators import to_camel
+
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class ApiModel(BaseModel):
@@ -206,10 +208,6 @@ class PipelineRunRequest(ApiModel):
     questionnaire_uuid: UUID
     template_uuid: UUID
     language: str = Field(default='en', min_length=2, max_length=10, pattern=r'^[a-z]{2,3}(?:-[A-Z]{2})?$')
-    llm_model: str
-    llm_api_key: str
-    llm_api_url: str
-    llm_max_workers: int | None = Field(default=None, ge=1)
 
     @field_validator('time_zone')
     @classmethod
@@ -220,6 +218,23 @@ class PipelineRunRequest(ApiModel):
             msg = 'Unknown time zone.'
             raise ValueError(msg) from error
         return value
+
+
+class LlmSettingsResponse(ApiModel):
+    """The tenant's LLM settings. The API key itself is never returned."""
+
+    model: str | None
+    api_url: str | None
+    max_workers: int | None
+    api_key_set: bool
+
+
+class LlmSettingsUpdateRequest(ApiModel):
+    model: NonEmptyStr
+    api_url: NonEmptyStr
+    # Omitted keeps the API key that is already stored.
+    api_key: NonEmptyStr | None = None
+    max_workers: int | None = Field(default=None, ge=1)
 
 
 class PipelineSaveRequest(ApiModel):

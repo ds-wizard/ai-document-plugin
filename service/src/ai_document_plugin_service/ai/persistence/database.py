@@ -15,9 +15,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
-from ai_document_plugin_service.ai.common.config import DatabaseConfig
+from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
+from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
 from ai_document_plugin_service.api.types import TemplateScope
 
 logger = logging.getLogger(__name__)
@@ -283,12 +284,22 @@ class Database(ABC):
     ) -> list[GenerationRecord]:
         """List a user's generations for a project, newest first."""
 
+    @abstractmethod
+    async def get_llm_settings(self, tenant_uuid: UUID) -> LLMConfig | None:
+        """Get the tenant's LLM settings, or ``None`` if the tenant has not configured them."""
+
+    @abstractmethod
+    async def save_llm_settings(self, tenant_uuid: UUID, llm_config: LLMConfig, updated_by: UUID) -> None:
+        """Create or replace the tenant's LLM settings."""
+
 
 class PostgresDB(Database):
     def __init__(
         self,
         config: DatabaseConfig,
+        secret_cipher: SecretCipher,
     ) -> None:
+        self._secret_cipher = secret_cipher
         self.dsn = URL.create(
             drivername='postgresql+psycopg',
             username=config.user,
@@ -305,6 +316,7 @@ class PostgresDB(Database):
         self.template_table = schema.template_table
         self.generation_table = schema.generation_table
         self.generation_stats_table = schema.generation_stats_table
+        self.llm_settings_table = schema.llm_settings_table
         self._database_verified = False
         logger.info(
             'Initialized Postgres database client',
@@ -368,7 +380,14 @@ class PostgresDB(Database):
         async with self.engine.connect() as connection:
             existing_tables = await connection.run_sync(self._list_existing_tables)
 
-        required_tables = {'alembic_version', 'template', 'assignment', 'generation', 'generation_stats'}
+        required_tables = {
+            'alembic_version',
+            'template',
+            'assignment',
+            'generation',
+            'generation_stats',
+            'llm_settings',
+        }
         missing_tables = sorted(required_tables - existing_tables)
 
         if missing_tables:
@@ -811,6 +830,51 @@ class PostgresDB(Database):
             rows = result.fetchall()
 
         return [GenerationRecord.from_row(row) for row in rows]
+
+    async def get_llm_settings(self, tenant_uuid: UUID) -> LLMConfig | None:
+        await self._ensure_schema()
+        statement = self.llm_settings_table.select().where(self.llm_settings_table.c.tenant_uuid == tenant_uuid)
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            row = result.fetchone()
+
+        if row is None:
+            return None
+        return LLMConfig(
+            model=row.model,
+            api_key=self._secret_cipher.decrypt(row.api_key),
+            api_url=row.api_url,
+            parallel_workers=row.max_workers,
+        )
+
+    async def save_llm_settings(self, tenant_uuid: UUID, llm_config: LLMConfig, updated_by: UUID) -> None:
+        await self._ensure_schema()
+        values = {
+            'model': llm_config.model,
+            'api_url': llm_config.api_url,
+            'api_key': self._secret_cipher.encrypt(llm_config.api_key),
+            'max_workers': llm_config.parallel_workers,
+            'updated_by': updated_by,
+            'updated_at': datetime.now(tz=UTC),
+        }
+        statement = postgresql_insert(self.llm_settings_table).values(tenant_uuid=tenant_uuid, **values)
+        upsert_statement = statement.on_conflict_do_update(
+            index_elements=[self.llm_settings_table.c.tenant_uuid],
+            set_=values,
+        )
+
+        async with self._connect() as connection:
+            await connection.execute(upsert_statement)
+
+        logger.info(
+            'Saved LLM settings',
+            extra={
+                'tenant_uuid': str(tenant_uuid),
+                'user_uuid': str(updated_by),
+                'llm_model': llm_config.model,
+            },
+        )
 
 
 def _validate_identifier(value: str) -> str:

@@ -24,6 +24,7 @@ class PersistenceSchema:
     template_table: Table
     generation_table: Table
     generation_stats_table: Table
+    llm_settings_table: Table
 
 
 def create_persistence_schema(schema_name: str) -> PersistenceSchema:
@@ -156,10 +157,31 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         ),
     )
 
+    # LLM connection settings, one row per tenant. Managed by tenant administrators.
+    llm_settings_table = Table(
+        'llm_settings',
+        metadata,
+        Column('tenant_uuid', UUID(as_uuid=True), primary_key=True),
+        Column('model', Text, nullable=False),
+        Column('api_url', Text, nullable=False),
+        # Encrypted with the 'encryption_key' config value, never stored in plaintext.
+        Column('api_key', Text, nullable=False),
+        # NULL lets the LLM client fall back to its default worker count.
+        Column('max_workers', Integer, nullable=True),
+        Column('updated_by', UUID(as_uuid=True), nullable=False),
+        Column(
+            'updated_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+    )
+
     return PersistenceSchema(
         metadata=metadata,
         assignment_table=assignment_table,
         template_table=template_table,
         generation_table=generation_table,
         generation_stats_table=generation_stats_table,
+        llm_settings_table=llm_settings_table,
     )

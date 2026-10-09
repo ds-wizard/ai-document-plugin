@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import UUID
 
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
@@ -25,6 +26,7 @@ def _copy_test_config(
     config_name: str = 'config.yaml',
     allowed_apis: list[dict[str, str]] | None = None,
     prompts_path: str | None = None,
+    encryption_key: str | None = None,
 ) -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TEST_PROMPTS_PATH, base_dir / 'prompts.yaml')
@@ -35,6 +37,8 @@ def _copy_test_config(
         config['auth']['allowed_apis'] = allowed_apis
     if prompts_path is not None:
         config['files']['prompts_path'] = prompts_path
+    if encryption_key is not None:
+        config['encryption_key'] = encryption_key
 
     config_path = base_dir / config_name
     config_path.write_text(yaml.safe_dump(config), encoding='utf-8')
@@ -107,6 +111,31 @@ def test_load_config_rejects_absolute_prompts_path_in_config(
         assert str(error) == "Invalid config value: 'files.prompts_path' must be a relative path"
     else:
         raise AssertionError('Expected load_config() to reject an absolute prompts path')
+
+
+def test_load_config_expands_env_vars_in_encryption_key(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    key = 'ZW52LXByb3ZpZGVkLWVuY3J5cHRpb24ta2V5LTMyYiE='
+    _copy_test_config(tmp_path, encryption_key='${TEST_ENCRYPTION_KEY}')
+    monkeypatch.setenv('TEST_ENCRYPTION_KEY', key)
+    monkeypatch.chdir(tmp_path)
+
+    assert load_config().encryption_key == key
+
+
+@pytest.mark.parametrize('encryption_key', ['', 'not-a-fernet-key'])
+def test_load_config_rejects_missing_or_malformed_encryption_key(
+    tmp_path: Path,
+    monkeypatch,
+    encryption_key: str,
+) -> None:
+    _copy_test_config(tmp_path, encryption_key=encryption_key)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match='encryption_key'):
+        load_config()
 
 
 def test_create_app_stores_the_resolved_config(

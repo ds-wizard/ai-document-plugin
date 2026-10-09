@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 
 import { exportTemplateAsJson, getTemplate } from '@/client'
 import { CustomTemplateSection } from '@/components/CustomTemplateSection'
-import styles from '@/components/TemplateManager.module.css'
 import { TemplatePreview } from '@/components/TemplatePreview'
 import type { UseTemplatesResult } from '@/hooks/useTemplates'
 import type { TemplateDetail, TemplateOption } from '@/types'
@@ -12,10 +11,11 @@ type TemplateManagerProps = {
     selectedUuid: string
     templates: TemplateOption[]
     isLoading: boolean
-    disabled: boolean
+    isCreating: boolean
     upsertSaved: UseTemplatesResult['upsertSaved']
     deleteByUuid: UseTemplatesResult['deleteByUuid']
     onSelectedUuidChange: (uuid: string) => void
+    onCreatingChange: (isCreating: boolean) => void
 }
 
 /**
@@ -25,12 +25,12 @@ export function TemplateManager({
     selectedUuid,
     templates,
     isLoading,
-    disabled,
+    isCreating,
     upsertSaved,
     deleteByUuid,
     onSelectedUuidChange,
+    onCreatingChange,
 }: TemplateManagerProps) {
-    const [isCreating, setIsCreating] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
     const [detail, setDetail] = useState<TemplateDetail | null>(null)
     const [isLoadingDetail, setIsLoadingDetail] = useState(false)
@@ -84,24 +84,23 @@ export function TemplateManager({
     const isDetailForSelected = detail?.uuid === selectedUuid
     const showActions =
         showPreview && canManageSelected && !isEditingSelected && isDetailForSelected
-    const showCreateButton = !isCreating && !isEditingSelected
 
     useEffect(() => {
         if (selectedUuid) {
-            setIsCreating(false)
+            onCreatingChange(false)
             setIsEditing(false)
         }
-    }, [selectedUuid])
+    }, [selectedUuid, onCreatingChange])
 
-    const startCreating = useCallback(() => {
-        onSelectedUuidChange('')
-        setIsEditing(false)
-        setIsCreating(true)
-    }, [onSelectedUuidChange])
+    useEffect(() => {
+        if (isCreating) {
+            setIsEditing(false)
+        }
+    }, [isCreating])
 
     const cancelCreating = useCallback(() => {
-        setIsCreating(false)
-    }, [])
+        onCreatingChange(false)
+    }, [onCreatingChange])
 
     const startEditing = useCallback(() => {
         setIsEditing(true)
@@ -117,10 +116,10 @@ export function TemplateManager({
             onSelectedUuidChange(saved.uuid)
             resetDetail()
             setIsEditing(false)
-            setIsCreating(false)
+            onCreatingChange(false)
             toast.success(`Template "${saved.title}" was saved.`)
         },
-        [upsertSaved, onSelectedUuidChange, resetDetail],
+        [upsertSaved, onSelectedUuidChange, onCreatingChange, resetDetail],
     )
 
     const handleDelete = useCallback(async () => {
@@ -179,18 +178,6 @@ export function TemplateManager({
                     onExport={handleExport}
                     onDelete={handleDelete}
                 />
-            ) : null}
-
-            {showCreateButton ? (
-                <button
-                    type="button"
-                    className={`btn btn-link with-icon ${styles.createTemplateButton}`}
-                    onClick={startCreating}
-                    disabled={isLoading || disabled}
-                >
-                    <i className="fas fa-plus" aria-hidden="true" />
-                    Create your own template
-                </button>
             ) : null}
 
             {isEditingSelected && detail ? (

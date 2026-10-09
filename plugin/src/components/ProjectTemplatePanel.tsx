@@ -33,6 +33,7 @@ export function ProjectTemplatePanel({
     const { templates: options, isLoading, upsertSaved, deleteByUuid } = templates
 
     const [selectedUuid, setSelectedUuid] = useState('')
+    const [isCreating, setIsCreating] = useState(false)
 
     useEffect(() => {
         onSelectedUuidChange(selectedUuid)
@@ -40,6 +41,11 @@ export function ProjectTemplatePanel({
 
     const select = useCallback((uuid: string) => {
         setSelectedUuid(uuid)
+    }, [])
+
+    const startCreating = useCallback(() => {
+        setSelectedUuid('')
+        setIsCreating(true)
     }, [])
 
     return (
@@ -59,6 +65,7 @@ export function ProjectTemplatePanel({
                     value={selectedUuid}
                     onChange={select}
                     templates={options}
+                    onCreate={startCreating}
                     isLoading={isLoading}
                     disabled={disabled}
                 />
@@ -68,10 +75,11 @@ export function ProjectTemplatePanel({
                 selectedUuid={selectedUuid}
                 templates={options}
                 isLoading={isLoading}
-                disabled={disabled}
+                isCreating={isCreating}
                 upsertSaved={upsertSaved}
                 deleteByUuid={deleteByUuid}
                 onSelectedUuidChange={setSelectedUuid}
+                onCreatingChange={setIsCreating}
             />
         </>
     )

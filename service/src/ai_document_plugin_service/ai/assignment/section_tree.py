@@ -32,20 +32,16 @@ def collect_leaf_sections(
 
 def render_section_tree_as_xml(
     sections: list[SectionRecord],
-    record_id_to_sid: dict[uuid.UUID, str] | None = None,
+    record_id_to_sid: dict[uuid.UUID, str],
 ) -> str:
     """Render the section tree as XML.
 
-    Only leaf sections receive a short `id` attribute (the LLM-facing sid). When
-    `record_id_to_sid` is provided, the leaf's `SectionRecord.id` is looked up in it;
-    otherwise a sequential letter id (A, B, ...) is generated.
+    Only leaf sections receive a short `id` attribute (the LLM-facing sid), looked up
+    in `record_id_to_sid` by the leaf's `SectionRecord.id`. record_id_to_sid must contain all leaf sections.
     """
-    leaf_index = [0]
-
     root_children: list[dict[str, Any]] = [
         _section_record_to_xml_node(
             section=section,
-            leaf_index=leaf_index,
             record_id_to_sid=record_id_to_sid,
         )
         for section in sections
@@ -98,8 +94,7 @@ def section_index_to_letter_id(index: int) -> str:
 
 def _section_record_to_xml_node(
     section: SectionRecord,
-    leaf_index: list[int],
-    record_id_to_sid: dict[uuid.UUID, str] | None,
+    record_id_to_sid: dict[uuid.UUID, str],
 ) -> dict[str, Any]:
     if section.children is not None:
         node: dict[str, Any] = {
@@ -108,7 +103,6 @@ def _section_record_to_xml_node(
             'children': [
                 _section_record_to_xml_node(
                     section=child,
-                    leaf_index=leaf_index,
                     record_id_to_sid=record_id_to_sid,
                 )
                 for child in section.children
@@ -118,13 +112,7 @@ def _section_record_to_xml_node(
             node['content'] = section.section.content.strip()
         return node
 
-    if record_id_to_sid is not None and section.id in record_id_to_sid:
-        sid = record_id_to_sid[section.id]
-    else:
-        sid = section_index_to_letter_id(leaf_index[0])
-        leaf_index[0] += 1
-
-    node = {'tag': 'section', 'id': sid, 'title': section.title}
+    node = {'tag': 'section', 'id': record_id_to_sid[section.id], 'title': section.title}
     if section.section.content:
         node['content'] = section.section.content.strip()
     return node

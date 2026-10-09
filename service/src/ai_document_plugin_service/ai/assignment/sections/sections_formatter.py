@@ -1,43 +1,22 @@
 from uuid import UUID
 
 from ai_document_plugin_service.ai.assignment.section_tree import (
-    collect_leaf_section_texts,
+    collect_leaf_sections,
     render_section_tree_as_xml,
-)
-from ai_document_plugin_service.ai.assignment.sections.llm import (
-    SectionIdGenerator,
+    section_index_to_letter_id,
 )
 from ai_document_plugin_service.ai.assignment.types import SectionRecord
-from ai_document_plugin_service.ai.common import AssignmentStats
 
 
 class SectionFormatter:
     def __init__(self, sections: list[SectionRecord]) -> None:
         self.sections = sections
-        self.leaf_sections = collect_leaf_section_texts(sections)
-        self.id_to_sid: dict[UUID, str] | None = None
-        self.sid_to_id: dict[str, UUID] | None = None
-
-    async def create_mappings(
-        self,
-        section_id_generator: SectionIdGenerator,
-        stats: AssignmentStats,
-    ) -> None:
-        id_to_sid = await section_id_generator.generate_leaf_section_ids(
-            self.leaf_sections,
-            stats,
-        )
-        self.id_to_sid = id_to_sid
-        # Forward keys (record ids) and sid values are both unique by construction:
-        # record ids come from _build_records_recursively (uuid4) and the
-        # sid generator de-duplicates via its own `used_ids` set. So a clean inverse exists.
-        self.sid_to_id = {sid: rec_id for rec_id, sid in id_to_sid.items()}
+        self.id_to_sid = {
+            leaf.id: section_index_to_letter_id(index) for index, leaf in enumerate(collect_leaf_sections(sections))
+        }
+        self.sid_to_id = {sid: rec_id for rec_id, sid in self.id_to_sid.items()}
 
     def get_sections_as_xml(self) -> str:
-        if self.id_to_sid is None:
-            msg = 'Class not initialized, call create_mappings first'
-            raise RuntimeError(msg)
-
         return render_section_tree_as_xml(
             sections=self.sections,
             record_id_to_sid=self.id_to_sid,
@@ -46,8 +25,6 @@ class SectionFormatter:
     def record_id_for_sid(self, sid: str) -> UUID | None:
         """Resolve an LLM-facing sid back to the synthetic record id.
 
-        Returns ``None`` when the sid is unknown (e.g. hallucinated by the LLM)
+        Returns ``None`` when the sid is unknown (e.g. hallucinated by the LLM).
         """
-        if self.sid_to_id is None:
-            return None
         return self.sid_to_id.get(sid)

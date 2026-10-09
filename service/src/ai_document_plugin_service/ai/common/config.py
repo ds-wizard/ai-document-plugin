@@ -61,7 +61,6 @@ class Config:
     database: DatabaseConfig
     files: FilePaths
     assignment: SystemAndUserPrompt
-    section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
     cover_page_generation: str
     dmp_polishing: SystemAndUserPrompt
@@ -259,12 +258,6 @@ def load_config(config_path: str | None = None) -> Config:
             max_tokens=int(_get(prompts, 'assignment', 'max_tokens')),
             system_message=_get(prompts, 'assignment', 'system_message'),
             user_message=_get(prompts, 'assignment', 'user_message'),
-        ),
-        section_id=SystemAndUserPrompt(
-            temperature=float(_get(prompts, 'section_id', 'temperature')),
-            max_tokens=int(_get(prompts, 'section_id', 'max_tokens')),
-            system_message=_get(prompts, 'section_id', 'system_message'),
-            user_message=_get(prompts, 'section_id', 'user_message'),
         ),
         dmp_generation=SystemPrompt(
             temperature=float(_get(prompts, 'dmp_generation', 'temperature')),

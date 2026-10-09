@@ -19,7 +19,9 @@ before starting the API or CLI.
 
 ### Step 1 — Question-to-section assignment (`templates/assignment`)
 
-Assigns questions from the KM to leaf sections (sections with no children) from the DMP template
+Assigns questions from the KM to leaf sections (sections with no children) from the DMP template.
+Leaf sections receive deterministic IDs (`A`, `B`, …, `Z`, `AA`, …) in tree order.
+These IDs are used only for matching; stored assignments retain their internal UUIDs.
 
 ### Step 2 — DMP generation (`templates/generation`)
 

@@ -23,9 +23,23 @@ export type RunRecord = {
     progressMessage: string | null
     createdAt: string
     updatedAt: string
+    namedVersion: string | null
     resultMarkdown: string | null
     /** false = came only from the summary list, never polled/backfilled with full detail. */
     hasDetail: boolean
+}
+
+export const getRunVersionLabel = (run: RunRecord): string =>
+    run.namedVersion?.trim() || 'Unknown version'
+
+export const getRunTimeLabel = (run: RunRecord): string => {
+    const date = new Date(run.createdAt)
+    if (Number.isNaN(date.getTime())) return 'Time unavailable'
+    const dateLabel = date.toLocaleDateString(undefined, { dateStyle: 'short' })
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${dateLabel}, ${hours}:${minutes}:${seconds}`
 }
 
 export type UseGenerationHistoryResult = {
@@ -48,6 +62,7 @@ const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
     progressMessage: item.progressMessage,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    namedVersion: item.namedVersion,
     resultMarkdown: null,
     hasDetail: false,
 })
@@ -81,14 +96,13 @@ export function useGenerationHistory(
 
     const applyStatus = useCallback(
         (status: PipelineStatusResponse): RunRecord => {
-            const existing = runsRef.current[status.runId]
             const record: RunRecord = {
                 runId: status.runId,
                 status: status.status,
                 templateTitle: status.templateTitle,
                 error: status.error,
-                // `PipelineStatusResponse` has no `createdAt`; keep whatever we already knew.
-                createdAt: existing?.createdAt ?? status.updatedAt,
+                createdAt: status.createdAt,
+                namedVersion: status.namedVersion,
                 updatedAt: status.updatedAt,
                 progressMessage: status.progressMessage,
                 resultMarkdown: status.resultMarkdown,

@@ -5,7 +5,7 @@ import re
 import time
 from collections.abc import Callable, Coroutine, Iterable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, TypedDict
 
 import pandas as pd
@@ -68,10 +68,12 @@ class DmpGeneratorComponent:
         project_versions: list[dict[str, Any]] | None = None,
         *,
         include_cover_page: bool = False,
+        created_at: datetime | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
+        created_at = created_at or datetime.now(tz=UTC)
         started = time.perf_counter()
         """Generate full DMP markdown from nested assignments tree.
 
@@ -173,7 +175,7 @@ class DmpGeneratorComponent:
                     questionnaire_detail=questionnaire_detail,
                     knowledge_model=km,
                     project_versions=project_versions or [],
-                    generated_on=datetime.now().astimezone().date(),
+                    generated_on=created_at.date(),
                 ),
             )
         if cover_page_sections:
@@ -216,6 +218,7 @@ class DmpGeneratorComponent:
         project_versions: list[dict[str, Any]] | None = None,
         *,
         include_cover_page: bool = False,
+        created_at: datetime | None = None,
         new_assignments: list[SerializedSectionAssignment] | None = None,
         db_assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,

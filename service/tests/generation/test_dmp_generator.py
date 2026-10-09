@@ -888,3 +888,21 @@ async def test_polishing_excludes_stored_cover_sections():
     await component.run_async(markdown='# Body', template_data=template, include_cover_page=True)
     assert llm.polish_dmp.await_args.kwargs['structure_str'] == '# Body'
     assert template['sections'][0]['id'] == 'projects'
+
+
+@pytest.mark.parametrize('instant, zone, expected', [
+    ('2026-10-07T23:30:00+00:00', 'Europe/Prague', '08.10.2026'),
+    ('2026-01-07T23:30:00+00:00', 'Europe/Prague', '08.01.2026'),
+    ('2026-10-07T01:30:00+00:00', 'America/New_York', '06.10.2026'),
+])
+async def test_generated_on_uses_browser_timezone(instant, zone, expected):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    result = await _component().run_async(
+        replies={}, km=_km_with_phase_fixture(),
+        questionnaire_detail=_questionnaire_detail_fixture(),
+        include_cover_page=True, new_assignments=[],
+        created_at=datetime.fromisoformat(instant).astimezone(ZoneInfo(zone)),
+    )
+    assert expected in result['cover_page']

@@ -33,8 +33,8 @@ def sources() -> CoverDataSources:
             },
         },
         project_versions=[
-            {'name': 'Version 1', 'updatedAt': '2018-01-21T00:00:00Z'},
             {'name': 'Version 2', 'updatedAt': '2018-02-21T00:00:00Z'},
+            {'name': 'Version 1', 'updatedAt': '2018-01-21T00:00:00Z'},
         ],
         generated_on=date(2026, 9, 1),
     )

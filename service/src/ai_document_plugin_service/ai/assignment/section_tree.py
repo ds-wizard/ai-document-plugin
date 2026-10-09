@@ -59,24 +59,12 @@ def _build_records_recursively(
     records: list[SectionRecord] = []
     for section_dict in sections:
         node = SectionNode(section_dict)
-        title = node.title
-        record_id = uuid.uuid4()
-        if not node.subsections:
-            records.append(
-                SectionRecord(
-                    id=record_id,
-                    title=title,
-                    section=node,
-                    children=None,
-                ),
-            )
-            continue
         records.append(
             SectionRecord(
-                id=record_id,
-                title=title,
+                id=uuid.uuid4(),
+                title=node.title,
                 section=node,
-                children=_build_records_recursively(node.subsections),
+                children=_build_records_recursively(node.subsections) if node.subsections else None,
             ),
         )
     return records

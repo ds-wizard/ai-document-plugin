@@ -163,6 +163,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('tenant_uuid', UUID(as_uuid=True), primary_key=True),
         Column('model', Text, nullable=False),
         Column('api_url', Text, nullable=False),
+        # Encrypted with the 'encryption_key' config value, never stored in plaintext.
         Column('api_key', Text, nullable=False),
         # NULL lets the LLM client fall back to its default worker count.
         Column('max_workers', Integer, nullable=True),

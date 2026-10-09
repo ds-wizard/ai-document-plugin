@@ -6,6 +6,7 @@ from typing import Any, Final, Literal
 from uuid import UUID
 
 import yaml
+from cryptography.fernet import Fernet
 
 from ai_document_plugin_service.cover_page.cover_page_resolvers import validate_cover_data_resolvers
 
@@ -59,6 +60,7 @@ class Config:
     allowed_apis: tuple[AllowedApi, ...]
     log_level: str
     database: DatabaseConfig
+    encryption_key: str
     files: FilePaths
     assignment: SystemAndUserPrompt
     section_id: SystemAndUserPrompt
@@ -112,6 +114,19 @@ def _get_log_level(config: dict) -> str:
             "Invalid config value: 'logging.level' must be one of " + ', '.join(sorted(allowed_levels)),
         )
     return level
+
+
+def _get_encryption_key(config: dict[str, Any]) -> str:
+    key = _expand_env_vars(str(_get(config, 'encryption_key'))).strip()
+    try:
+        Fernet(key)
+    except ValueError as error:
+        msg = (
+            "Invalid config value: 'encryption_key' must be 32 url-safe base64-encoded bytes. Generate one with: "
+            'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+        )
+        raise ValueError(msg) from error
+    return key
 
 
 def _get_file_path(config: dict, key: str) -> str:
@@ -250,6 +265,7 @@ def load_config(config_path: str | None = None) -> Config:
             password=_expand_env_vars(_get(config, 'database', 'password')),
             schema=_expand_env_vars(_get(config, 'database', 'schema')),
         ),
+        encryption_key=_get_encryption_key(config),
         files=FilePaths(
             prompts_path=resolved_prompts_path,
             cover_definition_path=resolved_cover_definition_path,

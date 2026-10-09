@@ -18,6 +18,7 @@ from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssi
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
+from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
 from ai_document_plugin_service.api.types import TemplateScope
 
 logger = logging.getLogger(__name__)
@@ -292,7 +293,9 @@ class PostgresDB(Database):
     def __init__(
         self,
         config: DatabaseConfig,
+        secret_cipher: SecretCipher,
     ) -> None:
+        self._secret_cipher = secret_cipher
         self.dsn = URL.create(
             drivername='postgresql+psycopg',
             username=config.user,
@@ -834,7 +837,7 @@ class PostgresDB(Database):
             return None
         return LLMConfig(
             model=row.model,
-            api_key=row.api_key,
+            api_key=self._secret_cipher.decrypt(row.api_key),
             api_url=row.api_url,
             parallel_workers=row.max_workers,
         )
@@ -844,7 +847,7 @@ class PostgresDB(Database):
         values = {
             'model': llm_config.model,
             'api_url': llm_config.api_url,
-            'api_key': llm_config.api_key,
+            'api_key': self._secret_cipher.encrypt(llm_config.api_key),
             'max_workers': llm_config.parallel_workers,
             'updated_by': updated_by,
             'updated_at': datetime.now(tz=UTC),

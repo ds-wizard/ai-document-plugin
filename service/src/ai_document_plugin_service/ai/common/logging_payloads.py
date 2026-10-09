@@ -8,6 +8,7 @@ SENSITIVE_FIELD_NAMES = {
     'apikey',
     'authorization',
     'cookie',
+    'encryption_key',
     'llm_api_key',
     'password',
     'refresh_token',

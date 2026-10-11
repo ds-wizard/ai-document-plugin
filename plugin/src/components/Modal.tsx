@@ -15,9 +15,6 @@ type ModalProps = {
 
 /**
  * Modal dialog with a title bar, scrollable body and optional footer.
- *
- * Clicking outside does not close it, so unsaved input is not lost by a stray click
- * (or by interacting with a toast shown above the dialog).
  */
 export function Modal({
     open,
@@ -34,8 +31,6 @@ export function Modal({
                 <Dialog.Content
                     className={styles.content}
                     aria-describedby={undefined}
-                    onInteractOutside={(event) => event.preventDefault()}
-                    onEscapeKeyDown={(event) => closeDisabled && event.preventDefault()}
                 >
                     <div className={styles.header}>
                         <Dialog.Title className="ai-doc-title h5">{title}</Dialog.Title>

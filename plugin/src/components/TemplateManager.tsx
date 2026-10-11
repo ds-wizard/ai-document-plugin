@@ -80,10 +80,8 @@ export function TemplateManager({
 
     const resetDetail = useCallback(() => setDetail(null), [])
 
-    const isEditingSelected = isEditing && detail !== null && detail.uuid === selectedUuid
     const isDetailForSelected = detail?.uuid === selectedUuid
-    const showActions =
-        showPreview && canManageSelected && !isEditingSelected && isDetailForSelected
+    const showActions = showPreview && canManageSelected && isDetailForSelected
 
     useEffect(() => {
         if (selectedUuid) {
@@ -180,7 +178,7 @@ export function TemplateManager({
                 />
             ) : null}
 
-            {isEditingSelected && detail ? (
+            {isEditing && detail && isDetailForSelected ? (
                 <CustomTemplateSection
                     key={detail.uuid}
                     scope="personal"

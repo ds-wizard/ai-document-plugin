@@ -28,10 +28,7 @@ export function Modal({
         <Dialog.Root open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
             <Dialog.Portal>
                 <Dialog.Overlay className={styles.overlay} />
-                <Dialog.Content
-                    className={styles.content}
-                    aria-describedby={undefined}
-                >
+                <Dialog.Content className={styles.content} aria-describedby={undefined}>
                     <div className={styles.header}>
                         <Dialog.Title className="ai-doc-title h5">{title}</Dialog.Title>
                         <Dialog.Close

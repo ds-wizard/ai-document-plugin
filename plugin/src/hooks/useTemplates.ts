@@ -36,7 +36,6 @@ export type DeleteTemplateOptions = {
 export type UseTemplatesResult = {
     templates: TemplateOption[]
     isLoading: boolean
-    isDeleting: boolean
     upsertSaved: (saved: TemplateOption) => void
     removeFromList: (uuid: string) => void
     deleteByUuid: (template: TemplateOption, options: DeleteTemplateOptions) => Promise<boolean>
@@ -66,7 +65,6 @@ export function useTemplates({
 }: UseTemplatesOptions = {}): UseTemplatesResult {
     const [templates, setTemplates] = useState<TemplateOption[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [isDeleting, setIsDeleting] = useState(false)
 
     const refresh = useCallback(async () => {
         setIsLoading(true)
@@ -147,7 +145,6 @@ export function useTemplates({
                 return false
             }
 
-            setIsDeleting(true)
             try {
                 await deleteTemplate(template.uuid)
                 removeFromList(template.uuid)
@@ -158,8 +155,6 @@ export function useTemplates({
                     error instanceof Error ? error.message : 'Failed to delete the template.'
                 options.onError?.(message)
                 return false
-            } finally {
-                setIsDeleting(false)
             }
         },
         [removeFromList],
@@ -168,7 +163,6 @@ export function useTemplates({
     return {
         templates,
         isLoading,
-        isDeleting,
         upsertSaved,
         removeFromList,
         deleteByUuid,

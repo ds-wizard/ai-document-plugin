@@ -1,47 +1,57 @@
-import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react'
+import { ChangeEvent, DragEvent, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createTemplate, updateTemplate } from '@/client'
 import { CoverPagePreview } from '@/components/CoverPagePreview'
-import styles from '@/components/CustomTemplateSection.module.css'
 import { Modal } from '@/components/Modal'
+import styles from '@/components/TemplateFormDialog.module.css'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
-import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
+import type { ApiTemplateContent, TemplateDetail, TemplateOption, TemplateScope } from '@/types'
 
-export type EditingTemplate = {
-    uuid: string
-    title: string
-    content: ApiTemplateContent
-    hasCoverPage: boolean
-}
+/** What the form works on: an existing template to edit, or `'new'` to create one. */
+export type TemplateFormTarget = TemplateDetail | 'new'
 
-type CustomTemplateSectionProps = {
+type TemplateFormDialogProps = {
     scope: TemplateScope
+    target: TemplateFormTarget
     onSaved: (template: TemplateOption) => void
-    editingTemplate?: EditingTemplate | null
-    onCancel: () => void
+    onClose: () => void
 }
+
+type InputMode = 'visual' | 'file'
+
+const INPUT_MODES: { mode: InputMode; label: string }[] = [
+    { mode: 'visual', label: 'Visual editor' },
+    { mode: 'file', label: 'From file' },
+]
 
 const scopeNoun = (scope: TemplateScope): string =>
     scope === 'tenant' ? 'tenant-wide template' : 'personal template'
 
-export function CustomTemplateSection({
-    scope,
-    onSaved,
-    editingTemplate = null,
-    onCancel,
-}: CustomTemplateSectionProps) {
-    const isEditing = editingTemplate !== null
-    const [hasCoverPage, setHasCoverPage] = useState(editingTemplate?.hasCoverPage ?? false)
-    const [title, setTitle] = useState(editingTemplate?.title ?? '')
+const parseTemplateContent = (json: string): ApiTemplateContent => {
+    const parsed = JSON.parse(json) as { sections?: unknown } | null
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sections)) {
+        throw new Error('Template JSON must contain a top-level "sections" array.')
+    }
+    return parsed as ApiTemplateContent
+}
+
+/**
+ * Dialog with the form for creating or editing a template.
+ *
+ * Mount it to open it: the form starts from `target` each time, so nothing has to be reset.
+ */
+export function TemplateFormDialog({ scope, target, onSaved, onClose }: TemplateFormDialogProps) {
+    const editedTemplate = target === 'new' ? null : target
+    const [hasCoverPage, setHasCoverPage] = useState(editedTemplate?.hasCoverPage ?? false)
+    const [title, setTitle] = useState(editedTemplate?.title ?? '')
     const [json, setJson] = useState(
-        editingTemplate ? JSON.stringify(editingTemplate.content, null, 2) : '',
+        editedTemplate ? JSON.stringify(editedTemplate.content, null, 2) : '',
     )
     const [fileName, setFileName] = useState('')
     const [isSaving, setIsSaving] = useState(false)
-    const [inputMode, setInputMode] = useState<'visual' | 'file'>('visual')
+    const [inputMode, setInputMode] = useState<InputMode>('visual')
     const [isDraggingFile, setIsDraggingFile] = useState(false)
-    const previousFileNameRef = useRef(fileName)
     const dragDepthRef = useRef(0)
 
     const processTemplateFile = async (file: File) => {
@@ -52,6 +62,7 @@ export function CustomTemplateSection({
             if (!title.trim()) {
                 setTitle(file.name.replace(/\.json$/i, ''))
             }
+            setInputMode('visual')
         } catch {
             toast.error('Failed to read the selected JSON file.')
         }
@@ -66,10 +77,6 @@ export function CustomTemplateSection({
 
         await processTemplateFile(file)
         event.target.value = ''
-    }
-
-    const submitTemplateFile = (file: File) => {
-        void processTemplateFile(file)
     }
 
     const handleDragEnter = (event: DragEvent<HTMLLabelElement>) => {
@@ -98,7 +105,7 @@ export function CustomTemplateSection({
 
         const file = event.dataTransfer.files?.[0]
         if (file) {
-            submitTemplateFile(file)
+            void processTemplateFile(file)
         }
     }
 
@@ -117,33 +124,18 @@ export function CustomTemplateSection({
         }
 
         try {
-            const parsed = JSON.parse(trimmedJson) as { sections?: unknown }
-            if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sections)) {
-                throw new Error('Template JSON must contain a top-level "sections" array.')
+            const template = {
+                title: trimmedTitle,
+                content: parseTemplateContent(trimmedJson),
+                hasCoverPage,
             }
 
             setIsSaving(true)
-            const data = isEditing
-                ? await updateTemplate({
-                      uuid: editingTemplate.uuid,
-                      title: trimmedTitle,
-                      content: parsed,
-                      hasCoverPage,
-                  })
-                : await createTemplate({
-                      title: trimmedTitle,
-                      content: parsed,
-                      hasCoverPage,
-                      scope,
-                  })
+            const saved = editedTemplate
+                ? await updateTemplate({ ...template, uuid: editedTemplate.uuid })
+                : await createTemplate({ ...template, scope })
 
-            if (!isEditing) {
-                setHasCoverPage(false)
-                setTitle('')
-                setJson('')
-                setFileName('')
-            }
-            onSaved(data)
+            onSaved(saved)
         } catch (saveError) {
             toast.error(
                 saveError instanceof Error ? saveError.message : 'Template JSON is not valid.',
@@ -153,24 +145,15 @@ export function CustomTemplateSection({
         }
     }
 
-    useEffect(() => {
-        const fileNameChanged = fileName !== previousFileNameRef.current
-        previousFileNameRef.current = fileName
-
-        if (inputMode === 'file' && fileName && fileNameChanged) {
-            setInputMode('visual')
-        }
-    }, [fileName, inputMode])
-
-    const heading = isEditing ? `Edit ${scopeNoun(scope)}` : `Create ${scopeNoun(scope)}`
-
-    const saveLabel = isEditing ? 'Update template' : 'Save template'
-    const savingLabel = isEditing ? 'Updating template...' : 'Saving template...'
+    const noun = scopeNoun(scope)
+    const saveLabel = editedTemplate ? 'Update template' : 'Save template'
+    const savingLabel = editedTemplate ? 'Updating template...' : 'Saving template...'
 
     return (
         <Modal
-            title={heading}
-            onClose={onCancel}
+            open
+            title={editedTemplate ? `Edit ${noun}` : `Create ${noun}`}
+            onClose={onClose}
             closeDisabled={isSaving}
             footer={
                 <>
@@ -184,7 +167,7 @@ export function CustomTemplateSection({
                     </button>
                     <button
                         type="button"
-                        onClick={onCancel}
+                        onClick={onClose}
                         disabled={isSaving}
                         className="btn btn-outline-secondary"
                     >
@@ -220,12 +203,7 @@ export function CustomTemplateSection({
             <div className="ai-doc-field">
                 <span className="ai-doc-field-label">Template structure</span>
                 <div className="ai-doc-segmented-control btn-group" role="group">
-                    {(
-                        [
-                            { mode: 'visual' as const, label: 'Visual editor' },
-                            { mode: 'file' as const, label: 'From file' },
-                        ] as const
-                    ).map(({ mode, label }) => (
+                    {INPUT_MODES.map(({ mode, label }) => (
                         <button
                             key={mode}
                             type="button"

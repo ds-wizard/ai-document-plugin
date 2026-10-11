@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { exportTemplateAsJson } from '@/client'
-import { CustomTemplateSection, type EditingTemplate } from '@/components/CustomTemplateSection'
 import styles from '@/components/settings/TenantTemplateSettings.module.css'
+import { TemplateFormDialog, type TemplateFormTarget } from '@/components/TemplateFormDialog'
+import { downloadTemplateJson } from '@/download'
 import { useTemplates } from '@/hooks/useTemplates'
 import type { TemplateOption } from '@/types'
 
 export function TenantTemplateSection() {
-    const [isCreating, setIsCreating] = useState(false)
-    const [editingTemplate, setEditingTemplate] = useState<EditingTemplate | null>(null)
+    const [formTarget, setFormTarget] = useState<TemplateFormTarget | null>(null)
     const [busyUuid, setBusyUuid] = useState<string | null>(null)
 
     const { templates, isLoading, upsertSaved, deleteByUuid, loadDetail } = useTemplates({
@@ -19,22 +18,14 @@ export function TenantTemplateSection() {
 
     const handleSaved = (savedTemplate: TemplateOption) => {
         upsertSaved(savedTemplate)
-        setIsCreating(false)
-        setEditingTemplate(null)
+        setFormTarget(null)
         toast.success(`Common template "${savedTemplate.title}" was saved.`)
     }
 
     const handleEdit = async (template: TemplateOption) => {
         setBusyUuid(template.uuid)
         try {
-            const detail = await loadDetail(template.uuid)
-            setIsCreating(false)
-            setEditingTemplate({
-                uuid: detail.uuid,
-                title: detail.title,
-                content: detail.content,
-                hasCoverPage: detail.hasCoverPage,
-            })
+            setFormTarget(await loadDetail(template.uuid))
         } catch (editError) {
             toast.error(
                 editError instanceof Error ? editError.message : 'Failed to load the template.',
@@ -53,9 +44,6 @@ export function TenantTemplateSection() {
         })
 
         if (deleted) {
-            if (editingTemplate?.uuid === template.uuid) {
-                setEditingTemplate(null)
-            }
             toast.success(`Tenant-wide template "${template.title}" was deleted.`)
         }
 
@@ -64,27 +52,8 @@ export function TenantTemplateSection() {
 
     const handleExport = async (template: TemplateOption) => {
         setBusyUuid(template.uuid)
-        try {
-            const blob = await exportTemplateAsJson(template.uuid)
-            const fileName = `${template.title}.json`
-            const url = URL.createObjectURL(blob)
-            const link = document.createElement('a')
-            link.href = url
-            link.download = fileName
-            document.body.appendChild(link)
-            link.click()
-            link.remove()
-            URL.revokeObjectURL(url)
-            toast.success('Template JSON download has started.')
-        } catch (exportError) {
-            toast.error(
-                exportError instanceof Error
-                    ? exportError.message
-                    : 'Failed to export the template as JSON.',
-            )
-        } finally {
-            setBusyUuid(null)
-        }
+        await downloadTemplateJson(template)
+        setBusyUuid(null)
     }
 
     if (isLoading) {
@@ -118,10 +87,7 @@ export function TenantTemplateSection() {
                                         type="button"
                                         className="btn btn-outline-secondary btn-sm with-icon"
                                         onClick={() => void handleEdit(template)}
-                                        disabled={
-                                            busyUuid !== null ||
-                                            editingTemplate?.uuid === template.uuid
-                                        }
+                                        disabled={busyUuid !== null}
                                     >
                                         <i className="fas fa-pen" aria-hidden="true" />
                                         Edit
@@ -148,16 +114,6 @@ export function TenantTemplateSection() {
                                     </button>
                                 </div>
                             </div>
-
-                            {editingTemplate?.uuid === template.uuid ? (
-                                <CustomTemplateSection
-                                    key={editingTemplate.uuid}
-                                    scope="tenant"
-                                    editingTemplate={editingTemplate}
-                                    onSaved={handleSaved}
-                                    onCancel={() => setEditingTemplate(null)}
-                                />
-                            ) : null}
                         </li>
                     ))}
                 </ul>
@@ -166,20 +122,18 @@ export function TenantTemplateSection() {
             <button
                 type="button"
                 className="btn btn-primary with-icon"
-                onClick={() => {
-                    setIsCreating(true)
-                    setEditingTemplate(null)
-                }}
+                onClick={() => setFormTarget('new')}
             >
                 <i className="fas fa-plus" aria-hidden="true" />
                 Create tenant-wide template
             </button>
 
-            {isCreating ? (
-                <CustomTemplateSection
+            {formTarget ? (
+                <TemplateFormDialog
                     scope="tenant"
+                    target={formTarget}
                     onSaved={handleSaved}
-                    onCancel={() => setIsCreating(false)}
+                    onClose={() => setFormTarget(null)}
                 />
             ) : null}
         </section>

@@ -35,10 +35,6 @@ export default function ProjectTab({
     const [languagesLoading, setLanguagesLoading] = useState(true)
     const userSelectedLanguage = useRef(false)
 
-    const handleSelectedUuidChange = useCallback((uuid: string) => {
-        setSelectedUuid(uuid)
-    }, [])
-
     const handleLanguageChange = useCallback((nextLanguage: string) => {
         userSelectedLanguage.current = true
         setLanguage(nextLanguage)
@@ -149,8 +145,9 @@ export default function ProjectTab({
                         <div className={styles.root}>
                             <ProjectTemplatePanel
                                 templates={templates}
+                                selectedUuid={selectedUuid}
+                                onSelectedUuidChange={setSelectedUuid}
                                 disabled={history.isStarting}
-                                onSelectedUuidChange={handleSelectedUuidChange}
                                 language={language}
                                 languageOptions={languageOptions}
                                 languagesLoading={languagesLoading}

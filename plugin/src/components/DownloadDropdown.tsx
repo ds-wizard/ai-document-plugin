@@ -3,17 +3,7 @@ import { toast } from 'sonner'
 
 import { exportPipelineResultAsDocx } from '@/client'
 import styles from '@/components/DownloadDropdown.module.css'
-
-const triggerBlobDownload = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-}
+import { triggerBlobDownload } from '@/download'
 
 type DownloadDropdownProps = {
     markdown: string

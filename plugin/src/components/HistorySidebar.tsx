@@ -6,6 +6,7 @@ import {
     useState,
 } from 'react'
 
+import { DeleteRunModal } from '@/components/DeleteRunModal'
 import styles from '@/components/HistorySidebar.module.css'
 import {
     getRunTimeLabel,
@@ -18,6 +19,7 @@ type HistorySidebarProps = {
     history: UseGenerationHistoryResult
     selectedRunId: string | null
     onSelectNew: () => void
+    onDeleteRun: (runId: string) => Promise<void>
     onSelectRun: (runId: string) => void
 }
 
@@ -37,12 +39,14 @@ export function HistorySidebar({
     history,
     selectedRunId,
     onSelectNew,
+    onDeleteRun,
     onSelectRun,
 }: HistorySidebarProps) {
     const { items, isLoading } = history
     const activeItemRef = useRef<HTMLButtonElement | null>(null)
     const listRef = useRef<HTMLDivElement | null>(null)
     const [thumb, setThumb] = useState<ScrollThumb | null>(null)
+    const [runToDelete, setRunToDelete] = useState<RunRecord | null>(null)
 
     // The native scrollbar is hidden (it would sit on the divider), so the
     // overlay thumb below is measured from the list instead.
@@ -175,11 +179,19 @@ export function HistorySidebar({
                             <button
                                 type="button"
                                 className={styles.closeButton}
-                                aria-label="Close tab"
+                                aria-label={
+                                    history.deletingRunIds.has(item.runId)
+                                        ? 'Deleting run'
+                                        : 'Delete run'
+                                }
+                                disabled={history.deletingRunIds.has(item.runId)}
+                                onClick={() => setRunToDelete(item)}
                             >
                                 <i className="fas fa-times" aria-hidden="true" />
                                 <span className={styles.closeTooltip} aria-hidden="true">
-                                    Close tab
+                                    {history.deletingRunIds.has(item.runId)
+                                        ? 'Deleting run…'
+                                        : 'Delete run'}
                                 </span>
                             </button>
                         )}
@@ -197,6 +209,13 @@ export function HistorySidebar({
                     style={{ top: thumb.top, height: thumb.height }}
                     onPointerDown={handleThumbPointerDown}
                     aria-hidden="true"
+                />
+            ) : null}
+            {runToDelete ? (
+                <DeleteRunModal
+                    run={runToDelete}
+                    onDelete={onDeleteRun}
+                    onClose={() => setRunToDelete(null)}
                 />
             ) : null}
         </nav>

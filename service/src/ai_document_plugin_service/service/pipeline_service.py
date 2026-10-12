@@ -2,8 +2,6 @@ import asyncio
 import logging
 import threading
 from asyncio import Task
-from collections.abc import Coroutine
-from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -199,6 +197,16 @@ class PipelineService:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
         return _generation_record_to_status_response(record)
 
+    async def delete_pipeline(self, run_id: UUID, auth: AuthenticatedUser) -> None:
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        if record.status not in {PipelineStatus.SUCCEEDED, PipelineStatus.FAILED, PipelineStatus.CANCELLED}:
+            raise ConflictError(ConflictError.PIPELINE_RUN_NOT_DELETABLE_MESSAGE)
+        deleted = await self.database.delete_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if not deleted:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
     async def list_history(self, questionnaire_uuid: UUID, auth: AuthenticatedUser) -> list[PipelineSummaryResponse]:
         records = await self.database.list_generations(questionnaire_uuid, auth.tenant_uuid, auth.user_uuid)
         return [_generation_record_to_summary_response(record) for record in records]
@@ -289,20 +297,16 @@ class PipelineService:
         config: Config,
     ) -> None:
         try:
-            await self._run_until_cancelled(
+            await self._run_pipeline(
                 run_id,
-                auth,
-                self._run_pipeline(
-                    run_id,
-                    questionnaire_uuid,
-                    template_uuid,
-                    language,
-                    include_cover_page=include_cover_page,
-                    time_zone=time_zone,
-                    project_versions=project_versions,
-                    auth=auth,
-                    config=config,
-                ),
+                questionnaire_uuid,
+                template_uuid,
+                language,
+                include_cover_page=include_cover_page,
+                time_zone=time_zone,
+                project_versions=project_versions,
+                auth=auth,
+                config=config,
             )
         # asyncio.CancelledError inherits BaseException and deliberately bypasses this
         # failure handler: user cancellation must never be persisted as FAILED.
@@ -327,26 +331,6 @@ class PipelineService:
                     'Failed to persist pipeline failure status',
                     extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)},
                 )
-
-    async def _run_until_cancelled(self, run_id: UUID, auth: AuthenticatedUser, job: Coroutine[Any, Any, None]) -> None:
-        task = asyncio.create_task(job)
-        try:
-            while not task.done():
-                # wait() times out without cancelling the job. Once per second we
-                # check the DB because another API process cannot access our local Future.
-                done, _ = await asyncio.wait({task}, timeout=1.0)
-                if done:
-                    break
-                # Also catches cancellation handled by another API worker.
-                record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
-                if record is None or record.status == PipelineStatus.CANCELLED:
-                    task.cancel()
-                    break
-            await task
-        finally:
-            if not task.done():
-                task.cancel()
-                await asyncio.gather(task, return_exceptions=True)
 
     async def _run_pipeline(
         self,

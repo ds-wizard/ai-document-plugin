@@ -129,7 +129,7 @@ export function HistorySidebar({
                             ref={selectedRunId === item.runId ? activeItemRef : null}
                             type="button"
                             onClick={() => onSelectRun(item.runId)}
-                            className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''}`}
+                            className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''} ${item.status !== 'queued' && item.status !== 'running' ? styles.itemWithClose : ''}`}
                         >
                             <span className={styles.statusSlot} aria-hidden="true">
                                 {item.status !== 'queued' && item.status !== 'running' ? (
@@ -171,7 +171,18 @@ export function HistorySidebar({
                                         : 'Stop pipeline'}
                                 </span>
                             </button>
-                        ) : null}
+                        ) : (
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                aria-label="Close tab"
+                            >
+                                <i className="fas fa-times" aria-hidden="true" />
+                                <span className={styles.closeTooltip} aria-hidden="true">
+                                    Close tab
+                                </span>
+                            </button>
+                        )}
                     </div>
                 ))}
 

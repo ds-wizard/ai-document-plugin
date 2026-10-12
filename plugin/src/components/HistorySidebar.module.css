@@ -184,59 +184,59 @@
     padding-right: 2.6rem;
 }
 
-.closeButton {
+.closeButton,
+.stopButton {
     position: absolute;
-    top: 0.35rem;
-    right: 0.5rem;
     z-index: 2;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
     padding: 0;
     border: 0;
-    border-radius: var(--bs-border-radius);
     background: transparent;
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.75rem;
     cursor: pointer;
 }
 
-.closeButton:hover,
-.closeButton:focus-visible {
+.closeButton {
+    top: 0.35rem;
+    right: 0.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--bs-border-radius);
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.75rem;
+}
+
+.stopButton {
+    top: 50%;
+    left: 0.45rem;
+    transform: translateY(-50%);
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    color: var(--bs-primary);
+}
+
+:is(.closeButton, .stopButton):is(:hover, :focus-visible) {
     background: var(--ai-doc-color-slate-100);
+}
+
+.closeButton:is(:hover, :focus-visible) {
     color: var(--ai-doc-color-slate-950);
 }
 
-.closeButton:focus-visible {
+.stopButton:is(:hover, :focus-visible) {
+    color: var(--ai-doc-color-red-700);
+}
+
+:is(.closeButton, .stopButton):focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 2px;
 }
 
-.stopButton {
-    position: absolute;
-    top: 50%;
-    left: 0.45rem;
-    transform: translateY(-50%);
-    z-index: 2;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--bs-primary);
-    cursor: pointer;
-}
-
-.stopButton:hover,
-.stopButton:focus-visible {
-    background: var(--ai-doc-color-slate-100);
-    color: var(--ai-doc-color-red-700);
+:is(.closeButton, .stopButton):disabled {
+    cursor: wait;
+    opacity: 0.5;
 }
 
 .stopRing {
@@ -268,11 +268,6 @@
     }
 }
 
-.stopButton:focus-visible {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
-}
-
 .stopTooltip,
 .closeTooltip {
     position: absolute;
@@ -295,10 +290,7 @@
     right: calc(100% + 0.4rem);
 }
 
-.stopButton:hover .stopTooltip,
-.stopButton:focus-visible .stopTooltip,
-.closeButton:hover .closeTooltip,
-.closeButton:focus-visible .closeTooltip {
+:is(.stopButton, .closeButton):is(:hover, :focus-visible) :is(.stopTooltip, .closeTooltip) {
     visibility: visible;
 }
 
@@ -362,11 +354,6 @@
     color: var(--ai-doc-color-slate-500);
 }
 
-.statusIcon.queued,
-.statusIcon.running {
-    color: var(--bs-primary);
-}
-
 .statusIcon.succeeded {
     color: var(--ai-doc-color-emerald-700);
 }
@@ -379,9 +366,4 @@
     padding: 0.5rem 0.7rem;
     color: var(--ai-doc-color-slate-500);
     font-size: 0.85rem;
-}
-
-.stopButton:disabled {
-    cursor: wait;
-    opacity: 0.5;
 }

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { cancelPipeline, getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
+import {
+    cancelPipeline,
+    deletePipeline,
+    getPipelineHistory,
+    getPipelineStatus,
+    runPipeline,
+} from '@/client'
 import { pollRunStatus } from '@/runPoller'
 import type { PipelineErrorResponse, PipelineStatusResponse, PipelineSummaryItem } from '@/types'
 
@@ -45,6 +51,8 @@ export type UseGenerationHistoryResult = {
     items: RunRecord[]
     isLoading: boolean
     isStarting: boolean
+    deletingRunIds: ReadonlySet<string>
+    deleteRun: (runId: string) => Promise<boolean>
     cancellingRunIds: ReadonlySet<string>
     cancelRun: (runId: string) => Promise<void>
     // returns a reference to a generation run.
@@ -86,6 +94,10 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     // immediately, including clicks before React has rendered the new state.
     const [cancellingRunIds, setCancellingRunIds] = useState<Set<string>>(new Set())
     const cancellingRef = useRef(new Set<string>())
+    const [deletingRunIds, setDeletingRunIds] = useState<Set<string>>(new Set())
+    const deletingRef = useRef(new Set<string>())
+    // Ignore requests started before a successful deletion (history, detail, or polling).
+    const deletedRunIdsRef = useRef(new Set<string>())
 
     // Mirrors `runs` synchronously so callbacks (applyStatus, getRun, startRun) can
     // read/merge the latest state without waiting on React's async setState.
@@ -93,6 +105,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     const pollersRef = useRef<Map<string, () => void>>(new Map())
 
     const setRunRecord = useCallback((record: RunRecord) => {
+        if (deletedRunIdsRef.current.has(record.runId)) return
         runsRef.current = { ...runsRef.current, [record.runId]: record }
         setRuns(runsRef.current)
     }, [])
@@ -159,6 +172,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
 
                 const nextRuns: Record<string, RunRecord> = {}
                 for (const item of items) {
+                    if (deletedRunIdsRef.current.has(item.runId)) continue
                     nextRuns[item.runId] = summaryToRunRecord(item)
                 }
                 runsRef.current = nextRuns
@@ -255,6 +269,32 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         [applyStatus, beginPolling],
     )
 
+    const deleteRun = useCallback(async (runId: string): Promise<boolean> => {
+        const run = runsRef.current[runId]
+        if (!run || !isSettled(run.status) || deletingRef.current.has(runId)) return false
+        deletingRef.current.add(runId)
+        setDeletingRunIds(new Set(deletingRef.current))
+        try {
+            await deletePipeline(runId)
+            deletedRunIdsRef.current.add(runId)
+            pollersRef.current.get(runId)?.()
+            pollersRef.current.delete(runId)
+            const nextRuns = { ...runsRef.current }
+            delete nextRuns[runId]
+            runsRef.current = nextRuns
+            setRuns(nextRuns)
+            return true
+        } catch (error) {
+            toast.error(
+                error instanceof Error ? error.message : 'Failed to delete the pipeline run.',
+            )
+            return false
+        } finally {
+            deletingRef.current.delete(runId)
+            setDeletingRunIds(new Set(deletingRef.current))
+        }
+    }, [])
+
     const ensureDetailLoaded = useCallback(
         (runId: string) => {
             if (runsRef.current[runId]?.hasDetail) {
@@ -266,6 +306,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                     const status = await getPipelineStatus(runId)
                     applyStatus(status)
                 } catch (error) {
+                    if (deletedRunIdsRef.current.has(runId)) return
                     toast.error(
                         error instanceof Error
                             ? error.message
@@ -281,6 +322,8 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         items: Object.values(runs).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         isLoading,
         isStarting,
+        deletingRunIds,
+        deleteRun,
         cancellingRunIds,
         cancelRun,
         getRun,

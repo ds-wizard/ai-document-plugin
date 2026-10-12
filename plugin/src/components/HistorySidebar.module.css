@@ -180,6 +180,40 @@
     flex-shrink: 0;
 }
 
+.itemWithClose {
+    padding-right: 2.6rem;
+}
+
+.closeButton {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--bs-border-radius);
+    background: transparent;
+    color: var(--ai-doc-color-slate-500);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.closeButton:hover,
+.closeButton:focus-visible {
+    background: var(--ai-doc-color-slate-100);
+    color: var(--ai-doc-color-slate-950);
+}
+
+.closeButton:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
 .stopButton {
     position: absolute;
     top: 50%;
@@ -239,7 +273,8 @@
     outline-offset: 2px;
 }
 
-.stopTooltip {
+.stopTooltip,
+.closeTooltip {
     position: absolute;
     left: calc(100% + 0.4rem);
     top: 50%;
@@ -255,8 +290,15 @@
     visibility: hidden;
 }
 
+.closeTooltip {
+    left: auto;
+    right: calc(100% + 0.4rem);
+}
+
 .stopButton:hover .stopTooltip,
-.stopButton:focus-visible .stopTooltip {
+.stopButton:focus-visible .stopTooltip,
+.closeButton:hover .closeTooltip,
+.closeButton:focus-visible .closeTooltip {
     visibility: visible;
 }
 

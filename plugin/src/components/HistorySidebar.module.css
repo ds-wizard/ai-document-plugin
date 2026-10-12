@@ -167,6 +167,99 @@
     display: none;
 }
 
+.itemRow {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.statusSlot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    flex-shrink: 0;
+}
+
+.stopButton {
+    position: absolute;
+    top: 50%;
+    left: 0.45rem;
+    transform: translateY(-50%);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--bs-primary);
+    cursor: pointer;
+}
+
+.stopButton:hover,
+.stopButton:focus-visible {
+    background: var(--ai-doc-color-slate-100);
+    color: var(--ai-doc-color-red-700);
+}
+
+.stopRing {
+    position: absolute;
+    width: 1.2rem;
+    height: 1.2rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: stopRingSpin 900ms linear infinite;
+}
+
+.stopSquare {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+@keyframes stopRingSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stopRing {
+        animation: none;
+    }
+}
+
+.stopButton:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.stopTooltip {
+    position: absolute;
+    left: calc(100% + 0.4rem);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--bs-border-radius);
+    background: var(--ai-doc-color-slate-950);
+    color: var(--ai-doc-color-white);
+    font-size: 0.75rem;
+    font-weight: 400;
+    white-space: nowrap;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.stopButton:hover .stopTooltip,
+.stopButton:focus-visible .stopTooltip {
+    visibility: visible;
+}
+
 /*
  * Overlay scrollbar replacing the hidden native one. It sits in the sidebar's
  * left gutter rather than on the right, where it would land on the divider and

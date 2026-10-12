@@ -26,6 +26,7 @@ const STATUS_ICON: Record<RunRecord['status'], string> = {
     running: 'fas fa-spinner fa-spin',
     succeeded: 'fas fa-check-circle',
     failed: 'fas fa-exclamation-circle',
+    cancelled: 'fas fa-ban',
 }
 
 const MIN_THUMB_HEIGHT = 24
@@ -141,7 +142,10 @@ export function HistorySidebar({
                                 <span className={styles.itemTitle} title={item.templateTitle}>
                                     {item.templateTitle}
                                 </span>
-                                <span className={styles.itemVersion} title={getRunVersionLabel(item)}>
+                                <span
+                                    className={styles.itemVersion}
+                                    title={getRunVersionLabel(item)}
+                                >
                                     {getRunVersionLabel(item)}
                                 </span>
                                 <span className={styles.itemTime}>{getRunTimeLabel(item)}</span>
@@ -151,12 +155,20 @@ export function HistorySidebar({
                             <button
                                 type="button"
                                 className={styles.stopButton}
-                                aria-label="Stop pipeline"
+                                aria-label={
+                                    history.cancellingRunIds.has(item.runId)
+                                        ? 'Stopping pipeline'
+                                        : 'Stop pipeline'
+                                }
+                                disabled={history.cancellingRunIds.has(item.runId)}
+                                onClick={() => void history.cancelRun(item.runId)}
                             >
                                 <span className={styles.stopRing} aria-hidden="true" />
                                 <span className={styles.stopSquare} aria-hidden="true" />
                                 <span className={styles.stopTooltip} aria-hidden="true">
-                                    Stop pipeline
+                                    {history.cancellingRunIds.has(item.runId)
+                                        ? 'Stopping pipeline…'
+                                        : 'Stop pipeline'}
                                 </span>
                             </button>
                         ) : null}

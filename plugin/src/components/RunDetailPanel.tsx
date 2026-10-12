@@ -62,6 +62,18 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
         )
     }
 
+    if (run.status === 'cancelled') {
+        return (
+            <div className={styles.root}>
+                {heading}
+                <div className={styles.progress}>
+                    <i className="fas fa-ban" aria-hidden="true" />
+                    Pipeline cancelled.
+                </div>
+            </div>
+        )
+    }
+
     if (run.status === 'failed') {
         return (
             <div className={styles.root}>

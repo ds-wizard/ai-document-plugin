@@ -123,28 +123,44 @@ export function HistorySidebar({
 
             <div className={styles.list} role="list" ref={listRef} onScroll={updateThumb}>
                 {items.map((item) => (
-                    <button
-                        key={item.runId}
-                        ref={selectedRunId === item.runId ? activeItemRef : null}
-                        type="button"
-                        role="listitem"
-                        onClick={() => onSelectRun(item.runId)}
-                        className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''}`}
-                    >
-                        <i
-                            className={`${STATUS_ICON[item.status]} ${styles.statusIcon} ${styles[item.status]}`}
-                            aria-hidden="true"
-                        />
-                        <span className={styles.itemBody}>
-                            <span className={styles.itemTitle} title={item.templateTitle}>
-                                {item.templateTitle}
+                    <div key={item.runId} role="listitem" className={styles.itemRow}>
+                        <button
+                            ref={selectedRunId === item.runId ? activeItemRef : null}
+                            type="button"
+                            onClick={() => onSelectRun(item.runId)}
+                            className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''}`}
+                        >
+                            <span className={styles.statusSlot} aria-hidden="true">
+                                {item.status !== 'queued' && item.status !== 'running' ? (
+                                    <i
+                                        className={`${STATUS_ICON[item.status]} ${styles.statusIcon} ${styles[item.status]}`}
+                                    />
+                                ) : null}
                             </span>
-                            <span className={styles.itemVersion} title={getRunVersionLabel(item)}>
-                                {getRunVersionLabel(item)}
+                            <span className={styles.itemBody}>
+                                <span className={styles.itemTitle} title={item.templateTitle}>
+                                    {item.templateTitle}
+                                </span>
+                                <span className={styles.itemVersion} title={getRunVersionLabel(item)}>
+                                    {getRunVersionLabel(item)}
+                                </span>
+                                <span className={styles.itemTime}>{getRunTimeLabel(item)}</span>
                             </span>
-                            <span className={styles.itemTime}>{getRunTimeLabel(item)}</span>
-                        </span>
-                    </button>
+                        </button>
+                        {item.status === 'queued' || item.status === 'running' ? (
+                            <button
+                                type="button"
+                                className={styles.stopButton}
+                                aria-label="Stop pipeline"
+                            >
+                                <span className={styles.stopRing} aria-hidden="true" />
+                                <span className={styles.stopSquare} aria-hidden="true" />
+                                <span className={styles.stopTooltip} aria-hidden="true">
+                                    Stop pipeline
+                                </span>
+                            </button>
+                        ) : null}
+                    </div>
                 ))}
 
                 {items.length === 0 && !isLoading ? (

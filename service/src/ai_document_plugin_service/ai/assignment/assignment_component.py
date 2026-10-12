@@ -18,9 +18,6 @@ from ai_document_plugin_service.ai.assignment.question_tree import (
 from ai_document_plugin_service.ai.assignment.section_tree import (
     build_section_records,
 )
-from ai_document_plugin_service.ai.assignment.sections.llm import (
-    OpenAISectionIdGenerator,
-)
 from ai_document_plugin_service.ai.assignment.sections.sections_formatter import (
     SectionFormatter,
 )
@@ -49,7 +46,6 @@ class AssignmentComponent:
     def __init__(self, llm_client: LLMClient, config: Config) -> None:
         self.llm_client = llm_client
         self.config = config
-        self.section_id_generator = OpenAISectionIdGenerator(llm_client, config)
         self.section_matcher = OpenAILayerMatcher(self.llm_client, self.config)
 
     @staticmethod
@@ -92,7 +88,6 @@ class AssignmentComponent:
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
-        await section_formatter.create_mappings(self.section_id_generator, stats)
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping: dict[str, list[UUID]] = {}

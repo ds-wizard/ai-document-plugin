@@ -20,30 +20,9 @@ assignment:
     { "1": ["A", "B"], "2": ["C"], "3": [], ... }
 
 
-section_id:
-  max_tokens: 256
-  temperature: 0.5
-  # Optional: generate short meaningful IDs for leaf sections (one LLM call per section). Placeholders: {existing_ids}, {section_title}, {section_content}.
-  system_message: |
-    Assign short, unique, meaningful IDs to DMP sections (e.g. contrib, data-desc, roles). Reply with only the ID, nothing else. Use 2-12 characters, alphanumeric and hyphens/underscores only.
-
-    Make sure it is a good fit for the specific section, not only a DMP in general.
-    For example, section about Data description should not contain project contributors, even though they should be in the DMP, just not in this specific section.
-    On the other hand, sections such as Roles and Responsibilities should contain questions about the contributors, but shouldn't contain questions about data formats for example.
-
-  user_message: |
-    Already assigned section IDs (do not reuse): {existing_ids}
-
-    Assign a short meaningful ID for this section. Below is the full context: parent section(s) with their content, then the most specific section.
-    Full path / title: {section_title}
-
-    Section context (parent sections and this section):
-    {section_content}
-
 dmp_generation:
   max_tokens: 2048
   temperature: 0.8
-  # Optional: generate short meaningful IDs for leaf sections (one LLM call per section). Placeholders: {existing_ids}, {section_title}, {section_content}.
   system_message: |
     You are a data management plan writer. Rewrite the following questions and answers into ONE SECTION with NO subsections of a DMP. 
     Do not add any information not explicitly stated in the answers! You do not have to include all questions and answers, you may omit information that clearly does not fit into the section. 
@@ -61,7 +40,6 @@ cover_page_generation:
 dmp_polishing:
   max_tokens: 16384
   temperature: 0.3
-  # Optional: generate short meaningful IDs for leaf sections (one LLM call per section). Placeholders: {existing_ids}, {section_title}, {section_content}.
   system_message: |
     You are a data management plan editor. Your task is to polish and reorganize a DMP document. Output a valid Markdown file. 
 

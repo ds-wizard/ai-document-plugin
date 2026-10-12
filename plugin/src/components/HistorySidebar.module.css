@@ -338,3 +338,8 @@
     color: var(--ai-doc-color-slate-500);
     font-size: 0.85rem;
 }
+
+.stopButton:disabled {
+    cursor: wait;
+    opacity: 0.5;
+}

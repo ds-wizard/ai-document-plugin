@@ -191,6 +191,21 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
     return data
 }
 
+export const cancelPipeline = async (runId: string): Promise<PipelineStatusResponse> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/cancel`
+    const response = await apiFetch(url, { method: 'POST' })
+    const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to cancel pipeline.',
+        )
+    }
+    if (!isPipelineStatusResponse(data)) {
+        throw new Error('Invalid pipeline status returned.')
+    }
+    return data
+}
+
 export const getPipelineHistory = async (
     questionnaireUuid: string,
 ): Promise<PipelineSummaryItem[]> => {

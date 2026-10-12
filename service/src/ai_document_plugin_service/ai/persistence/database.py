@@ -248,13 +248,14 @@ class Database(ABC):
         self,
         run_id: UUID,
         tenant_uuid: UUID,
+        expected_statuses: tuple[str, ...] | None = None,
         **updates: Unpack[GenerationUpdate],
     ) -> GenerationRecord | None:
         """Partially update a generation row and return the updated record.
 
         Only the fields passed in ``updates`` are changed; any nullable field may be
         set to ``None`` to clear it. Returns ``None`` if no row matches
-        ``run_id``/``tenant_uuid``.
+        ``run_id``/``tenant_uuid`` or its status is outside ``expected_statuses``.
         """
 
     @abstractmethod
@@ -742,6 +743,7 @@ class PostgresDB(Database):
         self,
         run_id: UUID,
         tenant_uuid: UUID,
+        expected_statuses: tuple[str, ...] | None = None,
         **updates: Unpack[GenerationUpdate],
     ) -> GenerationRecord | None:
         await self._ensure_schema()
@@ -758,6 +760,9 @@ class PostgresDB(Database):
             .values(**updates, updated_at=now)
             .returning(*self._generation_record_columns())
         )
+
+        if expected_statuses is not None:
+            statement = statement.where(self.generation_table.c.status.in_(expected_statuses))
 
         async with self._connect() as connection:
             result = await connection.execute(statement)

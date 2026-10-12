@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
+import { cancelPipeline, getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
 import { pollRunStatus } from '@/runPoller'
 import type { PipelineErrorResponse, PipelineStatusResponse, PipelineSummaryItem } from '@/types'
 
@@ -45,6 +45,8 @@ export type UseGenerationHistoryResult = {
     items: RunRecord[]
     isLoading: boolean
     isStarting: boolean
+    cancellingRunIds: ReadonlySet<string>
+    cancelRun: (runId: string) => Promise<void>
     // returns a reference to a generation run.
     // This helps with handling live updates from the pollers without need to do subscribe logic
     getRun: (runId: string) => RunRecord | undefined
@@ -66,7 +68,8 @@ const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
     hasDetail: false,
 })
 
-const isSettled = (status: RunStatusValue): boolean => status === 'succeeded' || status === 'failed'
+const isSettled = (status: RunStatusValue): boolean =>
+    status === 'succeeded' || status === 'failed' || status === 'cancelled'
 
 /**
  * Owns every run belonging to the project: the initial history load, starting new
@@ -79,6 +82,10 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     const [runs, setRuns] = useState<Record<string, RunRecord>>({})
     const [isLoading, setIsLoading] = useState(false)
     const [isStarting, setIsStarting] = useState(false)
+    // State redraws the pending Stop buttons; the ref blocks duplicate requests
+    // immediately, including clicks before React has rendered the new state.
+    const [cancellingRunIds, setCancellingRunIds] = useState<Set<string>>(new Set())
+    const cancellingRef = useRef(new Set<string>())
 
     // Mirrors `runs` synchronously so callbacks (applyStatus, getRun, startRun) can
     // read/merge the latest state without waiting on React's async setState.
@@ -220,6 +227,34 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         [project, applyStatus, beginPolling],
     )
 
+    const cancelRun = useCallback(
+        async (runId: string): Promise<void> => {
+            if (cancellingRef.current.has(runId)) return
+            cancellingRef.current.add(runId)
+            setCancellingRunIds(new Set(cancellingRef.current))
+            const originalRun = runsRef.current[runId]
+            try {
+                // Keep the current status/poller until the server confirms the outcome.
+                // The run may finish successfully while cancellation is being requested.
+                const status = await cancelPipeline(runId)
+                // Do not add the run back if it has left the current project's history.
+                if (!originalRun || !runsRef.current[runId]) return
+                // stop() also ignores an in-flight poll response, so stale "running"
+                // data cannot overwrite the cancellation response we apply below.
+                pollersRef.current.get(runId)?.()
+                pollersRef.current.delete(runId)
+                applyStatus(status)
+                if (!isSettled(status.status)) beginPolling(runId)
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Failed to cancel pipeline.')
+            } finally {
+                cancellingRef.current.delete(runId)
+                setCancellingRunIds(new Set(cancellingRef.current))
+            }
+        },
+        [applyStatus, beginPolling],
+    )
+
     const ensureDetailLoaded = useCallback(
         (runId: string) => {
             if (runsRef.current[runId]?.hasDetail) {
@@ -246,6 +281,8 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         items: Object.values(runs).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         isLoading,
         isStarting,
+        cancellingRunIds,
+        cancelRun,
         getRun,
         startRun,
         ensureDetailLoaded,

@@ -1,58 +1,14 @@
 import asyncio
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
-from contextlib import asynccontextmanager
-from contextvars import Context, ContextVar
 from typing import Any
 from uuid import UUID
 
 from ai_document_plugin_service.ai.common.trace_context import trace_context
 
 logger = logging.getLogger(__name__)
-
-# Each run installs its own set. Child tasks inherit the context and share that
-# same set, allowing us to track descendants without touching other runs.
-_JOB_TASKS: ContextVar[set[asyncio.Task[Any]] | None] = ContextVar('pipeline_job_tasks', default=None)
-
-
-def _job_task_factory(
-    loop: asyncio.AbstractEventLoop,
-    coro: Coroutine[Any, Any, Any],
-    **kwargs: Any,  # ruff: ignore[any-type] - forward asyncio task-factory arguments across Python versions
-) -> asyncio.Task[Any]:
-    task = asyncio.Task(coro, loop=loop, **kwargs)
-    # Respect an explicitly supplied task context as well as the default inherited one.
-    context: Context | None = kwargs.get('context')
-    tasks = context.get(_JOB_TASKS) if context is not None else _JOB_TASKS.get()
-    if tasks is not None:
-        tasks.add(task)
-        task.add_done_callback(tasks.discard)
-    return task
-
-
-@asynccontextmanager
-async def _job_tasks() -> AsyncIterator[None]:
-    tasks: set[asyncio.Task[Any]] = set()
-    token = _JOB_TASKS.set(tasks)
-    try:
-        yield
-    finally:
-        # Haystack and section generation spawn tasks which can outlive their parent.
-        # Cancel only this run's descendants, then release its concurrency slot.
-        try:
-            while tasks:
-                # Use a snapshot: done callbacks remove tasks from the shared set,
-                # and a task's cleanup may spawn descendants that need another pass.
-                pending = list(tasks)
-                for task in pending:
-                    task.cancel()
-                await asyncio.gather(*pending, return_exceptions=True)
-                tasks.difference_update(pending)
-        finally:
-            _JOB_TASKS.reset(token)
-
 
 JobFactory = Callable[[], Coroutine[Any, Any, None]]
 
@@ -93,7 +49,6 @@ class PipelineQueueManager:
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
-        self._loop.set_task_factory(_job_task_factory)
         self._loop.run_forever()
 
     def enqueue(self, run_id: UUID, job: JobFactory, *, trace_id: UUID | None = None) -> None:
@@ -145,9 +100,7 @@ class PipelineQueueManager:
     async def _run_job(self, run_id: UUID, job: JobFactory, trace_id: UUID | None) -> None:
         with trace_context(trace_id):
             try:
-                # Context managers exit in reverse order: stop descendants before
-                # releasing the semaphore slot to the next waiting run.
-                async with self._semaphore, _job_tasks():
+                async with self._semaphore:
                     logger.info('Starting queued pipeline job', extra={'run_id': run_id})
                     await job()
             finally:

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from haystack import Pipeline
 from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
@@ -20,7 +21,6 @@ from ai_document_plugin_service.ai.common import (
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.cancellable_pipeline import CancellableAsyncPipeline
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
@@ -81,8 +81,8 @@ def _collect_cover_page_dependencies(
 
 def build_pipeline(
     database: Database, saver: DBSaver, config: Config, llm_client: LLMClient, language: str
-) -> CancellableAsyncPipeline:
-    pipeline = CancellableAsyncPipeline()
+) -> Pipeline:
+    pipeline = Pipeline()
     cover_page = _collect_cover_page_dependencies(config)
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
@@ -157,7 +157,7 @@ async def run_pipeline(
     template_title: str,
     template_data: Mapping[str, object],
     tenant_uuid: UUID,
-    pipeline: CancellableAsyncPipeline,
+    pipeline: Pipeline,
     dsw_client: DSWClient,
     *,
     include_cover_page: bool = False,

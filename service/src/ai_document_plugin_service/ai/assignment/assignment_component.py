@@ -22,7 +22,6 @@ from ai_document_plugin_service.ai.assignment.sections.sections_formatter import
     SectionFormatter,
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment
-from ai_document_plugin_service.ai.common.async_tasks import cancel_and_wait
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.progress import progress_percent
@@ -111,14 +110,11 @@ class AssignmentComponent:
                 )
             return result
 
-        tasks = [asyncio.create_task(match_chunk(chunk)) for chunk in question_chunks]
-        try:
-            chunk_results = await asyncio.gather(*tasks, return_exceptions=True)
-        finally:
-            # gather propagates the first error without stopping siblings. Drain them
-            # on errors and cancellation before the component releases its resources.
-            await cancel_and_wait(tasks)
-        for question_to_section_ids in chunk_results:
+        # TaskGroup cancels unfinished chunks on failure/cancellation and awaits their cleanup.
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(match_chunk(chunk)) for chunk in question_chunks]
+        for task in tasks:
+            question_to_section_ids = task.result()
             self._add_chunk_mapping_to_result(
                 result_mapping=result_mapping,
                 question_to_section_ids=question_to_section_ids,

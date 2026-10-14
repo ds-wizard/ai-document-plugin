@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from haystack import AsyncPipeline, component
+from haystack import Pipeline, component
 from haystack.core.component import Component
 
 from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
@@ -33,8 +33,8 @@ class _Failing:
         raise NotImplementedError
 
 
-def _pipeline(instance: Component) -> AsyncPipeline:
-    pipeline = AsyncPipeline()
+def _pipeline(instance: Component) -> Pipeline:
+    pipeline = Pipeline()
     pipeline.add_component('step', instance)
     return pipeline
 

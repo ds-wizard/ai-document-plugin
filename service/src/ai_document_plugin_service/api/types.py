@@ -66,6 +66,7 @@ class PipelineStatus(StrEnum):
     RUNNING = 'running'
     SUCCEEDED = 'succeeded'
     FAILED = 'failed'
+    CANCELLED = 'cancelled'
 
 
 class TemplateScope(StrEnum):

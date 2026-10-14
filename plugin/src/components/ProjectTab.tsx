@@ -144,6 +144,12 @@ export default function ProjectTab({
                     selectedRunId={selectedRunId}
                     onSelectNew={() => setSelectedRunId(null)}
                     onSelectRun={setSelectedRunId}
+                    onDeleteRun={async (runId) => {
+                        if (await history.deleteRun(runId)) {
+                            // Preserve any other tab the user selected while deletion was pending.
+                            setSelectedRunId((current) => (current === runId ? null : current))
+                        }
+                    }}
                 />
 
                 <div className={styles.main}>

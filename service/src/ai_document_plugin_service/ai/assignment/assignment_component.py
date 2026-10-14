@@ -113,7 +113,7 @@ class AssignmentComponent:
 
         tasks = [asyncio.create_task(match_chunk(chunk)) for chunk in question_chunks]
         try:
-            chunk_results = await asyncio.gather(*tasks)
+            chunk_results = await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             # gather propagates the first error without stopping siblings. Drain them
             # on errors and cancellation before the component releases its resources.

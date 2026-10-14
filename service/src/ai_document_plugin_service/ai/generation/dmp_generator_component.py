@@ -12,7 +12,6 @@ import pandas as pd
 from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
-from ai_document_plugin_service.ai.common.async_tasks import cancel_and_wait
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
@@ -196,28 +195,29 @@ class DmpGeneratorComponent:
             extra={'leaf_section_count': total_sections, 'max_workers': max_workers},
         )
         section_semaphore = asyncio.Semaphore(max_workers)
-        tasks = [
-            asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
-        ]
         try:
-            for i, task in enumerate(asyncio.as_completed(tasks), start=1):
-                await task
-                logger.info(
-                    'Generating sections progress',
-                    extra={
-                        'completed_sections': i,
-                        'total_sections': total_sections,
-                        'progress_percent': progress_percent(i, total_sections),
-                        'max_workers': max_workers,
-                    },
-                )
-                if on_progress is not None:
-                    on_progress(
-                        f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
+            # The group owns section jobs; as_completed only reports their progress.
+            async with asyncio.TaskGroup() as group:
+                tasks = [
+                    group.create_task(self._execute_leaf_section(section, section_semaphore))
+                    for section in leaf_sections
+                ]
+                for i, task in enumerate(asyncio.as_completed(tasks), start=1):
+                    await task
+                    logger.info(
+                        'Generating sections progress',
+                        extra={
+                            'completed_sections': i,
+                            'total_sections': total_sections,
+                            'progress_percent': progress_percent(i, total_sections),
+                            'max_workers': max_workers,
+                        },
                     )
+                    if on_progress is not None:
+                        on_progress(
+                            f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
+                        )
         finally:
-            # These are our section jobs, not tasks created internally by LLM/DB clients.
-            await cancel_and_wait(tasks)
             # Sections waiting for a slot may never have awaited their prepared coroutine.
             for section in leaf_sections:
                 if section.leaf_coro is not None:

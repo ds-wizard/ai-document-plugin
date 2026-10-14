@@ -24,12 +24,12 @@ export default function (_settingsInput: unknown, _userSettingsInput: unknown): 
     )
         .addProjectTab(
             'fas fa-robot', // font-awesome tab icon
-            'AI Document', // tab name
-            'ai-document', // tab URL
-            'x-ai-document-project-tab', // web component name
+            'AI Document - local', // tab name
+            'ai-document-local', // tab URL
+            'x-ai-document-project-local-tab', // web component name
             ProjectTab, // React component with plugin functionality
         )
-        .addSettings('x-ai-document-settings', Settings)
+        .addSettings('x-ai-document-local-settings', Settings)
         .createPlugin()
 
     return plugin

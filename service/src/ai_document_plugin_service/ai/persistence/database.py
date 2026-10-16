@@ -32,6 +32,17 @@ _active_connection: ContextVar[AsyncConnection | None] = ContextVar('active_conn
 
 
 @dataclass(frozen=True)
+class SectionAssignmentsContainer:
+    assignments: list[SerializedSectionAssignment]
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Row) -> 'SectionAssignmentsContainer':
+        return cls(assignments=row.assignments, created_at=row.created_at, updated_at=row.updated_at)
+
+
+@dataclass(frozen=True)
 class TemplateRecord:
     """A raw template row. Carries the owner so callers can apply access rules."""
 
@@ -208,8 +219,12 @@ class Database(ABC):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> list[SerializedSectionAssignment] | None:
+    ) -> SectionAssignmentsContainer | None:
         """Get assignments from a database backend."""
+
+    @abstractmethod
+    async def get_template_updated_at(self, template_uuid: UUID) -> datetime | None:
+        """Get the update timestamp of a live template for assignment routing."""
 
     @abstractmethod
     async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
@@ -427,6 +442,7 @@ class PostgresDB(Database):
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
+            updated_at=created_at_value,
             assignments=assignments,
             stats=stats,
             template_uuid=template_uuid,
@@ -437,7 +453,7 @@ class PostgresDB(Database):
                 self.assignment_table.c.template_uuid,
             ],
             set_={
-                'created_at': statement.excluded.created_at,
+                'updated_at': datetime.now(tz=UTC),
                 'assignments': statement.excluded.assignments,
             },
         )
@@ -524,25 +540,12 @@ class PostgresDB(Database):
                 title=title,
                 content=content,
                 cover_page_version=cover_page_version,
+                updated_at=datetime.now(tz=UTC),
             )
         )
 
         try:
             async with self._connect() as connection:
-                await connection.execute(
-                    self.assignment_table.delete().where(
-                        self.assignment_table.c.template_uuid.in_(
-                            self.template_table.select()
-                            .with_only_columns(self.template_table.c.uuid)
-                            .where(
-                                self.template_table.c.uuid == template_uuid,
-                                self.template_table.c.tenant_uuid == tenant_uuid,
-                                self.template_table.c.deleted_at.is_(None),
-                                self.template_table.c.cover_page_version.is_distinct_from(cover_page_version),
-                            ),
-                        ),
-                    ),
-                )
                 result = await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -592,6 +595,7 @@ class PostgresDB(Database):
             set_={
                 'title': statement.excluded.title,
                 'content': statement.excluded.content,
+                'updated_at': datetime.now(tz=UTC),
             },
         )
 
@@ -612,7 +616,7 @@ class PostgresDB(Database):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> list[SerializedSectionAssignment] | None:
+    ) -> SectionAssignmentsContainer | None:
         await self._ensure_schema()
 
         statement = self.assignment_table.select().where(
@@ -641,7 +645,17 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-        return row.assignments
+        return SectionAssignmentsContainer.from_row(row)
+
+    async def get_template_updated_at(self, template_uuid: UUID) -> datetime | None:
+        await self._ensure_schema()
+        statement = select(self.template_table.c.updated_at).where(
+            self.template_table.c.uuid == template_uuid,
+            self.template_table.c.deleted_at.is_(None),
+        )
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            return result.scalar_one_or_none()
 
     def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""

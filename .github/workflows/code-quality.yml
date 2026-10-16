@@ -1,7 +1,8 @@
 name: Code Quality
 
 on:
-  push:
+  pull_request:
+  merge_group:
 
 env:
   NODE_VERSION: '24'

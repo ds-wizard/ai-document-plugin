@@ -104,13 +104,13 @@ def build_pipeline(
     # ROUTES
     routes: list[Route] = [
         {
-            'condition': '{{ not found }}',
+            'condition': '{{ not found or not up_to_date }}',
             'output': '{{ found }}',
             'output_name': 'missing_assignment',
             'output_type': bool,
         },
         {
-            'condition': '{{ found }}',
+            'condition': '{{ found and up_to_date }}',
             'output': '{{ assignments }}',
             'output_name': 'retrieved_assignment',
             'output_type': list[SerializedSectionAssignment],
@@ -132,6 +132,7 @@ def build_pipeline(
     # loader_component -> router
     pipeline.connect('loader_component.assignments', 'router.assignments')
     pipeline.connect('loader_component.found', 'router.found')
+    pipeline.connect('loader_component.up_to_date', 'router.up_to_date')
     # no assignments saved -> continue to parser_component
     pipeline.connect('router.missing_assignment', 'parser_component.trigger')
     # assignments already done -> continue to dmp_generator_component

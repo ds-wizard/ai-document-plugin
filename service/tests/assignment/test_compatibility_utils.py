@@ -1,3 +1,4 @@
+from ai_document_plugin_service.ai.common.types import TemplateContent, TemplateSection
 import json
 import os
 import uuid
@@ -9,7 +10,7 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     expand_assignment_paths,
 )
 from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionNode, SectionRecord
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
 
 
 def _km_fixture() -> dict:
@@ -67,7 +68,7 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
             {"title": "Methods", "content": "Section methods"},
         ]
     }
-    sections = build_section_records(template_data)
+    sections = build_section_records(TemplateContent.model_validate(template_data))
     data_id = sections[0].id
     methods_id = sections[1].id
 
@@ -108,7 +109,7 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
             },
         ]
     }
-    sections = build_section_records(template_data)
+    sections = build_section_records(TemplateContent.model_validate(template_data))
     parent_a_children = sections[0].children
     parent_b_children = sections[1].children
     assert parent_a_children is not None
@@ -152,12 +153,12 @@ def test_convert_mappings_real_km():
         SectionRecord(
             id=dmp_section_id,
             title='Data management plan',
-            section=SectionNode({'title': 'Data management plan'}),
+            section=TemplateSection(title='Data management plan'),
             children=[
                 SectionRecord(
                     id=project_section_id,
                     title='Project',
-                    section=SectionNode({'title': 'Project'}),
+                    section=TemplateSection(title='Project'),
                     children=None,
                 ),
             ],

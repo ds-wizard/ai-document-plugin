@@ -11,7 +11,7 @@ from typing import TypedDict
 
 from haystack import component
 
-from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.types import AssignmentStats, TemplateContent, TemplateSection
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class DmpPolisherComponent:
     async def run_async(
         self,
         markdown: str,
-        template_data: dict | None = None,
+        template_data: TemplateContent | None = None,
         on_progress: Callable[[str], None] | None = None,
         *,
         include_cover_page: bool = False,
@@ -43,7 +43,7 @@ class DmpPolisherComponent:
         Args:
             :param markdown: The raw DMP markdown to polish.
             :param config: Config with up to date llm config
-            :param template_data: Template dict with 'sections' key (section tree with 'title' and 'sections').
+            :param template_data: Typed template content containing the section tree.
             :param on_progress: Callback method to report progress
 
         Returns:
@@ -61,8 +61,9 @@ class DmpPolisherComponent:
         if on_progress is not None:
             on_progress('Polishing document')
         if include_cover_page and template_data is not None:
-            template_data = template_data.copy()
-            template_data['sections'] = template_data['sections'][self.cover_page_section_count :]
+            template_data = template_data.model_copy(
+                update={'sections': template_data.sections[self.cover_page_section_count :]}
+            )
         structure_str = DmpPolisherComponent._build_template_structure_string(template_data)
         polished = await self.section_polishing_llm.polish_dmp(
             markdown=markdown,
@@ -87,7 +88,7 @@ class DmpPolisherComponent:
     def run(
         self,
         markdown: str,
-        template_data: dict | None = None,
+        template_data: TemplateContent | None = None,
         on_progress: Callable[[str], None] | None = None,
         *,
         include_cover_page: bool = False,
@@ -99,26 +100,25 @@ class DmpPolisherComponent:
         )
 
     @staticmethod
-    def _format_template_structure(nodes: list, depth: int = 0) -> list[str]:
+    def _format_template_structure(nodes: list[TemplateSection], depth: int = 0) -> list[str]:
         """Format section tree as # Section, ## Subsection, ### Subsubsection, etc."""
         lines = []
         prefix = '#' * (depth + 1) + ' '
         for node in nodes:
-            key = node.get('key') or node.get('title', '?')
-            lines.append(prefix + str(key))
-            children = node.get('children') or node.get('sections')
+            lines.append(prefix + node.title)
+            children = node.sections
             if children:
                 lines.extend(DmpPolisherComponent._format_template_structure(children, depth + 1))
         return lines
 
     @staticmethod
     def _build_template_structure_string(
-        template_data: dict | None = None,
+        template_data: TemplateContent | None = None,
     ) -> str:
-        """Build the required section structure string from template data (dict with 'sections' key)."""
+        """Build the required section structure string from typed template content."""
         if template_data is None:
             return ''
-        nodes = template_data.get('sections', [])
+        nodes = template_data.sections
         if not nodes:
             return ''
         lines = DmpPolisherComponent._format_template_structure(nodes)

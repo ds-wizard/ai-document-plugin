@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from ai_document_plugin_service.api.types import TemplateSection
+from ai_document_plugin_service.ai.common.types import TemplateSection
 
 
 class CoverPageLabel(BaseModel):

@@ -4,7 +4,6 @@ from ai_document_plugin_service.ai.persistence.database import Database, Templat
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
-    TemplateContent,
     TemplateCreateRequest,
     TemplateDetail,
     TemplateListItem,
@@ -55,7 +54,7 @@ class TemplateService:
         try:
             template_uuid = await self._database.create_template(
                 title=trimmed_title,
-                content=content.model_dump(mode='json', exclude_unset=True),
+                content=content,
                 tenant_uuid=auth.tenant_uuid,
                 user_uuid=owner_uuid,
                 cover_page_version=self._cover_page_version if payload.has_cover_page else None,
@@ -97,7 +96,7 @@ class TemplateService:
                     template_uuid=template_uuid,
                     tenant_uuid=auth.tenant_uuid,
                     title=trimmed_title,
-                    content=content.model_dump(mode='json', exclude_unset=True),
+                    content=content,
                     cover_page_version=self._cover_page_version if payload.has_cover_page else None,
                 )
             except TemplateTitleConflictError as error:
@@ -142,7 +141,7 @@ class TemplateService:
         )
 
     def _to_detail(self, record: TemplateRecord) -> TemplateDetail:
-        content = TemplateContent.model_validate(record.content)
+        content = record.content
         if record.has_cover_page:
             content = content.model_copy(update={'sections': content.sections[len(self._cover_page_sections) :]})
 

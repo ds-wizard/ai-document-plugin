@@ -3,18 +3,18 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from ai_document_plugin_service.ai.assignment.types import (
-    SectionNode,
     SectionRecord,
 )
+from ai_document_plugin_service.ai.common.types import TemplateContent, TemplateSection
 
 
-def build_section_records(template_data: dict[str, Any]) -> list[SectionRecord]:
-    """Build section records from loaded template JSON data.
+def build_section_records(template_data: TemplateContent) -> list[SectionRecord]:
+    """Build section records from typed template content.
 
     Each record receives a synthetic UUID id. Ids are unique across the whole tree and
     decoupled from the section title, so duplicate titles never collide downstream.
     """
-    return _build_records_recursively(template_data['sections'])
+    return _build_records_recursively(template_data.sections)
 
 
 def collect_leaf_sections(
@@ -54,20 +54,17 @@ def render_section_tree_as_xml(
 
 
 def _build_records_recursively(
-    sections: list[dict[str, Any]],
+    sections: list[TemplateSection],
 ) -> list[SectionRecord]:
-    records: list[SectionRecord] = []
-    for section_dict in sections:
-        node = SectionNode(section_dict)
-        records.append(
-            SectionRecord(
-                id=uuid.uuid4(),
-                title=node.title,
-                section=node,
-                children=_build_records_recursively(node.subsections) if node.subsections else None,
-            ),
+    return [
+        SectionRecord(
+            id=uuid.uuid4(),
+            title=node.title,
+            section=node,
+            children=_build_records_recursively(node.sections) if node.sections else None,
         )
-    return records
+        for node in sections
+    ]
 
 
 def section_index_to_letter_id(index: int) -> str:

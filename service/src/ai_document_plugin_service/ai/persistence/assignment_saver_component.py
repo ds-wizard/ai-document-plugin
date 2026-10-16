@@ -6,7 +6,6 @@ import logging
 import pathlib
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
@@ -19,14 +18,18 @@ from ai_document_plugin_service.ai.assignment.types import (
     SectionAssignment,
     SerializedSectionAssignment,
 )
-from ai_document_plugin_service.ai.common.types import AssignmentStats
+
+# Haystack inspects component input annotations at runtime.
+from ai_document_plugin_service.ai.common.types import (
+    AssignmentStats,
+    TemplateContent,
+)
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.persistence.database import Database
 
 logger = logging.getLogger(__name__)
 
-JsonValue = Mapping[str, object] | Sequence[object]
 StatsJson = dict[str, dict[str, int | float]]
 
 
@@ -48,7 +51,7 @@ class AssignmentSaverComponent:
         knowledge_model_version: str,
         template_uuid: UUID,
         template_title: str,
-        template_data: JsonValue,
+        template_data: TemplateContent,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
@@ -95,7 +98,7 @@ class AssignmentSaverComponent:
         knowledge_model_version: str,
         template_uuid: UUID,
         template_title: str,
-        template_data: JsonValue,
+        template_data: TemplateContent,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
@@ -118,7 +121,7 @@ class Saver(ABC):
         stats: StatsJson | None,
         template_uuid: UUID,
         template_title: str,
-        template_data: JsonValue,
+        template_data: TemplateContent,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
@@ -135,7 +138,7 @@ class FileSaver(Saver):
         stats: StatsJson | None,
         template_uuid: UUID,
         template_title: str,
-        template_data: JsonValue,
+        template_data: TemplateContent,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
@@ -199,7 +202,7 @@ class DBSaver(Saver):
         stats: StatsJson | None,
         template_uuid: UUID,
         template_title: str,
-        template_data: JsonValue,
+        template_data: TemplateContent,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:

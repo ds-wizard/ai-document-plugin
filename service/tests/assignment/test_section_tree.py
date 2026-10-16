@@ -1,3 +1,4 @@
+from ai_document_plugin_service.ai.common.types import TemplateContent
 from uuid import UUID
 
 from ai_document_plugin_service.ai.assignment.section_tree import (
@@ -22,7 +23,7 @@ def test_collect_leaf_sections_preserves_tree_order() -> None:
         ]
     }
 
-    records = build_section_records(template_data)
+    records = build_section_records(TemplateContent.model_validate(template_data))
     leaves = collect_leaf_sections(records)
 
     assert [leaf.title for leaf in leaves] == ["Leaf A", "Leaf B", "Leaf C"]
@@ -46,7 +47,7 @@ def test_collect_leaf_section_duplicate_title() -> None:
         ]
     }
 
-    records = build_section_records(template_data)
+    records = build_section_records(TemplateContent.model_validate(template_data))
     leaves = collect_leaf_sections(records)
 
     titles = [leaf.title for leaf in leaves]
@@ -69,7 +70,7 @@ def test_render_section_tree_as_xml_uses_provided_leaf_ids() -> None:
             }
         ]
     }
-    records = build_section_records(template_data)
+    records = build_section_records(TemplateContent.model_validate(template_data))
     leaves = collect_leaf_sections(records)
     record_id_to_sid = {leaf.id: sid for leaf, sid in zip(leaves, ["alpha", "beta"])}
 
@@ -98,7 +99,7 @@ def test_render_section_tree_assigns_distinct_sids_to_duplicate_titles() -> None
             },
         ]
     }
-    records = build_section_records(template_data)
+    records = build_section_records(TemplateContent.model_validate(template_data))
     leaves = collect_leaf_sections(records)
     assert len(leaves) == 2
     rec_id_a, rec_id_b = leaves[0].id, leaves[1].id

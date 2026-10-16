@@ -35,7 +35,7 @@ export function Modal({
                     className={styles.content}
                     aria-describedby={undefined}
                     onInteractOutside={(event) => event.preventDefault()}
-                    onEscapeKeyDown={(event) => closeDisabled && event.preventDefault()}
+                    onEscapeKeyDown={(event) => event.preventDefault()}
                 >
                     <div className={styles.header}>
                         <Dialog.Title className="ai-doc-title h5">{title}</Dialog.Title>

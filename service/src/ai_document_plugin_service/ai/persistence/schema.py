@@ -36,6 +36,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('uuid', UUID(as_uuid=True), primary_key=True),
         Column('title', Text, nullable=False),
         Column('content', JSON, nullable=False),
+        Column('updated_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
         # NULL means the template has no cover page; a value identifies the selected version.
         Column('cover_page_version', Text, nullable=True),
         Column('tenant_uuid', UUID(as_uuid=True), nullable=False),
@@ -76,6 +77,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             nullable=False,
             server_default=func.now(),
         ),
+        Column('updated_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
         Column('assignments', JSON, nullable=False),
         Column('stats', JSON, nullable=True),
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),

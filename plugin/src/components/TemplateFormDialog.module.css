@@ -1,9 +1,3 @@
-.text {
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.95rem;
-    line-height: 1.6;
-}
-
 .fileDropZone {
     display: grid;
     justify-items: center;
@@ -79,25 +73,6 @@
 
 .hiddenInput {
     display: none;
-}
-
-.textarea {
-    min-height: 14rem;
-    resize: vertical;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    line-height: 1.5;
-    border-radius: var(--bs-border-radius);
-}
-
-.saveButton {
-    justify-self: start;
-}
-
-.actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
 }
 
 .metadataSection {

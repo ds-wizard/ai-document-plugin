@@ -9,6 +9,7 @@ type TemplateDropdownProps = {
     value: string
     onChange: (value: string) => void
     templates: TemplateOption[]
+    onCreate?: () => void
     isLoading?: boolean
     disabled?: boolean
     placeholder?: string
@@ -20,6 +21,7 @@ export function TemplateDropdown({
     value,
     onChange,
     templates,
+    onCreate,
     isLoading = false,
     disabled = false,
     placeholder = 'Select a template',
@@ -73,6 +75,11 @@ export function TemplateDropdown({
     const handleSelect = (nextValue: string) => {
         onChange(nextValue)
         setIsOpen(false)
+    }
+
+    const handleCreate = () => {
+        setIsOpen(false)
+        onCreate?.()
     }
 
     const personalTemplates = templates.filter((template) => template.scope === 'personal')
@@ -137,6 +144,17 @@ export function TemplateDropdown({
 
                     {templates.length === 0 ? (
                         <div className={styles.emptyState}>No templates available yet.</div>
+                    ) : null}
+
+                    {onCreate ? (
+                        <button
+                            type="button"
+                            className={`${styles.item} ${styles.createItem}`}
+                            onClick={handleCreate}
+                        >
+                            <i className="fas fa-plus" aria-hidden="true" />
+                            Create your own template
+                        </button>
                     ) : null}
                 </div>
             ) : null}

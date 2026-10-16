@@ -35,10 +35,6 @@ export default function ProjectTab({
     const [languagesLoading, setLanguagesLoading] = useState(true)
     const userSelectedLanguage = useRef(false)
 
-    const handleSelectedUuidChange = useCallback((uuid: string) => {
-        setSelectedUuid(uuid)
-    }, [])
-
     const handleLanguageChange = useCallback((nextLanguage: string) => {
         userSelectedLanguage.current = true
         setLanguage(nextLanguage)
@@ -116,10 +112,6 @@ export default function ProjectTab({
             <div>
                 <Toaster richColors closeButton />
                 <div className={styles.root}>
-                    <div>
-                        <h2 className="ai-doc-title">AI Document Generation</h2>
-                    </div>
-
                     <FeedbackAlert kind="warning">
                         The project is not loaded; the pipeline cannot be started yet.
                     </FeedbackAlert>
@@ -151,14 +143,11 @@ export default function ProjectTab({
                         <RunDetailPanel runId={selectedRunId} history={history} />
                     ) : (
                         <div className={styles.root}>
-                            <div>
-                                <h2 className="ai-doc-title">AI Document Generation</h2>
-                            </div>
-
                             <ProjectTemplatePanel
                                 templates={templates}
+                                selectedUuid={selectedUuid}
+                                onSelectedUuidChange={setSelectedUuid}
                                 disabled={history.isStarting}
-                                onSelectedUuidChange={handleSelectedUuidChange}
                                 language={language}
                                 languageOptions={languageOptions}
                                 languagesLoading={languagesLoading}

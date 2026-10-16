@@ -1,10 +1,13 @@
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import TYPE_CHECKING, Annotated, Self
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, StringConstraints, field_validator
 from pydantic.alias_generators import to_camel
+
+if TYPE_CHECKING:
+    from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -86,25 +89,39 @@ class TemplateListItem(ApiModel):
     scope: TemplateScope
 
 
+class TemplateSection(ApiModel):
+    model_config = ConfigDict(extra='allow')
+
+    title: str
+    content: str | None = None
+    sections: list['TemplateSection'] = Field(default_factory=list)
+
+
+class TemplateContent(ApiModel):
+    model_config = ConfigDict(extra='allow')
+
+    sections: list[SerializeAsAny[TemplateSection]]
+
+
 class TemplateDetail(ApiModel):
     has_cover_page: bool = False
     uuid: UUID
     title: str
-    content: dict
+    content: TemplateContent
     scope: TemplateScope
 
 
 class TemplateCreateRequest(ApiModel):
     has_cover_page: bool = False
     title: str
-    content: dict
+    content: TemplateContent
     scope: TemplateScope = TemplateScope.PERSONAL
 
 
 class TemplateUpdateRequest(ApiModel):
     has_cover_page: bool = False
     title: str
-    content: dict
+    content: TemplateContent
 
 
 class QuestionnaireLanguageResponse(ApiModel):
@@ -163,43 +180,42 @@ class CoverPagePreviewDefinition(ApiModel):
     assigned_sections: list[CoverPagePreviewAssignmentSection]
 
     @classmethod
-    def from_definition(cls, definition: dict) -> Self:
-        metadata = definition['metadata']
-        history = definition['history']
+    def from_definition(cls, definition: 'CoverPageDefinition') -> Self:
+        metadata = definition.metadata
+        history = definition.history
         return cls(
-            version=definition['version'],
+            version=definition.version,
             metadata=CoverPagePreviewMetadata(
                 title=CoverPagePreviewLabel(
-                    id=metadata['title']['id'],
-                    text=metadata['title']['text'],
+                    id=metadata.title.id,
+                    text=metadata.title.text,
                 ),
-                columns=[CoverPagePreviewLabel(id=column['id'], text=column['text']) for column in metadata['columns']],
+                columns=[CoverPagePreviewLabel(id=column.id, text=column.text) for column in metadata.columns],
                 fields=[
-                    CoverPagePreviewField(id=field['id'], label=field['label'], preview=field['preview'])
-                    for field in metadata['fields']
+                    CoverPagePreviewField(id=field.id, label=field.label, preview=field.preview)
+                    for field in metadata.fields
                 ],
-                attribution=metadata['attribution'],
+                attribution=metadata.attribution,
             ),
             history=CoverPagePreviewHistory(
-                id=history['id'],
+                id=history.id,
                 title=CoverPagePreviewLabel(
-                    id=history['title']['id'],
-                    text=history['title']['text'],
+                    id=history.title.id,
+                    text=history.title.text,
                 ),
-                columns=[CoverPagePreviewLabel(id=column['id'], text=column['text']) for column in history['columns']],
-                preview=history['preview'],
+                columns=[CoverPagePreviewLabel(id=column.id, text=column.text) for column in history.columns],
+                preview=history.preview,
             ),
             assigned_sections=[
                 CoverPagePreviewAssignmentSection(
-                    id=section['id'],
-                    title=section['title'],
-                    preview=section['preview'],
+                    id=section.id,
+                    title=section.title,
+                    preview=section.preview,
                     fields=[
-                        CoverPagePreviewAssignmentField(id=field['id'], label=field['label'])
-                        for field in section['fields']
+                        CoverPagePreviewAssignmentField(id=field.id, label=field.label) for field in section.fields
                     ],
                 )
-                for section in definition['sections']
+                for section in definition.sections
             ],
         )
 

@@ -83,7 +83,7 @@ class DmpGeneratorComponent:
         logger.debug('Step 2: Generating DMP markdown...')
         document_assignments = db_assignments if db_assignments is not None else new_assignments or []
         cover_page_section_count = (
-            len(self.cover_page_renderer.definition['sections'])
+            len(self.cover_page_renderer.definition.sections)
             if include_cover_page and self.cover_page_renderer is not None
             else 0
         )

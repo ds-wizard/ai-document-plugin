@@ -148,7 +148,7 @@ def test_create_app_stores_the_resolved_config(
     app = create_app(run_migrations=False)
 
     assert app.state.config.files.prompts_path == str(TEST_PROMPTS_PATH)
-    assert app.state.config.cover_definition['version'] == '1'
+    assert app.state.config.cover_definition.version == '1'
 
 
 @patch('ai_document_plugin_service.app.run_startup_migrations')

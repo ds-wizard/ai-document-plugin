@@ -96,7 +96,7 @@ def build_pipeline(
         cover_page_renderer=cover_page.renderer,
     )
     dmp_polisher_component = DmpPolisherComponent(
-        SectionPolishingLLM(llm_client, config, language), len(config.cover_definition['sections'])
+        SectionPolishingLLM(llm_client, config, language), len(config.cover_definition.sections)
     )
     cover_page_component = CoverPageComponent()
 

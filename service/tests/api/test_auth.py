@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from ai_document_plugin_service.ai.common.config import CONFIG_PATH_ENV_VAR, AllowedApi, normalize_project_url
 from ai_document_plugin_service.ai.persistence.database import TemplateRecord
 from ai_document_plugin_service.api.auth import DSW_API_URL_HEADER, is_allowed_request
+from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.app import create_app
 
 TEST_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'config.test.yaml'
@@ -128,7 +129,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
             TemplateRecord(
                 uuid=template_uuid,
                 title='Template 1',
-                content={'sections': []},
+                content=TemplateContent.model_validate({'sections': []}),
                 tenant_uuid=ALLOWED_TENANT_UUID,
                 user_uuid=None,
             ),
@@ -167,7 +168,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
             TemplateRecord(
                 uuid=template_uuid,
                 title='Template 1',
-                content={'sections': []},
+                content=TemplateContent.model_validate({'sections': []}),
                 tenant_uuid=ALLOWED_TENANT_UUID,
                 user_uuid=None,
             ),

@@ -3,8 +3,10 @@ from typing import TYPE_CHECKING, Annotated, Self
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic.alias_generators import to_camel
+
+from ai_document_plugin_service.ai.common.types import TemplateContent
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
@@ -87,20 +89,6 @@ class TemplateListItem(ApiModel):
     uuid: UUID
     title: str
     scope: TemplateScope
-
-
-class TemplateSection(ApiModel):
-    model_config = ConfigDict(extra='allow')
-
-    title: str
-    content: str | None = None
-    sections: list['TemplateSection'] = Field(default_factory=list)
-
-
-class TemplateContent(ApiModel):
-    model_config = ConfigDict(extra='allow')
-
-    sections: list[SerializeAsAny[TemplateSection]]
 
 
 class TemplateDetail(ApiModel):

@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, TypedDict
+from typing import TypedDict
 from uuid import UUID
+
+from ai_document_plugin_service.ai.common.types import TemplateSection
 
 
 class AssignmentQuestionNode(TypedDict, total=False):
@@ -23,29 +25,17 @@ class SerializedSectionAssignment(TypedDict):
     children: list['SerializedSectionAssignment'] | None
 
 
-class SectionNode:
-    """Represents a section with a reference to its parent section.
-    This allows navigation up the hierarchy tree.
-    """
-
-    def __init__(self, section_dict: dict[str, Any]) -> None:
-        self.section = section_dict
-        self.title = section_dict['title']
-        self.content = section_dict.get('content')
-        self.subsections = section_dict.get('sections', [])
-
-
 @dataclass
 class SectionRecord:
     """A section in the template tree. Either a leaf or a parent (children set).
 
-    `id` is a synthetic identifier minted at JSON-load time and is unique across the tree.
+    `id` is a synthetic identifier minted when building section records and is unique across the tree.
     `title` is the human-readable label and may collide with sibling/cousin titles.
     """
 
     id: UUID
     title: str
-    section: SectionNode
+    section: TemplateSection
     children: list['SectionRecord'] | None = None  # non-leaf: nested sections
 
 

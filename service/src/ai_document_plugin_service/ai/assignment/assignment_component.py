@@ -25,7 +25,7 @@ from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.progress import progress_percent
-from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.types import AssignmentStats, TemplateContent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class AssignmentComponent:
     async def run_async(
         self,
         data: list[QuestionData],
-        template_data: dict[str, Any],
+        template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
@@ -146,7 +146,7 @@ class AssignmentComponent:
     def run(
         self,
         data: list[QuestionData],
-        template_data: dict[str, Any],
+        template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:

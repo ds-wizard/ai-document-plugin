@@ -5,10 +5,7 @@ from asyncio import Task
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from ai_document_plugin_service.ai.common.config import (
-    Config,
-    LLMConfig,
-)
+from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.execution_logging import (
     log_timing_event,
 )
@@ -36,7 +33,7 @@ from ai_document_plugin_service.api.types import (
     PipelineSummaryResponse,
     TemplateDetail,
 )
-from ai_document_plugin_service.service.errors import ConflictError, NotFoundError
+from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 
 logger = logging.getLogger(__name__)
@@ -186,7 +183,13 @@ class PipelineService:
         config: Config,
         trace_id: UUID | None,
     ) -> UUID:
-        """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``."""
+        """Queue a pipeline job; concurrency is limited by ``pipeline_queue_manager``.
+
+        Raises:
+            NotConfiguredError: If the tenant has no LLM settings saved.
+        """
+        if await self.database.get_llm_settings(auth.tenant_uuid) is None:
+            raise NotConfiguredError
         logger.info(
             'Queueing pipeline job',
             extra={
@@ -207,12 +210,6 @@ class PipelineService:
             named_version=resolve_named_version(project_versions),
         )
 
-        llm_config = LLMConfig(
-            model=payload.llm_model,
-            api_key=payload.llm_api_key,
-            api_url=payload.llm_api_url,
-            parallel_workers=payload.llm_max_workers,
-        )
         self.pipeline_queue_manager.enqueue(
             run_id,
             lambda: self._run_pipeline_job(
@@ -224,7 +221,6 @@ class PipelineService:
                 time_zone=payload.time_zone,
                 project_versions=project_versions,
                 auth=auth,
-                llm_config=llm_config,
                 config=config,
             ),
             trace_id=trace_id,
@@ -262,7 +258,6 @@ class PipelineService:
         time_zone: str,
         project_versions: list[dict],
         auth: AuthenticatedUser,
-        llm_config: LLMConfig,
         config: Config,
     ) -> None:
         try:
@@ -275,7 +270,6 @@ class PipelineService:
                 time_zone=time_zone,
                 project_versions=project_versions,
                 auth=auth,
-                llm_config=llm_config,
                 config=config,
             )
         except Exception as error:
@@ -309,7 +303,6 @@ class PipelineService:
         time_zone: str,
         project_versions: list[dict],
         auth: AuthenticatedUser,
-        llm_config: LLMConfig,
         config: Config,
     ) -> None:
         template = await self.database.get_template(template_uuid, auth.tenant_uuid)
@@ -337,6 +330,11 @@ class PipelineService:
         )
         if record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
+        # Read at the start of every run so a queued job uses the settings saved at that moment.
+        llm_config = await self.database.get_llm_settings(auth.tenant_uuid)
+        if llm_config is None:
+            raise NotConfiguredError
 
         llm_client = self._llm_clients.get_llm_client(auth.tenant_uuid)
         llm_client.update_config(llm_config.model, llm_config.api_key, llm_config.api_url, llm_config.parallel_workers)

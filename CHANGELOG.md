@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Moved LLM settings (model, API key, API URL, parallel calls) from the DSW plugin settings to the service database.
+
 ## [0.3.0] - 2026-09-13
 
 - Added Common templates and option to edit templates (#135)

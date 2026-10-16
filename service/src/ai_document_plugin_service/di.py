@@ -4,8 +4,10 @@ import fastapi
 
 from ai_document_plugin_service.ai.common import Config
 from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
+from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
 from ai_document_plugin_service.api.auth import AuthenticatedUser, verify_authenticated
 from ai_document_plugin_service.service.export_service import ExportService
+from ai_document_plugin_service.service.llm_settings_service import LlmSettingsService
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
 from ai_document_plugin_service.service.pipeline_service import PipelineService
 from ai_document_plugin_service.service.template_service import TemplateService
@@ -13,8 +15,9 @@ from ai_document_plugin_service.service.template_service import TemplateService
 
 def setup_app_state(app: fastapi.FastAPI, config: Config) -> None:
     app.state.config = config
-    app.state.database = PostgresDB(config.database)
+    app.state.database = PostgresDB(config.database, SecretCipher(config.encryption_key))
     app.state.template_service = TemplateService(app.state.database, config.cover_definition)
+    app.state.llm_settings_service = LlmSettingsService(app.state.database)
     app.state.pipeline_queue_manager = PipelineQueueManager(config.max_parallel_executions)
     app.state.pipeline_service = PipelineService(app.state.pipeline_queue_manager, app.state.database)
     app.state.export_service = ExportService(app.state.database)
@@ -56,3 +59,10 @@ def _get_template_service(request: fastapi.Request) -> TemplateService:
 
 
 TemplateServiceDI = Annotated[TemplateService, fastapi.Depends(_get_template_service)]
+
+
+def _get_llm_settings_service(request: fastapi.Request) -> LlmSettingsService:
+    return request.app.state.llm_settings_service
+
+
+LlmSettingsServiceDI = Annotated[LlmSettingsService, fastapi.Depends(_get_llm_settings_service)]

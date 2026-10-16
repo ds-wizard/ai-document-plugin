@@ -1,0 +1,19 @@
+.root {
+    display: grid;
+    gap: 1rem;
+}
+
+.heading {
+    margin: 0;
+}
+
+.muted {
+    margin: 0.35rem 0 0;
+    color: var(--ai-doc-color-slate-500);
+    line-height: 1.5;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+}

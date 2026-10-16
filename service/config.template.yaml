@@ -22,6 +22,11 @@ database:
   password: "ai_document_plugin"
   schema: "public"
 
+# Key used to encrypt secrets stored in the database (the LLM API keys).
+# Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Do not change it, changing it will break all existing users' LLM API keys.
+encryption_key: ""
+
 # Path to prompts config. Path is set as the relative path from this config.
 files:
   prompts_path: "prompts.yaml"

@@ -27,6 +27,13 @@ class ValidationError(ServiceError):
         super().__init__(detail, status_code=400)
 
 
+class NotConfiguredError(ServiceError):
+    LLM_SETTINGS_MESSAGE = 'Plugin is not configured. Ask your administrator to set the LLM connection.'
+
+    def __init__(self, detail: str = LLM_SETTINGS_MESSAGE) -> None:
+        super().__init__(detail, status_code=422)
+
+
 class ConflictError(ServiceError):
     PIPELINE_RUN_NOT_FINISHED_MESSAGE = 'Pipeline run has not finished successfully'
 

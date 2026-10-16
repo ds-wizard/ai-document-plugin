@@ -14,6 +14,8 @@ database:
   password: "ai_document_plugin"
   schema: "public"
 
+encryption_key: "dGVzdC1vbmx5LWVuY3J5cHRpb24ta2V5LTMyYnl0ZXM="
+
 files:
   prompts_path: "prompts.yaml"
   cover_definition_path: "cover-page.yaml"

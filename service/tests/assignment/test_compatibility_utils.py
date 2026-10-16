@@ -153,13 +153,11 @@ def test_convert_mappings_real_km():
             id=dmp_section_id,
             title='Data management plan',
             section=SectionNode({'title': 'Data management plan'}),
-            text=None,
             children=[
                 SectionRecord(
                     id=project_section_id,
                     title='Project',
                     section=SectionNode({'title': 'Project'}),
-                    text="[PARENT SECTION]\nTitle: Data management plan\n\n[MOST SPECIFIC SECTION]\nTitle: Project\nContent:\nIt contains project number, project acronym, project name.'",
                     children=None,
                 ),
             ],

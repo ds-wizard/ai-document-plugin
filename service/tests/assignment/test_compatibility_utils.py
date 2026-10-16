@@ -1,16 +1,14 @@
-from ai_document_plugin_service.ai.common.types import TemplateContent, TemplateSection
 import json
 import os
 import uuid
 
 import pytest
-
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
     expand_assignment_paths,
 )
-from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
+from ai_document_plugin_service.ai.common.types import TemplateSection
 
 
 def _km_fixture() -> dict:
@@ -62,13 +60,12 @@ def test_expand_assignment_paths_raises_for_unknown_leaf() -> None:
 
 def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> None:
     km = _km_fixture()
-    template_data = {
-        "sections": [
-            {"title": "Data", "content": "Section data"},
-            {"title": "Methods", "content": "Section methods"},
-        ]
-    }
-    sections = build_section_records(TemplateContent.model_validate(template_data))
+    sections = [
+        SectionRecord(id=uuid.uuid4(), title="Data", section=TemplateSection(title="Data", content="Section data")),
+        SectionRecord(
+            id=uuid.uuid4(), title="Methods", section=TemplateSection(title="Methods", content="Section methods")
+        ),
+    ]
     data_id = sections[0].id
     methods_id = sections[1].id
 
@@ -93,23 +90,32 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
 
 def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
     km = _km_fixture()
-    template_data = {
-        "sections": [
-            {
-                "title": "Parent A",
-                "sections": [
-                    {"title": "Description", "content": "Alpha desc"},
-                ],
-            },
-            {
-                "title": "Parent B",
-                "sections": [
-                    {"title": "Description", "content": "Beta desc"},
-                ],
-            },
-        ]
-    }
-    sections = build_section_records(TemplateContent.model_validate(template_data))
+    sections = [
+        SectionRecord(
+            id=uuid.uuid4(),
+            title="Parent A",
+            section=TemplateSection(title="Parent A"),
+            children=[
+                SectionRecord(
+                    id=uuid.uuid4(),
+                    title="Description",
+                    section=TemplateSection(title="Description", content="Alpha desc"),
+                )
+            ],
+        ),
+        SectionRecord(
+            id=uuid.uuid4(),
+            title="Parent B",
+            section=TemplateSection(title="Parent B"),
+            children=[
+                SectionRecord(
+                    id=uuid.uuid4(),
+                    title="Description",
+                    section=TemplateSection(title="Description", content="Beta desc"),
+                )
+            ],
+        ),
+    ]
     parent_a_children = sections[0].children
     parent_b_children = sections[1].children
     assert parent_a_children is not None
@@ -124,11 +130,7 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
     }
 
     assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
-    leaves_by_id = {
-        leaf.id: leaf
-        for parent in assignments
-        for leaf in (parent.children or [])
-    }
+    leaves_by_id = {leaf.id: leaf for parent in assignments for leaf in (parent.children or [])}
 
     desc_a = leaves_by_id[desc_a_id]
     desc_b = leaves_by_id[desc_b_id]
@@ -144,7 +146,7 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
 def test_convert_mappings_real_km():
     test_dir = os.path.dirname(os.path.abspath(__file__))
     resource_path = os.path.join(test_dir, "../resources/dsw_root_km.json.json")
-    with open(resource_path, encoding='utf-8', mode='r') as f:
+    with open(resource_path, encoding="utf-8", mode="r") as f:
         km = json.load(f)
 
     dmp_section_id = uuid.uuid4()
@@ -152,21 +154,22 @@ def test_convert_mappings_real_km():
     sections = [
         SectionRecord(
             id=dmp_section_id,
-            title='Data management plan',
-            section=TemplateSection(title='Data management plan'),
+            title="Data management plan",
+            section=TemplateSection(title="Data management plan"),
             children=[
                 SectionRecord(
                     id=project_section_id,
-                    title='Project',
-                    section=TemplateSection(title='Project'),
+                    title="Project",
+                    section=TemplateSection(title="Project"),
                     children=None,
                 ),
             ],
         )
     ]
     result_mapping = {
-        '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b':
-            [project_section_id]
+        "1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b": [
+            project_section_id
+        ]
     }
 
     mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km)
@@ -178,16 +181,16 @@ def test_convert_mappings_real_km():
     assert sec_project.assignments is not None
     assert len(sec_project.assignments) > 0
     administrative_info = list(sec_project.assignments.values())[0]
-    assert administrative_info['question_title'] == 'Administrative information'
+    assert administrative_info["question_title"] == "Administrative information"
 
     # Research Project
-    research_proj_key = list(administrative_info['children'])[0]
-    assert research_proj_key == 'c3dabaaf-c946-4a0d-889c-ede966f97667'
-    research_proj = administrative_info['children'][research_proj_key]
-    assert research_proj['question_title'] == 'Research Project(s)'
+    research_proj_key = list(administrative_info["children"])[0]
+    assert research_proj_key == "c3dabaaf-c946-4a0d-889c-ede966f97667"
+    research_proj = administrative_info["children"][research_proj_key]
+    assert research_proj["question_title"] == "Research Project(s)"
 
     # Project name
-    proj_name_key = list(research_proj['children'])[0]
-    assert proj_name_key == 'f0ef08fd-d733-465c-bc66-5de0b826c41b'
-    proj_name = research_proj['children'][proj_name_key]
-    assert proj_name['question_title'] == 'Project name'
+    proj_name_key = list(research_proj["children"])[0]
+    assert proj_name_key == "f0ef08fd-d733-465c-bc66-5de0b826c41b"
+    proj_name = research_proj["children"][proj_name_key]
+    assert proj_name["question_title"] == "Project name"

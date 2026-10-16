@@ -5,6 +5,7 @@ import { createTemplate, updateTemplate } from '@/client'
 import { CoverPagePreview } from '@/components/CoverPagePreview'
 import styles from '@/components/CustomTemplateSection.module.css'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
+import { TemplateContentSchema } from '@/data/template-content'
 import type { ApiTemplateContent, TemplateOption, TemplateScope } from '@/types'
 
 export type EditingTemplate = {
@@ -116,10 +117,7 @@ export function CustomTemplateSection({
         }
 
         try {
-            const parsed = JSON.parse(trimmedJson) as { sections?: unknown }
-            if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sections)) {
-                throw new Error('Template JSON must contain a top-level "sections" array.')
-            }
+            const parsed = TemplateContentSchema.parse(JSON.parse(trimmedJson))
 
             setIsSaving(true)
             const data = isEditing

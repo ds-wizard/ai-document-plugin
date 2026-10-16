@@ -2,6 +2,7 @@ import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type { LanguageDefinition } from '@/data/languages'
 import type {
+    ApiTemplateContent,
     CoverPagePreviewDefinition,
     LlmSettings,
     LlmSettingsUpdate,
@@ -298,7 +299,7 @@ export const updateLlmSettings = async (settings: LlmSettingsUpdate): Promise<Ll
 type CreateTemplateParams = {
     hasCoverPage: boolean
     title: string
-    content: unknown
+    content: ApiTemplateContent
     scope: TemplateScope
 }
 
@@ -341,7 +342,7 @@ type UpdateTemplateParams = {
     hasCoverPage: boolean
     uuid: string
     title: string
-    content: unknown
+    content: ApiTemplateContent
 }
 
 export const updateTemplate = async ({

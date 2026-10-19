@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 
 import styles from '@/components/Modal.module.css'
 
@@ -9,6 +9,9 @@ type ModalProps = {
     onClose: () => void
     children: ReactNode
     footer?: ReactNode
+    descriptionId?: string
+    busy?: boolean
+    initialFocusRef?: RefObject<HTMLElement | null>
     /** Blocks closing, e.g. while the content is being saved. */
     closeDisabled?: boolean
 }
@@ -25,15 +28,28 @@ export function Modal({
     onClose,
     children,
     footer,
+    descriptionId,
+    busy,
+    initialFocusRef,
     closeDisabled = false,
 }: ModalProps) {
     return (
-        <Dialog.Root open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+        <Dialog.Root
+            open={open}
+            onOpenChange={(nextOpen) => !nextOpen && !closeDisabled && onClose()}
+        >
             <Dialog.Portal>
                 <Dialog.Overlay className={styles.overlay} />
                 <Dialog.Content
                     className={styles.content}
-                    aria-describedby={undefined}
+                    aria-describedby={descriptionId}
+                    aria-busy={busy}
+                    onOpenAutoFocus={(event) => {
+                        if (initialFocusRef?.current) {
+                            event.preventDefault()
+                            initialFocusRef.current.focus()
+                        }
+                    }}
                     onInteractOutside={(event) => event.preventDefault()}
                     onEscapeKeyDown={(event) => event.preventDefault()}
                 >

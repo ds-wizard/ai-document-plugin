@@ -23,6 +23,7 @@ export type RunStatusValue = PipelineStatusResponse['status']
 
 export type RunRecord = {
     runId: string
+    templateUuid: string
     status: RunStatusValue
     templateTitle: string
     error: PipelineErrorResponse | null
@@ -54,6 +55,7 @@ export type UseGenerationHistoryResult = {
     items: RunRecord[]
     isLoading: boolean
     isStarting: boolean
+    hasActiveRun: (templateUuid: string) => boolean
     deletingRunIds: ReadonlySet<string>
     deleteRun: (runId: string) => Promise<boolean>
     cancellingRunIds: ReadonlySet<string>
@@ -69,6 +71,7 @@ export type UseGenerationHistoryResult = {
 
 const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
     runId: item.runId,
+    templateUuid: item.templateUuid,
     status: item.status,
     templateTitle: item.templateTitle,
     error: item.error,
@@ -118,6 +121,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         (status: PipelineStatusResponse): RunRecord => {
             const record: RunRecord = {
                 runId: status.runId,
+                templateUuid: status.templateUuid,
                 status: status.status,
                 templateTitle: status.templateTitle,
                 error: status.error,
@@ -224,6 +228,14 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         [applyStatus],
     )
 
+    const hasActiveRun = useCallback(
+        (templateUuid: string) =>
+            Object.values(runsRef.current).some(
+                (run) => run.templateUuid === templateUuid && !isSettled(run.status),
+            ),
+        [],
+    )
+
     const startRun = useCallback(
         async (templateUuid: string, language: string): Promise<RunRecord | null> => {
             if (!project) {
@@ -235,6 +247,8 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 toast.error('Select a DMP template.')
                 return null
             }
+
+            if (hasActiveRun(templateUuid)) return null
 
             setIsStarting(true)
 
@@ -256,7 +270,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 setIsStarting(false)
             }
         },
-        [project, applyStatus, beginPolling],
+        [project, applyStatus, beginPolling, hasActiveRun],
     )
 
     const cancelRun = useCallback(
@@ -340,6 +354,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         items: Object.values(runs).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         isLoading,
         isStarting,
+        hasActiveRun,
         deletingRunIds,
         deleteRun,
         cancellingRunIds,

@@ -40,6 +40,11 @@ logger = logging.getLogger(__name__)
 
 
 def _pipeline_error_from_exception(error: BaseException) -> PipelineErrorResponse:
+    # TaskGroup preserves concurrent failures in a group. Show the first failure
+    # in the single-error API response; the full group is still logged by the caller.
+    if isinstance(error, BaseExceptionGroup):
+        return _pipeline_error_from_exception(error.exceptions[0])
+
     # Handle llm errors
     if isinstance(error, LLMError):
         return PipelineErrorResponse(type=error.error_type, message=error.message)

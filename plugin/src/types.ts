@@ -99,6 +99,7 @@ export type PipelineStatusResponse = {
 
 export type PipelineSummaryItem = {
     runId: string
+    templateUuid: string
     status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
     templateTitle: string
     error: PipelineErrorResponse | null

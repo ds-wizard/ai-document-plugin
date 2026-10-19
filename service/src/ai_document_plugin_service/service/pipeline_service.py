@@ -82,6 +82,7 @@ def _generation_record_to_status_response(record: GenerationRecord) -> PipelineS
 def _generation_record_to_summary_response(record: GenerationRecord) -> PipelineSummaryResponse:
     return PipelineSummaryResponse(
         run_id=record.run_id,
+        template_uuid=record.template_uuid,
         status=PipelineStatus(record.status),
         template_title=record.title,
         error=_generation_error(record),

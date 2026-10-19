@@ -120,6 +120,8 @@ export default function ProjectTab({
         )
     }
 
+    const hasActiveRun = history.hasActiveRun(selectedUuid)
+
     const handleRunPipeline = async () => {
         const started = await history.startRun(selectedUuid, language)
         if (started) {
@@ -160,21 +162,39 @@ export default function ProjectTab({
                                 onLanguageChange={handleLanguageChange}
                             />
 
-                            <button
-                                type="button"
-                                onClick={() => void handleRunPipeline()}
-                                disabled={
-                                    templates.isLoading ||
-                                    languagesLoading ||
-                                    languageOptions.length === 0 ||
-                                    history.isStarting ||
-                                    !selectedUuid ||
-                                    !getLanguageOption(languageOptions, language)
-                                }
-                                className={`btn btn-primary btn-wide ${styles.runButton}`}
+                            <span
+                                className={styles.runButton}
+                                tabIndex={hasActiveRun ? 0 : undefined}
+                                aria-describedby={hasActiveRun ? 'run-pipeline-tooltip' : undefined}
                             >
-                                {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleRunPipeline()}
+                                    disabled={
+                                        templates.isLoading ||
+                                        history.isLoading ||
+                                        hasActiveRun ||
+                                        languagesLoading ||
+                                        languageOptions.length === 0 ||
+                                        history.isStarting ||
+                                        !selectedUuid ||
+                                        !getLanguageOption(languageOptions, language)
+                                    }
+                                    className="btn btn-primary btn-wide"
+                                >
+                                    {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}
+                                </button>
+                                {hasActiveRun && (
+                                    <span
+                                        id="run-pipeline-tooltip"
+                                        role="tooltip"
+                                        className={styles.runTooltip}
+                                    >
+                                        A generation for this template is already in progress.
+                                        Please wait until it finishes.
+                                    </span>
+                                )}
+                            </span>
                         </div>
                     )}
                 </div>

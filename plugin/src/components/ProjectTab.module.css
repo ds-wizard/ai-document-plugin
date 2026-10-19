@@ -31,7 +31,24 @@
 }
 
 .runButton {
+    position: relative;
     justify-self: start;
     width: auto;
     margin-top: 0.25rem;
+}
+
+.runButton button:disabled {
+    pointer-events: none;
+}
+
+.runTooltip {
+    composes: stopTooltip from './HistorySidebar.module.css';
+    width: 16rem;
+    max-width: 60vw;
+    white-space: normal;
+    z-index: 1;
+}
+
+.runButton:is(:hover, :focus-visible) .runTooltip {
+    visibility: visible;
 }

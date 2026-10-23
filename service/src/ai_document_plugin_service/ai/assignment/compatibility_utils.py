@@ -5,6 +5,7 @@ from ai_document_plugin_service.ai.assignment.types import (
     AssignmentQuestionNode,
     AssignmentTree,
     SectionAssignment,
+    SectionQuestionPaths,
     SectionRecord,
 )
 
@@ -23,7 +24,7 @@ def convert_mappings_to_assignment_tree(
     Keys in `path_to_sections_mappings` values are the synthetic record ids
     (`SectionRecord.id`), not titles, so duplicate-titled leaves stay distinct.
     """
-    section_id_to_paths: dict[UUID, list[str]] = {}
+    section_id_to_paths: SectionQuestionPaths = {}
     for path, section_ids in path_to_sections_mappings.items():
         for section_id in section_ids:
             if section_id not in section_id_to_paths:
@@ -38,7 +39,7 @@ def convert_mappings_to_assignment_tree(
 
 def convert_mappings_to_assignment_tree_recursive(
     sections: list[SectionRecord],
-    section_id_to_paths: dict[UUID, list[str]],
+    section_id_to_paths: SectionQuestionPaths,
     km: dict[str, Any],
 ) -> list[SectionAssignment]:
     """Convert flat leaf assignments into the section hierarchy."""
@@ -65,9 +66,24 @@ def convert_mappings_to_assignment_tree_recursive(
                 title=section.title,
                 assignments=expand_assignment_paths(question_flags, km),
                 children=None,
+                question_paths=question_flags,
             ),
         )
     return result
+
+
+def collect_leaf_question_paths(assignments: list[SectionAssignment]) -> SectionQuestionPaths:
+    """Return the question paths of every leaf section by section id.
+
+    Identical leaves share an id and were assigned together, so they collapse into one entry.
+    """
+    paths: SectionQuestionPaths = {}
+    for assignment in assignments:
+        if assignment.children is not None:
+            paths.update(collect_leaf_question_paths(assignment.children))
+            continue
+        paths[assignment.id] = assignment.question_paths or []
+    return paths
 
 
 def expand_assignment_paths(

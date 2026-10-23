@@ -17,14 +17,6 @@ from ai_document_plugin_service.ai.knowledgemodel.types import (
     ValueQuestion,
 )
 
-QUESTION_TYPES = [
-    ValueQuestion,
-    ListQuestion,
-    OptionsQuestion,
-    MultiChoiceQuestion,
-    ItemSelectQuestion,
-]
-
 logger = logging.getLogger(__name__)
 REPLY_PATH_PARTS_MIN_LENGTH = 2
 REPLY_PARENT_SEGMENT_INDEX = -2

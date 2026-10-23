@@ -3,7 +3,7 @@ from typing import Annotated
 import fastapi
 
 from ai_document_plugin_service.ai.common import Config
-from ai_document_plugin_service.ai.persistence.database import Database, PostgresDB
+from ai_document_plugin_service.ai.persistence.database import PostgresDB
 from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
 from ai_document_plugin_service.api.auth import AuthenticatedUser, verify_authenticated
 from ai_document_plugin_service.service.export_service import ExportService
@@ -45,13 +45,6 @@ def _get_app_config(request: fastapi.Request) -> Config:
 
 
 ConfigDI = Annotated[Config, fastapi.Depends(_get_app_config)]
-
-
-def _get_database(request: fastapi.Request) -> Database:
-    return request.app.state.database
-
-
-DatabaseDI = Annotated[Database, fastapi.Depends(_get_database)]
 
 
 def _get_template_service(request: fastapi.Request) -> TemplateService:

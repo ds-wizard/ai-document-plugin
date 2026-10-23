@@ -1,11 +1,12 @@
-import itertools
-import time
-
 import asyncio
+import itertools
 import logging
+import time
 from collections.abc import Callable
 from typing import Any, TypedDict
 from uuid import UUID
+
+from haystack import component
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
@@ -24,7 +25,6 @@ from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.progress import progress_percent
 from ai_document_plugin_service.ai.common.types import AssignmentStats, TemplateContent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
-from haystack import component
 
 logger = logging.getLogger(__name__)
 

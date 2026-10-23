@@ -6,7 +6,7 @@ import pytest
 import uuid
 
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SerializedSectionAssignment
-from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.types import AssignmentStats, TemplateContent, TemplateSection
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import (
     DmpGeneratorComponent,
@@ -883,11 +883,14 @@ async def test_polishing_excludes_stored_cover_sections():
 
     llm = AsyncMock()
     llm.polish_dmp.return_value = '# Body\n\nPolished'
-    component = DmpPolisherComponent(llm, len(TEST_CONFIG.cover_definition['sections']))
-    template = {'sections': TEST_CONFIG.cover_definition['sections'] + [{'title': 'Body'}]}
+    component = DmpPolisherComponent(llm, len(TEST_CONFIG.cover_definition.sections))
+    template = TemplateContent(
+        sections=[*TEST_CONFIG.cover_definition.sections, TemplateSection(title='Body')],
+    )
     await component.run_async(markdown='# Body', template_data=template, include_cover_page=True)
     assert llm.polish_dmp.await_args.kwargs['structure_str'] == '# Body'
-    assert template['sections'][0]['id'] == 'projects'
+    assert template.sections[0] is TEST_CONFIG.cover_definition.sections[0]
+    assert template.sections[-1].title == 'Body'
 
 
 @pytest.mark.parametrize('instant, zone, expected', [

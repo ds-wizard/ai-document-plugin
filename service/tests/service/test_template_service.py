@@ -6,15 +6,13 @@ from ai_document_plugin_service.ai.common.config import load_config
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from ai_document_plugin_service.ai.persistence.database import TemplateRecord
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.api.auth import AuthenticatedUser
-from ai_document_plugin_service.api.types import (
-    TemplateCreateRequest,
-    TemplateScope,
-    TemplateUpdateRequest,
-)
+from ai_document_plugin_service.ai.common.types import TemplateContent
+from ai_document_plugin_service.api.types import TemplateCreateRequest, TemplateScope, TemplateUpdateRequest
 from ai_document_plugin_service.service.errors import (
     AccessDeniedError,
     ConflictError,
@@ -62,7 +60,7 @@ def _record(
     return TemplateRecord(
         uuid=template_uuid,
         title=title,
-        content=content if content is not None else VALID_CONTENT,
+        content=TemplateContent.model_validate(content if content is not None else VALID_CONTENT),
         tenant_uuid=TENANT_UUID,
         user_uuid=user_uuid,
     )
@@ -134,7 +132,7 @@ async def test_create_personal_template_sets_owner() -> None:
 
     database.create_template.assert_awaited_once_with(
         title='My template',
-        content=VALID_CONTENT,
+        content=TemplateContent.model_validate(VALID_CONTENT),
         tenant_uuid=TENANT_UUID,
         user_uuid=USER_UUID,
         cover_page_version=None,
@@ -153,7 +151,7 @@ async def test_create_tenant_template_by_admin_has_no_owner() -> None:
 
     database.create_template.assert_awaited_once_with(
         title='Common',
-        content=VALID_CONTENT,
+        content=TemplateContent.model_validate(VALID_CONTENT),
         tenant_uuid=TENANT_UUID,
         user_uuid=None,
         cover_page_version=None,
@@ -175,7 +173,7 @@ async def test_create_authorizes_before_validating() -> None:
     # A non-admin submitting an invalid tenant-wide template must be rejected for
     # lack of permission (403), not for the payload (400).
     database = _database()
-    payload = TemplateCreateRequest(title='', content={}, scope=TemplateScope.TENANT)
+    payload = TemplateCreateRequest(title='', content=VALID_CONTENT, scope=TemplateScope.TENANT)
 
     with pytest.raises(AccessDeniedError):
         await TemplateService(database, COVER_DEFINITION).create(_user(is_admin=False), payload)
@@ -192,11 +190,8 @@ async def test_create_rejects_blank_title() -> None:
 
 
 async def test_create_rejects_content_without_sections() -> None:
-    database = _database()
-    payload = TemplateCreateRequest(title='My template', content={'not_sections': 1})
-
-    with pytest.raises(ValidationError):
-        await TemplateService(database, COVER_DEFINITION).create(_user(), payload)
+    with pytest.raises(PydanticValidationError):
+        TemplateCreateRequest(title='My template', content={'not_sections': 1})
 
 
 async def test_create_maps_title_conflict_to_conflict_error() -> None:
@@ -221,7 +216,7 @@ async def test_update_own_personal_template() -> None:
         template_uuid=template_uuid,
         tenant_uuid=TENANT_UUID,
         title='Renamed',
-        content=VALID_CONTENT,
+        content=TemplateContent.model_validate(VALID_CONTENT),
         cover_page_version=None,
     )
     assert detail.title == 'Renamed'
@@ -352,8 +347,7 @@ async def test_delete_missing_template_raises_not_found() -> None:
 async def test_cover_page_setting_is_saved_and_returned(scope, enabled):
     database = _database()
     database.create_template.return_value = uuid.uuid4()
-    cover_definition = COVER_DEFINITION.copy()
-    cover_definition['version'] = '7'
+    cover_definition = COVER_DEFINITION.model_copy(update={'version': '7'})
     service = TemplateService(database, cover_definition)
     detail = await service.create(
         _user(is_admin=True),
@@ -363,7 +357,7 @@ async def test_cover_page_setting_is_saved_and_returned(scope, enabled):
     assert detail.has_cover_page is enabled
     assert database.create_template.await_args.kwargs['cover_page_version'] == version
     record = TemplateRecord(
-        uuid=detail.uuid, title=detail.title, content=database.create_template.await_args.kwargs['content'],
+        uuid=detail.uuid, title=detail.title, content=TemplateContent.model_validate(database.create_template.await_args.kwargs['content']),
         tenant_uuid=TENANT_UUID, user_uuid=None if scope is TemplateScope.TENANT else USER_UUID,
         cover_page_version=version,
     )
@@ -380,12 +374,11 @@ async def test_editing_cover_page_setting_updates_version(enabled):
     database = _database()
     template_uuid = uuid.uuid4()
     database.get_template.return_value = TemplateRecord(
-        uuid=template_uuid, title='Existing', content=VALID_CONTENT,
+        uuid=template_uuid, title='Existing', content=TemplateContent.model_validate(VALID_CONTENT),
         tenant_uuid=TENANT_UUID, user_uuid=USER_UUID,
         cover_page_version='1',
     )
-    cover_definition = COVER_DEFINITION.copy()
-    cover_definition['version'] = '2'
+    cover_definition = COVER_DEFINITION.model_copy(update={'version': '2'})
     detail = await TemplateService(database, cover_definition).update(
         _user(), template_uuid,
         TemplateUpdateRequest(title='Existing', content=VALID_CONTENT, has_cover_page=enabled),
@@ -406,17 +399,17 @@ async def test_cover_sections_are_stored_but_hidden_when_editing_and_not_duplica
     )
     stored = database.create_template.await_args.kwargs['content']
     expected_content = content.copy()
-    expected_content['sections'] = COVER_DEFINITION['sections'] + content['sections']
-    assert stored == expected_content
-    assert detail.content == content
+    expected_content['sections'] = [section.model_dump(mode='json', exclude_unset=True) for section in COVER_DEFINITION.sections] + content['sections']
+    assert stored.model_dump(mode='json', exclude_unset=True) == expected_content
+    assert detail.content.model_dump(exclude_unset=True) == content
     record = TemplateRecord(
-        uuid=detail.uuid, title=detail.title, content=stored,
-        tenant_uuid=TENANT_UUID, user_uuid=USER_UUID, cover_page_version=str(COVER_DEFINITION['version']),
+        uuid=detail.uuid, title=detail.title, content=TemplateContent.model_validate(stored),
+        tenant_uuid=TENANT_UUID, user_uuid=USER_UUID, cover_page_version=str(COVER_DEFINITION.version),
     )
     database.get_template.return_value = record
     for enabled in (True, False, True):
         editable = await service.get(_user(), detail.uuid)
-        assert editable.content == content
+        assert editable.content.model_dump(exclude_unset=True) == content
         updated = await service.update(
             _user(), detail.uuid,
             TemplateUpdateRequest(title=detail.title, content=editable.content, has_cover_page=enabled),
@@ -424,11 +417,11 @@ async def test_cover_sections_are_stored_but_hidden_when_editing_and_not_duplica
         saved = database.update_template.await_args.kwargs
         expected_sections = content['sections'].copy()
         if enabled:
-            expected_sections = COVER_DEFINITION['sections'] + expected_sections
-        assert saved['content']['sections'] == expected_sections
-        assert updated.content == content
+            expected_sections = [section.model_dump(mode='json', exclude_unset=True) for section in COVER_DEFINITION.sections] + expected_sections
+        assert saved['content'].model_dump(mode='json', exclude_unset=True)['sections'] == expected_sections
+        assert updated.content.model_dump(exclude_unset=True) == content
         database.get_template.return_value = TemplateRecord(
-            uuid=detail.uuid, title=detail.title, content=saved['content'],
+            uuid=detail.uuid, title=detail.title, content=TemplateContent.model_validate(saved['content']),
             tenant_uuid=TENANT_UUID, user_uuid=USER_UUID, cover_page_version=saved['cover_page_version'],
         )
     assert content['sections'] == [{'title': 'Projects', 'content': 'Custom body'}]

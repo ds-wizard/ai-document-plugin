@@ -22,7 +22,10 @@ def upgrade() -> None:
         schema=schema,
     )
     content = sa.cast(template.c.content, JSONB)
-    sections = sa.literal(config.cover_definition['sections'], type_=JSONB)
+    sections = sa.literal(
+        [section.model_dump(mode='json', exclude_unset=True) for section in config.cover_definition.sections],
+        type_=JSONB,
+    )
     op.execute(
         template.update()
         .where(template.c.cover_page_version.is_not(None))

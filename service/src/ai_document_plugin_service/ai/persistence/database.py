@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
+from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
@@ -33,11 +34,11 @@ _active_connection: ContextVar[AsyncConnection | None] = ContextVar('active_conn
 
 @dataclass(frozen=True)
 class TemplateRecord:
-    """A raw template row. Carries the owner so callers can apply access rules."""
+    """A template row with validated content and ownership for access rules."""
 
     uuid: UUID
     title: str
-    content: dict
+    content: TemplateContent
     tenant_uuid: UUID
     user_uuid: UUID | None
     cover_page_version: str | None = None
@@ -55,7 +56,7 @@ class TemplateRecord:
         return cls(
             uuid=row.uuid,
             title=row.title,
-            content=row.content,
+            content=TemplateContent.model_validate(row.content),
             tenant_uuid=row.tenant_uuid,
             user_uuid=row.user_uuid,
             cover_page_version=row.cover_page_version,
@@ -148,7 +149,7 @@ class Database(ABC):
     async def create_template(
         self,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
         *,
@@ -166,7 +167,7 @@ class Database(ABC):
         template_uuid: UUID,
         tenant_uuid: UUID,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         *,
         cover_page_version: str | None = None,
     ) -> bool:
@@ -198,7 +199,7 @@ class Database(ABC):
         self,
         uuid: UUID,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         tenant_uuid: UUID,
     ) -> None:
         """Persist a template in a database backend."""
@@ -463,7 +464,7 @@ class PostgresDB(Database):
     async def create_template(
         self,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
         *,
@@ -475,7 +476,7 @@ class PostgresDB(Database):
             uuid=template_uuid,
             cover_page_version=cover_page_version,
             title=title,
-            content=content,
+            content=content.model_dump(mode='json', exclude_unset=True),
             tenant_uuid=tenant_uuid,
             user_uuid=user_uuid,
         )
@@ -508,7 +509,7 @@ class PostgresDB(Database):
         template_uuid: UUID,
         tenant_uuid: UUID,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         *,
         cover_page_version: str | None = None,
     ) -> bool:
@@ -522,7 +523,7 @@ class PostgresDB(Database):
             )
             .values(
                 title=title,
-                content=content,
+                content=content.model_dump(mode='json', exclude_unset=True),
                 cover_page_version=cover_page_version,
             )
         )
@@ -577,14 +578,14 @@ class PostgresDB(Database):
         self,
         uuid: UUID,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         tenant_uuid: UUID,
     ) -> None:
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=uuid,
             title=title,
-            content=content,
+            content=content.model_dump(mode='json', exclude_unset=True),
             tenant_uuid=tenant_uuid,
         )
         upsert_statement = statement.on_conflict_do_update(

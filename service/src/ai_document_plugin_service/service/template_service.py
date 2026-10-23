@@ -10,6 +10,7 @@ from ai_document_plugin_service.api.types import (
     TemplateScope,
     TemplateUpdateRequest,
 )
+from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 from ai_document_plugin_service.service.errors import (
     AccessDeniedError,
     ConflictError,
@@ -23,12 +24,11 @@ class TemplateService:
     TENANT_MUTATION_MESSAGE = 'Only administrators can modify tenant-wide templates.'
     TENANT_CREATE_MESSAGE = 'Only administrators can create common templates.'
     TITLE_REQUIRED_MESSAGE = 'Template title is required'
-    SECTIONS_REQUIRED_MESSAGE = 'Template JSON must contain a top-level "sections" array.'
 
-    def __init__(self, database: Database, cover_definition: dict) -> None:
+    def __init__(self, database: Database, cover_definition: CoverPageDefinition) -> None:
         self._database = database
-        self._cover_page_version = str(cover_definition['version'])
-        self._cover_page_sections = cover_definition['sections']
+        self._cover_page_version = cover_definition.version
+        self._cover_page_sections = cover_definition.sections
 
     async def list(self, auth: AuthenticatedUser) -> list[TemplateListItem]:
         records = await self._database.list_templates(auth.tenant_uuid, auth.user_uuid)
@@ -45,13 +45,11 @@ class TemplateService:
         if not self._can_mutate(auth, payload.scope, owner_uuid):
             raise AccessDeniedError(self.TENANT_CREATE_MESSAGE)
 
-        trimmed_title = self._validate_payload(payload.title, payload.content)
+        trimmed_title = self._validate_title(payload.title)
 
-        content = payload.content.copy()
-        sections = payload.content['sections'].copy()
+        content = payload.content
         if payload.has_cover_page:
-            sections = self._cover_page_sections + sections
-        content['sections'] = sections
+            content = content.model_copy(update={'sections': self._cover_page_sections + content.sections})
 
         try:
             template_uuid = await self._database.create_template(
@@ -87,13 +85,11 @@ class TemplateService:
                     raise AccessDeniedError(self.TENANT_MUTATION_MESSAGE)
                 raise NotFoundError(self.NOT_FOUND_MESSAGE)
 
-            trimmed_title = self._validate_payload(payload.title, payload.content)
+            trimmed_title = self._validate_title(payload.title)
 
-            content = payload.content.copy()
-            sections = payload.content['sections'].copy()
+            content = payload.content
             if payload.has_cover_page:
-                sections = self._cover_page_sections + sections
-            content['sections'] = sections
+                content = content.model_copy(update={'sections': self._cover_page_sections + content.sections})
 
             try:
                 await self._database.update_template(
@@ -145,11 +141,9 @@ class TemplateService:
         )
 
     def _to_detail(self, record: TemplateRecord) -> TemplateDetail:
-        content = record.content.copy()
-        sections = record.content['sections'].copy()
+        content = record.content
         if record.has_cover_page:
-            sections = sections[len(self._cover_page_sections) :]
-        content['sections'] = sections
+            content = content.model_copy(update={'sections': content.sections[len(self._cover_page_sections) :]})
 
         return TemplateDetail(
             uuid=record.uuid,
@@ -159,13 +153,8 @@ class TemplateService:
             has_cover_page=record.has_cover_page,
         )
 
-    def _validate_payload(self, title: str, content: dict) -> str:
+    def _validate_title(self, title: str) -> str:
         trimmed_title = title.strip()
         if not trimmed_title:
             raise ValidationError(self.TITLE_REQUIRED_MESSAGE)
-
-        sections = content.get('sections')
-        if not isinstance(sections, list):
-            raise ValidationError(self.SECTIONS_REQUIRED_MESSAGE)
-
         return trimmed_title

@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 from ai_document_plugin_service.cover_page.cover_page_resolvers import CoverDataSources, resolve_cover_data
 
 
@@ -18,43 +19,43 @@ def _cell(value: object | None, formatter: str = 'text', pipe_escape: str = '&#1
     return ' '.join(str(value).splitlines()).replace('|', pipe_escape).strip()
 
 
-def _table(columns: list[dict], rows: list[list[str]]) -> str:
-    df = pd.DataFrame(rows, columns=[column['text'] for column in columns])
+def _table(columns: list[str], rows: list[list[str]]) -> str:
+    df = pd.DataFrame(rows, columns=columns)
     return df.to_markdown(index=False, disable_numparse=True)
 
 
 @dataclass(frozen=True)
 class CoverPageRenderer:
-    definition: dict
+    definition: CoverPageDefinition
 
     def render(self, sources: CoverDataSources) -> str:
-        metadata = self.definition['metadata']
-        history = self.definition['history']
+        metadata = self.definition.metadata
+        history = self.definition.history
 
-        history_items = resolve_cover_data(history['resolver'], sources)
+        history_items = resolve_cover_data(history.resolver, sources)
         if not isinstance(history_items, list):
-            msg = f"Cover history resolver '{history['resolver']}' must return a list"
+            msg = f"Cover history resolver '{history.resolver}' must return a list"
             raise TypeError(msg)
 
         metadata_rows = [
-            [field['label'], _cell(resolve_cover_data(field['resolver'], sources), pipe_escape='\\|')]
-            for field in metadata['fields']
+            [field.label, _cell(resolve_cover_data(field.resolver, sources), pipe_escape='\\|')]
+            for field in metadata.fields
         ]
         history_rows = [
-            [_cell(item.get(column['value_key']), column.get('formatter', 'text')) for column in history['columns']]
+            [_cell(item.get(column.value_key), column.formatter) for column in history.columns]
             for item in history_items
         ]
 
         return '\n'.join(
             [
-                f'# {metadata["title"]["text"]}',
+                f'# {metadata.title.text}',
                 '',
-                _table(metadata['columns'], metadata_rows),
+                _table([column.text for column in metadata.columns], metadata_rows),
                 '',
-                metadata['attribution'],
+                metadata.attribution,
                 '',
-                f'## {history["title"]["text"]}',
+                f'## {history.title.text}',
                 '',
-                _table(history['columns'], history_rows),
+                _table([column.text for column in history.columns], history_rows),
             ]
         )

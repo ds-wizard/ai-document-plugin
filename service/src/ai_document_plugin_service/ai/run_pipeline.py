@@ -155,7 +155,6 @@ def build_pipeline(
 async def run_pipeline(
     questionnaire_uuid: UUID,
     template_uuid: UUID,
-    template_title: str,
     template_data: Mapping[str, object],
     tenant_uuid: UUID,
     pipeline: Pipeline,
@@ -207,8 +206,6 @@ async def run_pipeline(
                     'knowledge_model_name': knowledge_model_name,
                     'knowledge_model_version': knowledge_model_version,
                     'template_uuid': template_uuid,
-                    'template_title': template_title,
-                    'template_data': template_data,
                     'tenant_uuid': tenant_uuid,
                 },
                 'dmp_generator_component': {

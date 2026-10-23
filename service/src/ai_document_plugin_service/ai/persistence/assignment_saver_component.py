@@ -6,7 +6,6 @@ import logging
 import pathlib
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-JsonValue = Mapping[str, object] | Sequence[object]
 StatsJson = dict[str, dict[str, int | float]]
 
 
@@ -47,8 +45,6 @@ class AssignmentSaverComponent:
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
@@ -60,7 +56,6 @@ class AssignmentSaverComponent:
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'knowledge_model_version': knowledge_model_version,
                 'template_uuid': str(template_uuid),
-                'template_title': template_title,
                 'tenant_uuid': str(tenant_uuid),
                 'assignment_count': len(assignments),
                 'has_stats': stats is not None,
@@ -76,8 +71,6 @@ class AssignmentSaverComponent:
             assignments=serializable,
             stats=stats_payload,
             template_uuid=template_uuid,
-            template_title=template_title,
-            template_data=template_data,
             tenant_uuid=tenant_uuid,
             created_at=datetime.now(tz=UTC),
         )
@@ -94,8 +87,6 @@ class AssignmentSaverComponent:
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
@@ -117,12 +108,10 @@ class Saver(ABC):
         assignments: list[SerializedSectionAssignment],
         stats: StatsJson | None,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist assignments and their template."""
+        """Persist assignments."""
 
 
 class FileSaver(Saver):
@@ -134,12 +123,10 @@ class FileSaver(Saver):
         assignments: list[SerializedSectionAssignment],
         stats: StatsJson | None,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
-        _ = (template_uuid, template_title, template_data, tenant_uuid)
+        _ = (template_uuid, tenant_uuid)
         output_name = self._build_filename(
             knowledge_model_uuid,
             knowledge_model_name,
@@ -198,8 +185,6 @@ class DBSaver(Saver):
         assignments: list[SerializedSectionAssignment],
         stats: StatsJson | None,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
@@ -210,12 +195,6 @@ class DBSaver(Saver):
                 'template_uuid': str(template_uuid),
                 'tenant_uuid': str(tenant_uuid),
             },
-        )
-        await self.database.save_template(
-            uuid=template_uuid,
-            title=template_title,
-            content=template_data,
-            tenant_uuid=tenant_uuid,
         )
         await self.database.save_assignments(
             knowledge_model_uuid=knowledge_model_uuid,

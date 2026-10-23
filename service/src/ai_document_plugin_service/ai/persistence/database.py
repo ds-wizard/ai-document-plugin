@@ -205,16 +205,6 @@ class Database(ABC):
         """Persist assignments in a database backend."""
 
     @abstractmethod
-    async def save_template(
-        self,
-        uuid: UUID,
-        title: str,
-        content: JsonValue,
-        tenant_uuid: UUID,
-    ) -> None:
-        """Persist a template in a database backend."""
-
-    @abstractmethod
     async def get_assignments(
         self,
         knowledge_model_uuid: UUID,
@@ -575,42 +565,6 @@ class PostgresDB(Database):
 
         logger.debug('Soft-deleted template uuid=%s in %s.template', template_uuid, self.schema_name)
         return result.rowcount > 0
-
-    async def save_template(
-        self,
-        uuid: UUID,
-        title: str,
-        content: JsonValue,
-        tenant_uuid: UUID,
-    ) -> None:
-        await self._ensure_schema()
-        statement = postgresql_insert(self.template_table).values(
-            uuid=uuid,
-            title=title,
-            content=content,
-            tenant_uuid=tenant_uuid,
-        )
-        upsert_statement = statement.on_conflict_do_update(
-            index_elements=[self.template_table.c.uuid],
-            set_={
-                'title': statement.excluded.title,
-                'content': statement.excluded.content,
-                'updated_at': datetime.now(tz=UTC),
-            },
-        )
-
-        async with self._connect() as connection:
-            await connection.execute(upsert_statement)
-
-        logger.info(
-            'Saved template definition',
-            extra={
-                'template_uuid': str(uuid),
-                'template_title': title,
-                'tenant_uuid': str(tenant_uuid),
-                'db.schema': self.schema_name,
-            },
-        )
 
     async def get_assignments(
         self,

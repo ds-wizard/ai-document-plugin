@@ -418,7 +418,6 @@ class PipelineService:
         output = await run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
-            template_title=template.title,
             template_data=template.content,
             tenant_uuid=auth.tenant_uuid,
             pipeline=pipeline,

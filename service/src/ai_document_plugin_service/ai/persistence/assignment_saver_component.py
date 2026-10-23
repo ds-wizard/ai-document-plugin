@@ -1,12 +1,7 @@
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-import pathlib
-import re
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict
 
@@ -15,10 +10,14 @@ from uuid import UUID  # ruff: ignore[typing-only-standard-library-import]
 
 from haystack import component
 
+from ai_document_plugin_service.ai.assignment.compatibility_utils import collect_leaf_question_paths
 from ai_document_plugin_service.ai.assignment.types import (
     SectionAssignment,
+    SectionQuestionPaths,
     SerializedSectionAssignment,
 )
+
+# Haystack inspects component input annotations at runtime.
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 
 if TYPE_CHECKING:
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-JsonValue = Mapping[str, object] | Sequence[object]
 StatsJson = dict[str, dict[str, int | float]]
 
 
@@ -40,44 +38,52 @@ class AssignmentSaverComponent:
     def __init__(self, saver: Saver) -> None:
         self.saver = saver
 
-    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats | None)
     async def run_async(
         self,
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
+        *,
+        has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
-        """Save assignments to storage, optionally including token usage stats."""
+        """Save assignments to storage, optionally including token usage stats.
+
+        Skips the write when ``has_new_assignments`` is false: everything came from storage unchanged.
+        """
+        serializable = [assignment.to_dict() for assignment in assignments]
+        if not has_new_assignments:
+            logger.info(
+                'Reusing stored assignments without saving',
+                extra={'knowledge_model_uuid': knowledge_model_uuid, 'template_uuid': str(template_uuid)},
+            )
+            return {'assignments': serializable, 'stats': stats}
+
         logger.info(
             'Persisting generated assignments',
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'knowledge_model_version': knowledge_model_version,
                 'template_uuid': str(template_uuid),
-                'template_title': template_title,
                 'tenant_uuid': str(tenant_uuid),
                 'assignment_count': len(assignments),
                 'has_stats': stats is not None,
             },
         )
-        serializable = [assignment.to_dict() for assignment in assignments]
+        question_paths = collect_leaf_question_paths(assignments)
         stats_payload = _serialize_stats(stats)
 
         await self.saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
-            assignments=serializable,
+            question_paths=question_paths,
             stats=stats_payload,
             template_uuid=template_uuid,
-            template_title=template_title,
-            template_data=template_data,
             tenant_uuid=tenant_uuid,
             created_at=datetime.now(tz=UTC),
         )
@@ -87,18 +93,18 @@ class AssignmentSaverComponent:
             'stats': stats,
         }
 
-    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats | None)
     def run(
         self,
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
+        *,
+        has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'
@@ -114,76 +120,13 @@ class Saver(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         stats: StatsJson | None,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist assignments and their template."""
-
-
-class FileSaver(Saver):
-    async def save(
-        self,
-        knowledge_model_uuid: UUID,
-        knowledge_model_name: str,
-        knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
-        stats: StatsJson | None,
-        template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
-        tenant_uuid: UUID,
-        created_at: datetime | None = None,
-    ) -> None:
-        _ = (template_uuid, template_title, template_data, tenant_uuid)
-        output_name = self._build_filename(
-            knowledge_model_uuid,
-            knowledge_model_name,
-            knowledge_model_version,
-            created_at,
-        )
-        output_path = pathlib.Path(f'{output_name}.json')
-        output_path_stats = pathlib.Path(f'{output_name}.stats.json')
-
-        await asyncio.to_thread(
-            output_path.write_text,
-            json.dumps(assignments, indent=2, ensure_ascii=False),
-            encoding='utf-8',
-        )
-        if stats is not None:
-            await asyncio.to_thread(
-                output_path_stats.write_text,
-                json.dumps(stats, indent=2, ensure_ascii=False),
-                encoding='utf-8',
-            )
-        logger.info(
-            'Saved assignments to filesystem',
-            extra={
-                'output_path': str(output_path),
-                'stats_output_path': str(output_path_stats) if stats is not None else None,
-            },
-        )
-
-    @staticmethod
-    def _build_filename(
-        knowledge_model_uuid: UUID,
-        knowledge_model_name: str,
-        knowledge_model_version: str,
-        created_at: datetime | None = None,
-    ) -> str:
-        normalized_uuid = _normalize_filename_part(str(knowledge_model_uuid))
-        normalized_name = _normalize_filename_part(knowledge_model_name)
-        normalized_version = _normalize_filename_part(knowledge_model_version)
-
-        if created_at is not None:
-            timestamp = created_at.strftime('%Y%m%d_%H%M%S')
-            return f'{normalized_uuid}_{normalized_name}_{normalized_version}_{timestamp}'
-
-        return f'{normalized_uuid}_{normalized_name}_{normalized_version}'
+        """Persist assignments."""
 
 
 class DBSaver(Saver):
@@ -195,11 +138,9 @@ class DBSaver(Saver):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         stats: StatsJson | None,
         template_uuid: UUID,
-        template_title: str,
-        template_data: JsonValue,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
     ) -> None:
@@ -211,17 +152,11 @@ class DBSaver(Saver):
                 'tenant_uuid': str(tenant_uuid),
             },
         )
-        await self.database.save_template(
-            uuid=template_uuid,
-            title=template_title,
-            content=template_data,
-            tenant_uuid=tenant_uuid,
-        )
         await self.database.save_assignments(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
-            assignments=assignments,
+            question_paths=question_paths,
             stats=stats,
             created_at=created_at,
             template_uuid=template_uuid,
@@ -249,8 +184,3 @@ def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
             'total_duration_ms': stats.total_duration_ms,
         },
     }
-
-
-def _normalize_filename_part(value: str) -> str:
-    normalized = re.sub(r'[^A-Za-z0-9._-]+', '_', value.strip())
-    return normalized.strip('._') or 'document'

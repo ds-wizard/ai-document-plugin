@@ -3,18 +3,8 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from ai_document_plugin_service.ai.assignment.types import (
-    SectionNode,
     SectionRecord,
 )
-
-
-def build_section_records(template_data: dict[str, Any]) -> list[SectionRecord]:
-    """Build section records from loaded template JSON data.
-
-    Each record receives a synthetic UUID id. Ids are unique across the whole tree and
-    decoupled from the section title, so duplicate titles never collide downstream.
-    """
-    return _build_records_recursively(template_data['sections'])
 
 
 def collect_leaf_sections(
@@ -37,7 +27,8 @@ def render_section_tree_as_xml(
     """Render the section tree as XML.
 
     Only leaf sections receive a short `id` attribute (the LLM-facing sid), looked up
-    in `record_id_to_sid` by the leaf's `SectionRecord.id`. record_id_to_sid must contain all leaf sections.
+    in `record_id_to_sid` by the leaf's `SectionRecord.id`. Leaves missing from record_id_to_sid
+    are rendered without an id, so the LLM sees them as context but cannot assign questions to them.
     """
     root_children: list[dict[str, Any]] = [
         _section_record_to_xml_node(
@@ -51,23 +42,6 @@ def render_section_tree_as_xml(
     xml_parts.extend(_xml_node_to_string(child) for child in root_children)
     xml_parts.append('</sections>')
     return '\n'.join(xml_parts)
-
-
-def _build_records_recursively(
-    sections: list[dict[str, Any]],
-) -> list[SectionRecord]:
-    records: list[SectionRecord] = []
-    for section_dict in sections:
-        node = SectionNode(section_dict)
-        records.append(
-            SectionRecord(
-                id=uuid.uuid4(),
-                title=node.title,
-                section=node,
-                children=_build_records_recursively(node.subsections) if node.subsections else None,
-            ),
-        )
-    return records
 
 
 def section_index_to_letter_id(index: int) -> str:
@@ -100,7 +74,9 @@ def _section_record_to_xml_node(
             node['content'] = section.section.content.strip()
         return node
 
-    node = {'tag': 'section', 'id': record_id_to_sid[section.id], 'title': section.title}
+    node = {'tag': 'section', 'title': section.title}
+    if section.id in record_id_to_sid:
+        node['id'] = record_id_to_sid[section.id]
     if section.section.content:
         node['content'] = section.section.content.strip()
     return node

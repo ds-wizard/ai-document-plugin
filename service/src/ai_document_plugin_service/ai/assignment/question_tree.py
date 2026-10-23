@@ -30,6 +30,7 @@ def build_question_chunks(
         A tuple of:
         - `chunk_xml`: XML snippets where each item is one question-tree chunk.
         - `question_id_to_path`: Mapping from generated leaf question IDs to KM paths.
+            e.g:  4 -> '53dcdc1d-07d1-4392-b8e7-cbf2b5c0dc29.*.03bc384e-914c-4c93-94e9-f8e38ae99eac'
 
     """
     root = BlankQuestion(top_level_questions)

@@ -222,3 +222,6 @@ dmp_output.md
 dmp_output_pre_polish.md
 dmp_output_with_stats.md
 question_section_assignments_OpenAILayerMatcher.json
+
+# Results of eval runs; they can contain questionnaire data and are not shared.
+data/results/

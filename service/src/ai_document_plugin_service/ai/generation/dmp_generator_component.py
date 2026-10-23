@@ -69,8 +69,7 @@ class DmpGeneratorComponent:
         *,
         include_cover_page: bool = False,
         created_at: datetime | None = None,
-        new_assignments: list[SerializedSectionAssignment] | None = None,
-        db_assignments: list[SerializedSectionAssignment] | None = None,
+        assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         created_at = created_at or datetime.now(tz=UTC)
@@ -81,9 +80,9 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        document_assignments = db_assignments if db_assignments is not None else new_assignments or []
+        document_assignments = assignments or []
         cover_page_section_count = (
-            len(self.cover_page_renderer.definition['sections'])
+            len(self.cover_page_renderer.definition.sections)
             if include_cover_page and self.cover_page_renderer is not None
             else 0
         )
@@ -233,8 +232,7 @@ class DmpGeneratorComponent:
         *,
         include_cover_page: bool = False,
         created_at: datetime | None = None,
-        new_assignments: list[SerializedSectionAssignment] | None = None,
-        db_assignments: list[SerializedSectionAssignment] | None = None,
+        assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""

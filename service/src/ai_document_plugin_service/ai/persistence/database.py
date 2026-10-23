@@ -14,8 +14,9 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionQuestionPaths
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
+from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
@@ -32,12 +33,28 @@ _active_connection: ContextVar[AsyncConnection | None] = ContextVar('active_conn
 
 
 @dataclass(frozen=True)
+class SectionAssignmentsContainer:
+    # Question paths of each stored leaf section, by section id.
+    question_paths: SectionQuestionPaths
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_rows(cls, row: Row, section_rows: Sequence[Row]) -> 'SectionAssignmentsContainer':
+        return cls(
+            question_paths={section_row.section_id: section_row.question_paths for section_row in section_rows},
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+
+
+@dataclass(frozen=True)
 class TemplateRecord:
-    """A raw template row. Carries the owner so callers can apply access rules."""
+    """A template row with validated content and ownership for access rules."""
 
     uuid: UUID
     title: str
-    content: dict
+    content: TemplateContent
     tenant_uuid: UUID
     user_uuid: UUID | None
     cover_page_version: str | None = None
@@ -55,7 +72,7 @@ class TemplateRecord:
         return cls(
             uuid=row.uuid,
             title=row.title,
-            content=row.content,
+            content=TemplateContent.model_validate(row.content),
             tenant_uuid=row.tenant_uuid,
             user_uuid=row.user_uuid,
             cover_page_version=row.cover_page_version,
@@ -148,7 +165,7 @@ class Database(ABC):
     async def create_template(
         self,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
         *,
@@ -166,7 +183,7 @@ class Database(ABC):
         template_uuid: UUID,
         tenant_uuid: UUID,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         *,
         cover_page_version: str | None = None,
     ) -> bool:
@@ -186,29 +203,19 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist assignments in a database backend."""
-
-    @abstractmethod
-    async def save_template(
-        self,
-        uuid: UUID,
-        title: str,
-        content: JsonValue,
-        tenant_uuid: UUID,
-    ) -> None:
-        """Persist a template in a database backend."""
+        """Persist the question paths of each leaf section by section id, replacing the stored sections."""
 
     @abstractmethod
     async def get_assignments(
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> list[SerializedSectionAssignment] | None:
+    ) -> SectionAssignmentsContainer | None:
         """Get assignments from a database backend."""
 
     @abstractmethod
@@ -318,6 +325,7 @@ class PostgresDB(Database):
         schema = create_persistence_schema(self.schema_name)
         self.metadata = schema.metadata
         self.assignment_table = schema.assignment_table
+        self.assignment_section_table = schema.assignment_section_table
         self.template_table = schema.template_table
         self.generation_table = schema.generation_table
         self.generation_stats_table = schema.generation_stats_table
@@ -389,6 +397,7 @@ class PostgresDB(Database):
             'alembic_version',
             'template',
             'assignment',
+            'assignment_section',
             'generation',
             'generation_stats',
             'llm_settings',
@@ -415,7 +424,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -427,7 +436,7 @@ class PostgresDB(Database):
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
-            assignments=assignments,
+            updated_at=created_at_value,
             stats=stats,
             template_uuid=template_uuid,
         )
@@ -437,20 +446,40 @@ class PostgresDB(Database):
                 self.assignment_table.c.template_uuid,
             ],
             set_={
-                'created_at': statement.excluded.created_at,
-                'assignments': statement.excluded.assignments,
+                'updated_at': datetime.now(tz=UTC),
             },
         )
+        section_table = self.assignment_section_table
+        # All stored sections of this template and knowledge model; they are replaced by the current ones below.
+        delete_sections_statement = section_table.delete().where(
+            (section_table.c.knowledge_model_uuid == knowledge_model_uuid)
+            & (section_table.c.template_uuid == template_uuid),
+        )
 
-        async with self._connect() as connection:
+        async with self.transaction(), self._connect() as connection:
             await connection.execute(upsert_statement)
+            await connection.execute(delete_sections_statement)
+            if question_paths:
+                # One row per current leaf section, with the question paths assigned to it.
+                await connection.execute(
+                    section_table.insert(),
+                    [
+                        {
+                            'knowledge_model_uuid': knowledge_model_uuid,
+                            'template_uuid': template_uuid,
+                            'section_id': section_id,
+                            'question_paths': paths,
+                        }
+                        for section_id, paths in question_paths.items()
+                    ],
+                )
 
         logger.info(
             'Saved assignments',
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'assignment_count': len(assignments),
+                'section_count': len(question_paths),
                 'db.schema': self.schema_name,
             },
         )
@@ -463,7 +492,7 @@ class PostgresDB(Database):
     async def create_template(
         self,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
         *,
@@ -475,7 +504,7 @@ class PostgresDB(Database):
             uuid=template_uuid,
             cover_page_version=cover_page_version,
             title=title,
-            content=content,
+            content=content.model_dump(mode='json', exclude_unset=True),
             tenant_uuid=tenant_uuid,
             user_uuid=user_uuid,
         )
@@ -508,7 +537,7 @@ class PostgresDB(Database):
         template_uuid: UUID,
         tenant_uuid: UUID,
         title: str,
-        content: JsonValue,
+        content: TemplateContent,
         *,
         cover_page_version: str | None = None,
     ) -> bool:
@@ -522,27 +551,14 @@ class PostgresDB(Database):
             )
             .values(
                 title=title,
-                content=content,
+                content=content.model_dump(mode='json', exclude_unset=True),
                 cover_page_version=cover_page_version,
+                updated_at=datetime.now(tz=UTC),
             )
         )
 
         try:
             async with self._connect() as connection:
-                await connection.execute(
-                    self.assignment_table.delete().where(
-                        self.assignment_table.c.template_uuid.in_(
-                            self.template_table.select()
-                            .with_only_columns(self.template_table.c.uuid)
-                            .where(
-                                self.template_table.c.uuid == template_uuid,
-                                self.template_table.c.tenant_uuid == tenant_uuid,
-                                self.template_table.c.deleted_at.is_(None),
-                                self.template_table.c.cover_page_version.is_distinct_from(cover_page_version),
-                            ),
-                        ),
-                    ),
-                )
                 result = await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -573,46 +589,11 @@ class PostgresDB(Database):
         logger.debug('Soft-deleted template uuid=%s in %s.template', template_uuid, self.schema_name)
         return result.rowcount > 0
 
-    async def save_template(
-        self,
-        uuid: UUID,
-        title: str,
-        content: JsonValue,
-        tenant_uuid: UUID,
-    ) -> None:
-        await self._ensure_schema()
-        statement = postgresql_insert(self.template_table).values(
-            uuid=uuid,
-            title=title,
-            content=content,
-            tenant_uuid=tenant_uuid,
-        )
-        upsert_statement = statement.on_conflict_do_update(
-            index_elements=[self.template_table.c.uuid],
-            set_={
-                'title': statement.excluded.title,
-                'content': statement.excluded.content,
-            },
-        )
-
-        async with self._connect() as connection:
-            await connection.execute(upsert_statement)
-
-        logger.info(
-            'Saved template definition',
-            extra={
-                'template_uuid': str(uuid),
-                'template_title': title,
-                'tenant_uuid': str(tenant_uuid),
-                'db.schema': self.schema_name,
-            },
-        )
-
     async def get_assignments(
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> list[SerializedSectionAssignment] | None:
+    ) -> SectionAssignmentsContainer | None:
         await self._ensure_schema()
 
         statement = self.assignment_table.select().where(
@@ -620,9 +601,16 @@ class PostgresDB(Database):
             & (self.assignment_table.c.template_uuid == template_uuid),
         )
 
+        section_table = self.assignment_section_table
+        sections_statement = section_table.select().where(
+            (section_table.c.knowledge_model_uuid == knowledge_model_uuid)
+            & (section_table.c.template_uuid == template_uuid),
+        )
+
         async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
+            section_rows = (await connection.execute(sections_statement)).fetchall() if row is not None else []
 
         if row is None:
             logger.info(
@@ -641,7 +629,7 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-        return row.assignments
+        return SectionAssignmentsContainer.from_rows(row, section_rows)
 
     def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""

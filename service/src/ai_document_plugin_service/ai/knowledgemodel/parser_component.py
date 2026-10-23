@@ -17,14 +17,6 @@ from ai_document_plugin_service.ai.knowledgemodel.types import (
     ValueQuestion,
 )
 
-QUESTION_TYPES = [
-    ValueQuestion,
-    ListQuestion,
-    OptionsQuestion,
-    MultiChoiceQuestion,
-    ItemSelectQuestion,
-]
-
 logger = logging.getLogger(__name__)
 REPLY_PATH_PARTS_MIN_LENGTH = 2
 REPLY_PARENT_SEGMENT_INDEX = -2
@@ -36,7 +28,7 @@ class ParserComponent:
         self.km: dict = {}
 
     @component.output_types(data=list[QuestionData])
-    def run(self, data: dict, trigger: bool) -> dict[str, list[QuestionData]]:  # ruff: ignore[boolean-type-hint-positional-argument, unused-method-argument]
+    def run(self, data: dict) -> dict[str, list[QuestionData]]:
         self.km = data['knowledgeModel']
         replies = data['replies']
         logger.info(

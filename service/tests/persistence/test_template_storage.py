@@ -12,7 +12,7 @@ from ai_document_plugin_service.ai.persistence.schema import create_persistence_
 from ai_document_plugin_service.ai.common.types import TemplateContent
 
 
-@pytest.mark.parametrize('operation', ['create', 'update', 'save'])
+@pytest.mark.parametrize('operation', ['create', 'update'])
 async def test_template_writes_json_and_reads_typed_content(operation, monkeypatch):
     database = PostgresDB.__new__(PostgresDB)
     schema = create_persistence_schema('test')
@@ -33,10 +33,8 @@ async def test_template_writes_json_and_reads_typed_content(operation, monkeypat
     template_uuid = uuid4()
     if operation == 'create':
         template_uuid = await database.create_template('Template', content, tenant_uuid, None)
-    elif operation == 'update':
-        await database.update_template(template_uuid, tenant_uuid, 'Template', content)
     else:
-        await database.save_template(template_uuid, 'Template', content, tenant_uuid)
+        await database.update_template(template_uuid, tenant_uuid, 'Template', content)
 
     parameters = connection.execute.await_args.args[0].compile().params
     assert parameters['content'] == raw

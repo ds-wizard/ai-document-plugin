@@ -27,7 +27,8 @@ def render_section_tree_as_xml(
     """Render the section tree as XML.
 
     Only leaf sections receive a short `id` attribute (the LLM-facing sid), looked up
-    in `record_id_to_sid` by the leaf's `SectionRecord.id`. record_id_to_sid must contain all leaf sections.
+    in `record_id_to_sid` by the leaf's `SectionRecord.id`. Leaves missing from record_id_to_sid
+    are rendered without an id, so the LLM sees them as context but cannot assign questions to them.
     """
     root_children: list[dict[str, Any]] = [
         _section_record_to_xml_node(
@@ -73,7 +74,9 @@ def _section_record_to_xml_node(
             node['content'] = section.section.content.strip()
         return node
 
-    node = {'tag': 'section', 'id': record_id_to_sid[section.id], 'title': section.title}
+    node = {'tag': 'section', 'title': section.title}
+    if section.id in record_id_to_sid:
+        node['id'] = record_id_to_sid[section.id]
     if section.section.content:
         node['content'] = section.section.content.strip()
     return node

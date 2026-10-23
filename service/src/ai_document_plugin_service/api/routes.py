@@ -164,6 +164,16 @@ async def get_pipeline_status(
     return status
 
 
+@protected_router.delete('/pipelines/status/{run_id}', status_code=204)
+async def delete_pipeline(run_id: UUID, pipeline: PipelineServiceDI, auth: AuthenticatedDI) -> None:
+    await pipeline.delete_pipeline(run_id, auth)
+
+
+@protected_router.post('/pipelines/status/{run_id}/cancel')
+async def cancel_pipeline(run_id: UUID, pipeline: PipelineServiceDI, auth: AuthenticatedDI) -> PipelineStatusResponse:
+    return await pipeline.cancel_pipeline(run_id, auth)
+
+
 @protected_router.post('/pipelines/status/{run_id}/save')
 async def save_pipeline_result(
     run_id: UUID, save_request: PipelineSaveRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI

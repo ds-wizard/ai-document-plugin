@@ -19,7 +19,7 @@ from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfi
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
-from ai_document_plugin_service.api.types import TemplateScope
+from ai_document_plugin_service.api.types import PipelineStatus, TemplateScope
 
 logger = logging.getLogger(__name__)
 
@@ -248,14 +248,19 @@ class Database(ABC):
         self,
         run_id: UUID,
         tenant_uuid: UUID,
+        expected_statuses: tuple[str, ...] | None = None,
         **updates: Unpack[GenerationUpdate],
     ) -> GenerationRecord | None:
         """Partially update a generation row and return the updated record.
 
         Only the fields passed in ``updates`` are changed; any nullable field may be
         set to ``None`` to clear it. Returns ``None`` if no row matches
-        ``run_id``/``tenant_uuid``.
+        ``run_id``/``tenant_uuid`` or its status is outside ``expected_statuses``.
         """
+
+    @abstractmethod
+    async def delete_generation(self, run_id: UUID, tenant_uuid: UUID, user_uuid: UUID) -> bool:
+        """Delete an owned terminal run and its cascading stats; return whether it existed."""
 
     @abstractmethod
     async def create_generation_stats(
@@ -742,6 +747,7 @@ class PostgresDB(Database):
         self,
         run_id: UUID,
         tenant_uuid: UUID,
+        expected_statuses: tuple[str, ...] | None = None,
         **updates: Unpack[GenerationUpdate],
     ) -> GenerationRecord | None:
         await self._ensure_schema()
@@ -759,6 +765,9 @@ class PostgresDB(Database):
             .returning(*self._generation_record_columns())
         )
 
+        if expected_statuses is not None:
+            statement = statement.where(self.generation_table.c.status.in_(expected_statuses))
+
         async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
@@ -772,6 +781,26 @@ class PostgresDB(Database):
             self.schema_name,
         )
         return GenerationRecord.from_row(row)
+
+    async def delete_generation(self, run_id: UUID, tenant_uuid: UUID, user_uuid: UUID) -> bool:
+        await self._ensure_schema()
+        # Keep ownership and terminal-state checks in the DELETE itself. The existing
+        # ON DELETE CASCADE foreign key removes generation_stats in the same transaction.
+        statement = (
+            self.generation_table.delete()
+            .where(
+                self.generation_table.c.run_id == run_id,
+                self.generation_table.c.tenant_uuid == tenant_uuid,
+                self.generation_table.c.user_uuid == user_uuid,
+                self.generation_table.c.status.in_(
+                    (PipelineStatus.SUCCEEDED, PipelineStatus.FAILED, PipelineStatus.CANCELLED)
+                ),
+            )
+            .returning(self.generation_table.c.run_id)
+        )
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            return result.fetchone() is not None
 
     async def create_generation_stats(
         self,

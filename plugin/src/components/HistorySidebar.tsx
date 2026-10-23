@@ -6,6 +6,7 @@ import {
     useState,
 } from 'react'
 
+import { DeleteRunModal } from '@/components/DeleteRunModal'
 import styles from '@/components/HistorySidebar.module.css'
 import {
     getRunTimeLabel,
@@ -18,6 +19,7 @@ type HistorySidebarProps = {
     history: UseGenerationHistoryResult
     selectedRunId: string | null
     onSelectNew: () => void
+    onDeleteRun: (runId: string) => Promise<void>
     onSelectRun: (runId: string) => void
 }
 
@@ -26,6 +28,7 @@ const STATUS_ICON: Record<RunRecord['status'], string> = {
     running: 'fas fa-spinner fa-spin',
     succeeded: 'fas fa-check-circle',
     failed: 'fas fa-exclamation-circle',
+    cancelled: 'fas fa-ban',
 }
 
 const MIN_THUMB_HEIGHT = 24
@@ -36,12 +39,14 @@ export function HistorySidebar({
     history,
     selectedRunId,
     onSelectNew,
+    onDeleteRun,
     onSelectRun,
 }: HistorySidebarProps) {
     const { items, isLoading } = history
     const activeItemRef = useRef<HTMLButtonElement | null>(null)
     const listRef = useRef<HTMLDivElement | null>(null)
     const [thumb, setThumb] = useState<ScrollThumb | null>(null)
+    const [runToDelete, setRunToDelete] = useState<RunRecord | null>(null)
 
     // The native scrollbar is hidden (it would sit on the divider), so the
     // overlay thumb below is measured from the list instead.
@@ -123,28 +128,74 @@ export function HistorySidebar({
 
             <div className={styles.list} role="list" ref={listRef} onScroll={updateThumb}>
                 {items.map((item) => (
-                    <button
-                        key={item.runId}
-                        ref={selectedRunId === item.runId ? activeItemRef : null}
-                        type="button"
-                        role="listitem"
-                        onClick={() => onSelectRun(item.runId)}
-                        className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''}`}
-                    >
-                        <i
-                            className={`${STATUS_ICON[item.status]} ${styles.statusIcon} ${styles[item.status]}`}
-                            aria-hidden="true"
-                        />
-                        <span className={styles.itemBody}>
-                            <span className={styles.itemTitle} title={item.templateTitle}>
-                                {item.templateTitle}
+                    <div key={item.runId} role="listitem" className={styles.itemRow}>
+                        <button
+                            ref={selectedRunId === item.runId ? activeItemRef : null}
+                            type="button"
+                            onClick={() => onSelectRun(item.runId)}
+                            className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''} ${item.status !== 'queued' && item.status !== 'running' ? styles.itemWithClose : ''}`}
+                        >
+                            <span className={styles.statusSlot} aria-hidden="true">
+                                {item.status !== 'queued' && item.status !== 'running' ? (
+                                    <i
+                                        className={`${STATUS_ICON[item.status]} ${styles.statusIcon} ${styles[item.status]}`}
+                                    />
+                                ) : null}
                             </span>
-                            <span className={styles.itemVersion} title={getRunVersionLabel(item)}>
-                                {getRunVersionLabel(item)}
+                            <span className={styles.itemBody}>
+                                <span className={styles.itemTitle} title={item.templateTitle}>
+                                    {item.templateTitle}
+                                </span>
+                                <span
+                                    className={styles.itemVersion}
+                                    title={getRunVersionLabel(item)}
+                                >
+                                    {getRunVersionLabel(item)}
+                                </span>
+                                <span className={styles.itemTime}>{getRunTimeLabel(item)}</span>
                             </span>
-                            <span className={styles.itemTime}>{getRunTimeLabel(item)}</span>
-                        </span>
-                    </button>
+                        </button>
+                        {item.status === 'queued' || item.status === 'running' ? (
+                            <button
+                                type="button"
+                                className={styles.stopButton}
+                                aria-label={
+                                    history.cancellingRunIds.has(item.runId)
+                                        ? 'Stopping pipeline'
+                                        : 'Stop pipeline'
+                                }
+                                disabled={history.cancellingRunIds.has(item.runId)}
+                                onClick={() => void history.cancelRun(item.runId)}
+                            >
+                                <span className={styles.stopRing} aria-hidden="true" />
+                                <span className={styles.stopSquare} aria-hidden="true" />
+                                <span className={styles.stopTooltip} aria-hidden="true">
+                                    {history.cancellingRunIds.has(item.runId)
+                                        ? 'Stopping pipeline…'
+                                        : 'Stop pipeline'}
+                                </span>
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                aria-label={
+                                    history.deletingRunIds.has(item.runId)
+                                        ? 'Deleting run'
+                                        : 'Delete run'
+                                }
+                                disabled={history.deletingRunIds.has(item.runId)}
+                                onClick={() => setRunToDelete(item)}
+                            >
+                                <i className="fas fa-times" aria-hidden="true" />
+                                <span className={styles.closeTooltip} aria-hidden="true">
+                                    {history.deletingRunIds.has(item.runId)
+                                        ? 'Deleting run…'
+                                        : 'Delete run'}
+                                </span>
+                            </button>
+                        )}
+                    </div>
                 ))}
 
                 {items.length === 0 && !isLoading ? (
@@ -158,6 +209,13 @@ export function HistorySidebar({
                     style={{ top: thumb.top, height: thumb.height }}
                     onPointerDown={handleThumbPointerDown}
                     aria-hidden="true"
+                />
+            ) : null}
+            {runToDelete ? (
+                <DeleteRunModal
+                    run={runToDelete}
+                    onDelete={onDeleteRun}
+                    onClose={() => setRunToDelete(null)}
                 />
             ) : null}
         </nav>

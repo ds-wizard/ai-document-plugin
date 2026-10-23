@@ -110,10 +110,11 @@ class AssignmentComponent:
                 )
             return result
 
-        chunk_results = await asyncio.gather(
-            *[match_chunk(chunk) for chunk in question_chunks],
-        )
-        for question_to_section_ids in chunk_results:
+        # TaskGroup cancels unfinished chunks on failure/cancellation and awaits their cleanup.
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(match_chunk(chunk)) for chunk in question_chunks]
+        for task in tasks:
+            question_to_section_ids = task.result()
             self._add_chunk_mapping_to_result(
                 result_mapping=result_mapping,
                 question_to_section_ids=question_to_section_ids,
@@ -150,7 +151,7 @@ class AssignmentComponent:
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
-        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'
         raise NotImplementedError(
             msg,
         )

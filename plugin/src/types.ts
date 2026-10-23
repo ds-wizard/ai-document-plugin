@@ -81,7 +81,7 @@ export type CoverPagePreviewDefinition = {
 
 export type PipelineStatusResponse = {
     runId: string
-    status: 'queued' | 'running' | 'succeeded' | 'failed'
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
     questionnaireUuid: string
     knowledgeModelUuid: string
     userUuid: string
@@ -99,7 +99,7 @@ export type PipelineStatusResponse = {
 
 export type PipelineSummaryItem = {
     runId: string
-    status: 'queued' | 'running' | 'succeeded' | 'failed'
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
     templateTitle: string
     error: PipelineErrorResponse | null
     progressMessage: string | null

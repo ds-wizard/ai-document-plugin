@@ -9,17 +9,18 @@ from uuid import UUID
 from haystack import component
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
-    convert_mappings_to_assignment_tree,
+    convert_mappings_to_assignment_tree_recursive,
 )
 from ai_document_plugin_service.ai.assignment.llm import OpenAILayerMatcher
 from ai_document_plugin_service.ai.assignment.mappers import template_sections_to_records
 from ai_document_plugin_service.ai.assignment.question_tree import (
     build_question_chunks,
 )
+from ai_document_plugin_service.ai.assignment.section_tree import collect_leaf_sections
 from ai_document_plugin_service.ai.assignment.sections.sections_formatter import (
     SectionFormatter,
 )
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionQuestionPaths
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.progress import progress_percent
@@ -31,7 +32,9 @@ logger = logging.getLogger(__name__)
 
 class AssignmentComponentResult(TypedDict):
     assignments: list[SectionAssignment]
-    stats: AssignmentStats
+    # None when every section was stored and no LLM call was made.
+    stats: AssignmentStats | None
+    has_new_assignments: bool
 
 
 @component
@@ -62,32 +65,45 @@ class AssignmentComponent:
             record_ids = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
             result_mapping[question_path] = [record_id for record_id in record_ids if record_id is not None]
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats | None, has_new_assignments=bool)
     async def run_async(
         self,
         data: list[QuestionData],
         template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        stored_question_paths: SectionQuestionPaths | None = None,
     ) -> AssignmentComponentResult:
+        """Assign questions to the leaf sections missing from ``stored_question_paths`` and merge in the stored ones."""
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
         # Simple type remapping
         sections = template_sections_to_records(template_data.sections)
+        leaf_ids = {leaf.id for leaf in collect_leaf_sections(sections)}
+        # Stored sections that were edited or removed since are dropped here, and so on the next save.
+        stored = {
+            section_id: paths for section_id, paths in (stored_question_paths or {}).items() if section_id in leaf_ids
+        }
+        missing_ids = leaf_ids - stored.keys()
         # Separate the KM into chunks of given length to avoid overflowing the LLM context and allow parallelization
         question_chunks, question_id_to_path = build_question_chunks(data)
+        if not missing_ids:
+            question_chunks = []
         logger.info(
             'Starting question-to-section assignment',
             extra={
                 'section_count': len(sections),
+                'stored_section_count': len(stored),
+                'missing_section_count': len(missing_ids),
                 'question_chunk_count': len(question_chunks),
                 'question_path_count': len(question_id_to_path),
             },
         )
         stats = AssignmentStats()
 
-        section_formatter = SectionFormatter(sections)
+        # All sections stay in the prompt for context, but only the missing ones get an id the LLM can answer with.
+        section_formatter = SectionFormatter(sections, assignable_ids=missing_ids)
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping: dict[str, list[UUID]] = {}
@@ -122,11 +138,14 @@ class AssignmentComponent:
                 section_formatter=section_formatter,
             )
 
-        assignments = convert_mappings_to_assignment_tree(
-            sections,
-            result_mapping,
-            km,
-        )
+        section_id_to_paths = {section_id: list(paths) for section_id, paths in stored.items()}
+        # clear missing section ids because they will be added in the next step
+        section_id_to_paths.update({section_id: [] for section_id in missing_ids})
+        # add in missing section ids here:
+        for path, section_ids in result_mapping.items():
+            for section_id in section_ids:
+                section_id_to_paths[section_id].append(path)
+        assignments = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
         logger.info(
             'Completed question-to-section assignment',
             extra={
@@ -139,16 +158,18 @@ class AssignmentComponent:
 
         return {
             'assignments': assignments,
-            'stats': stats,
+            'stats': stats if missing_ids else None,
+            'has_new_assignments': bool(missing_ids),
         }
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats | None, has_new_assignments=bool)
     def run(
         self,
         data: list[QuestionData],
         template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        stored_question_paths: SectionQuestionPaths | None = None,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'

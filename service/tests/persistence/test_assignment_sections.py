@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
+from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     collect_leaf_question_paths,
     convert_mappings_to_assignment_tree,
@@ -11,8 +13,11 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
 from ai_document_plugin_service.ai.assignment.mappers import template_sections_to_records
 from ai_document_plugin_service.ai.assignment.section_tree import collect_leaf_sections
 from ai_document_plugin_service.ai.assignment.types import SectionQuestionPaths
+from ai_document_plugin_service.ai.common.config import load_config
 from ai_document_plugin_service.ai.common.types import TemplateContent
+from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
+from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent
 from ai_document_plugin_service.ai.persistence.database import PostgresDB, SectionAssignmentsContainer
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 
@@ -71,36 +76,80 @@ def _loader(stored: SectionQuestionPaths | None) -> AssignmentLoaderComponent:
     return AssignmentLoaderComponent(database)
 
 
-def _without_ids(nodes):
-    return [
-        {**node, 'id': None, 'children': _without_ids(node['children']) if node['children'] else None}
-        for node in nodes
-    ]
+async def test_loader_returns_every_stored_section():
+    stored = {uuid4(): ['ch1.q1'], uuid4(): []}
+
+    result = await _loader(stored).run_async(uuid4(), uuid4())
+
+    assert result == {'stored_question_paths': stored}
 
 
-async def test_loader_rebuilds_the_tree_when_every_leaf_is_stored():
-    generated = _generated_assignments()
+async def test_loader_without_stored_assignments_returns_nothing():
+    result = await _loader(None).run_async(uuid4(), uuid4())
+
+    assert result == {'stored_question_paths': {}}
+
+
+def _assignment_component(llm_answer: dict[str, list[str]]) -> tuple[AssignmentComponent, AsyncMock]:
+    config = load_config(str(Path(__file__).resolve().parents[2] / 'config.test.yaml'))
+    llm = MagicMock()
+    llm.get_max_workers.return_value = 1
+    component = AssignmentComponent(llm, config)
+    match_questions = AsyncMock(return_value=llm_answer)
+    component.section_matcher.match_questions_to_sections = match_questions
+    return component, match_questions
+
+
+async def test_assignment_only_asks_for_missing_leaves_and_merges_the_stored_ones():
+    intro, first_child, second_child = _leaf_ids(TEMPLATE)
+    questions = ParserComponent().run({'knowledgeModel': KM, 'replies': {}})['data']
+    # Question 2 -> the only assignable section, which is "First child" ("A").
+    component, match_questions = _assignment_component({'2': ['A']})
     stale_section_id = uuid4()
-    stored = {**collect_leaf_question_paths(generated), stale_section_id: ['ch1.q2']}
 
-    result = await _loader(stored).run_async(uuid4(), uuid4(), TEMPLATE, KM)
+    result = await component.run_async(
+        questions,
+        TEMPLATE,
+        KM,
+        stored_question_paths={intro: ['ch1.q1'], second_child: ['ch1.q1', 'ch1.q2'], stale_section_id: ['ch1.q2']},
+    )
 
-    assert result['complete'] is True
-    assert _without_ids(result['assignments']) == _without_ids([assignment.to_dict() for assignment in generated])
+    assert match_questions.await_args is not None
+    sections_xml = match_questions.await_args.args[0]
+    assert sections_xml.count(' id="') == 1
+    assert result['has_new_assignments'] is True
+    assert result['stats'] is not None
+    assert collect_leaf_question_paths(result['assignments']) == {
+        intro: ['ch1.q1'],
+        first_child: ['ch1.q2'],
+        second_child: ['ch1.q1', 'ch1.q2'],
+    }
 
 
-async def test_loader_is_incomplete_when_a_leaf_is_not_stored():
-    intro, _first_child, second_child = _leaf_ids(TEMPLATE)
+async def test_assignment_makes_no_llm_calls_when_every_leaf_is_stored():
+    questions = ParserComponent().run({'knowledgeModel': KM, 'replies': {}})['data']
+    stored = collect_leaf_question_paths(_generated_assignments())
+    component, match_questions = _assignment_component({})
 
-    result = await _loader({intro: ['ch1.q1'], second_child: []}).run_async(uuid4(), uuid4(), TEMPLATE, KM)
+    result = await component.run_async(questions, TEMPLATE, KM, stored_question_paths=stored)
 
-    assert result == {'assignments': None, 'complete': False}
+    match_questions.assert_not_awaited()
+    assert result['has_new_assignments'] is False
+    assert result['stats'] is None
+    assert collect_leaf_question_paths(result['assignments']) == stored
 
 
-async def test_loader_without_stored_assignments_is_incomplete():
-    result = await _loader(None).run_async(uuid4(), uuid4(), TEMPLATE, KM)
+async def test_saver_skips_the_write_when_nothing_new_was_assigned():
+    saver = MagicMock()
+    saver.save = AsyncMock()
+    generated = _generated_assignments()
 
-    assert result == {'assignments': None, 'complete': False}
+    result = await AssignmentSaverComponent(saver).run_async(
+        uuid4(), 'Model', '1', uuid4(), uuid4(), generated, None, has_new_assignments=False
+    )
+
+    saver.save.assert_not_awaited()
+    assert result == {'assignments': [assignment.to_dict() for assignment in generated], 'stats': None}
 
 
 def _database_with_recorded_statements(monkeypatch) -> tuple[PostgresDB, SimpleNamespace]:

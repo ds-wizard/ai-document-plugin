@@ -10,8 +10,10 @@ from uuid import UUID  # ruff: ignore[typing-only-standard-library-import]
 
 from haystack import component
 
+from ai_document_plugin_service.ai.assignment.compatibility_utils import collect_leaf_question_paths
 from ai_document_plugin_service.ai.assignment.types import (
     SectionAssignment,
+    SectionQuestionPaths,
     SerializedSectionAssignment,
 )
 
@@ -60,13 +62,14 @@ class AssignmentSaverComponent:
             },
         )
         serializable = [assignment.to_dict() for assignment in assignments]
+        question_paths = collect_leaf_question_paths(assignments)
         stats_payload = _serialize_stats(stats)
 
         await self.saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
-            assignments=serializable,
+            question_paths=question_paths,
             stats=stats_payload,
             template_uuid=template_uuid,
             tenant_uuid=tenant_uuid,
@@ -103,7 +106,7 @@ class Saver(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         stats: StatsJson | None,
         template_uuid: UUID,
         tenant_uuid: UUID,
@@ -121,7 +124,7 @@ class DBSaver(Saver):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         stats: StatsJson | None,
         template_uuid: UUID,
         tenant_uuid: UUID,
@@ -139,7 +142,7 @@ class DBSaver(Saver):
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
-            assignments=assignments,
+            question_paths=question_paths,
             stats=stats,
             created_at=created_at,
             template_uuid=template_uuid,

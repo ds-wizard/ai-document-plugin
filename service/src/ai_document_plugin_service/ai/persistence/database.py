@@ -14,7 +14,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionQuestionPaths
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
@@ -34,13 +34,18 @@ _active_connection: ContextVar[AsyncConnection | None] = ContextVar('active_conn
 
 @dataclass(frozen=True)
 class SectionAssignmentsContainer:
-    assignments: list[SerializedSectionAssignment]
+    # Question paths of each stored leaf section, by section id.
+    question_paths: SectionQuestionPaths
     created_at: datetime
     updated_at: datetime
 
     @classmethod
-    def from_row(cls, row: Row) -> 'SectionAssignmentsContainer':
-        return cls(assignments=row.assignments, created_at=row.created_at, updated_at=row.updated_at)
+    def from_rows(cls, row: Row, section_rows: Sequence[Row]) -> 'SectionAssignmentsContainer':
+        return cls(
+            question_paths={section_row.section_id: section_row.question_paths for section_row in section_rows},
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
 
 
 @dataclass(frozen=True)
@@ -198,12 +203,12 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
-        """Persist assignments in a database backend."""
+        """Persist the question paths of each leaf section by section id, replacing the stored sections."""
 
     @abstractmethod
     async def get_assignments(
@@ -212,10 +217,6 @@ class Database(ABC):
         template_uuid: UUID,
     ) -> SectionAssignmentsContainer | None:
         """Get assignments from a database backend."""
-
-    @abstractmethod
-    async def get_template_updated_at(self, template_uuid: UUID) -> datetime | None:
-        """Get the update timestamp of a live template for assignment routing."""
 
     @abstractmethod
     async def list_templates(self, tenant_uuid: UUID, user_uuid: UUID) -> list[TemplateRecord]:
@@ -324,6 +325,7 @@ class PostgresDB(Database):
         schema = create_persistence_schema(self.schema_name)
         self.metadata = schema.metadata
         self.assignment_table = schema.assignment_table
+        self.assignment_section_table = schema.assignment_section_table
         self.template_table = schema.template_table
         self.generation_table = schema.generation_table
         self.generation_stats_table = schema.generation_stats_table
@@ -395,6 +397,7 @@ class PostgresDB(Database):
             'alembic_version',
             'template',
             'assignment',
+            'assignment_section',
             'generation',
             'generation_stats',
             'llm_settings',
@@ -421,7 +424,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: list[SerializedSectionAssignment],
+        question_paths: SectionQuestionPaths,
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -434,7 +437,6 @@ class PostgresDB(Database):
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
             updated_at=created_at_value,
-            assignments=assignments,
             stats=stats,
             template_uuid=template_uuid,
         )
@@ -445,19 +447,39 @@ class PostgresDB(Database):
             ],
             set_={
                 'updated_at': datetime.now(tz=UTC),
-                'assignments': statement.excluded.assignments,
             },
         )
+        section_table = self.assignment_section_table
+        # All stored sections of this template and knowledge model; they are replaced by the current ones below.
+        delete_sections_statement = section_table.delete().where(
+            (section_table.c.knowledge_model_uuid == knowledge_model_uuid)
+            & (section_table.c.template_uuid == template_uuid),
+        )
 
-        async with self._connect() as connection:
+        async with self.transaction(), self._connect() as connection:
             await connection.execute(upsert_statement)
+            await connection.execute(delete_sections_statement)
+            if question_paths:
+                # One row per current leaf section, with the question paths assigned to it.
+                await connection.execute(
+                    section_table.insert(),
+                    [
+                        {
+                            'knowledge_model_uuid': knowledge_model_uuid,
+                            'template_uuid': template_uuid,
+                            'section_id': section_id,
+                            'question_paths': paths,
+                        }
+                        for section_id, paths in question_paths.items()
+                    ],
+                )
 
         logger.info(
             'Saved assignments',
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'assignment_count': len(assignments),
+                'section_count': len(question_paths),
                 'db.schema': self.schema_name,
             },
         )
@@ -579,9 +601,16 @@ class PostgresDB(Database):
             & (self.assignment_table.c.template_uuid == template_uuid),
         )
 
+        section_table = self.assignment_section_table
+        sections_statement = section_table.select().where(
+            (section_table.c.knowledge_model_uuid == knowledge_model_uuid)
+            & (section_table.c.template_uuid == template_uuid),
+        )
+
         async with self._connect() as connection:
             result = await connection.execute(statement)
             row = result.fetchone()
+            section_rows = (await connection.execute(sections_statement)).fetchall() if row is not None else []
 
         if row is None:
             logger.info(
@@ -600,17 +629,7 @@ class PostgresDB(Database):
             self.schema_name,
         )
 
-        return SectionAssignmentsContainer.from_row(row)
-
-    async def get_template_updated_at(self, template_uuid: UUID) -> datetime | None:
-        await self._ensure_schema()
-        statement = select(self.template_table.c.updated_at).where(
-            self.template_table.c.uuid == template_uuid,
-            self.template_table.c.deleted_at.is_(None),
-        )
-        async with self._connect() as connection:
-            result = await connection.execute(statement)
-            return result.scalar_one_or_none()
+        return SectionAssignmentsContainer.from_rows(row, section_rows)
 
     def _template_visible_to_user(self, tenant_uuid: UUID, user_uuid: UUID) -> ColumnElement[bool]:
         """Templates visible to a user: tenant-wide (NULL user) plus their own personal ones."""

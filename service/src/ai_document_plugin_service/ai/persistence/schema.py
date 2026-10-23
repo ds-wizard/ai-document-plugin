@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -14,13 +15,14 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 
 
 @dataclass(frozen=True)
 class PersistenceSchema:
     metadata: MetaData
     assignment_table: Table
+    assignment_section_table: Table
     template_table: Table
     generation_table: Table
     generation_stats_table: Table
@@ -78,9 +80,24 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             server_default=func.now(),
         ),
         Column('updated_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
-        Column('assignments', JSON, nullable=False),
         Column('stats', JSON, nullable=True),
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),
+    )
+
+    # Question paths assigned to one leaf section, one row per distinct leaf of the template tree.
+    assignment_section_table = Table(
+        'assignment_section',
+        metadata,
+        Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
+        Column('template_uuid', UUID(as_uuid=True), primary_key=True),
+        # Derived from the section's title and content and those of its ancestors (see template_sections_to_records).
+        Column('section_id', UUID(as_uuid=True), primary_key=True),
+        Column('question_paths', ARRAY(Text), nullable=False),
+        ForeignKeyConstraint(
+            ['knowledge_model_uuid', 'template_uuid'],
+            ['assignment.knowledge_model_uuid', 'assignment.template_uuid'],
+            ondelete='CASCADE',
+        ),
     )
 
     generation_table = Table(
@@ -182,6 +199,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
     return PersistenceSchema(
         metadata=metadata,
         assignment_table=assignment_table,
+        assignment_section_table=assignment_section_table,
         template_table=template_table,
         generation_table=generation_table,
         generation_stats_table=generation_stats_table,

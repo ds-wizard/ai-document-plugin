@@ -73,7 +73,9 @@ class AssignmentComponent:
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
+        # Simple type remapping
         sections = template_sections_to_records(template_data.sections)
+        # Separate the KM into chunks of given length to avoid overflowing the LLM context and allow parallelization
         question_chunks, question_id_to_path = build_question_chunks(data)
         logger.info(
             'Starting question-to-section assignment',

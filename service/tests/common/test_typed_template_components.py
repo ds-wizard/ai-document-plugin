@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
-from haystack import AsyncPipeline
+from haystack import Pipeline
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common.config import load_config
@@ -15,7 +15,7 @@ async def test_haystack_assignment_accepts_typed_template():
     config = load_config(str(Path(__file__).resolve().parents[2] / 'config.test.yaml'))
     llm = MagicMock()
     llm.get_max_workers.return_value = 1
-    pipeline = AsyncPipeline()
+    pipeline = Pipeline()
     assign = AssignmentComponent(llm, config)
     assign.section_matcher.match_questions_to_sections = AsyncMock(return_value={})
     pipeline.add_component('assign', assign)
@@ -29,7 +29,7 @@ async def test_haystack_assignment_accepts_typed_template():
 
 async def test_haystack_saver_passes_typed_template_to_storage():
     saver = AsyncMock()
-    pipeline = AsyncPipeline()
+    pipeline = Pipeline()
     pipeline.add_component('save', AssignmentSaverComponent(saver))
     template = TemplateContent(sections=[TemplateSection(title='Body')])
 
@@ -47,7 +47,7 @@ async def test_haystack_saver_passes_typed_template_to_storage():
 async def test_haystack_polisher_uses_typed_nested_sections():
     llm = AsyncMock()
     llm.polish_dmp.return_value = '# Body\n\nPolished'
-    pipeline = AsyncPipeline()
+    pipeline = Pipeline()
     pipeline.add_component('polish', DmpPolisherComponent(llm, cover_page_section_count=1))
     template = TemplateContent(sections=[
         TemplateSection(title='Cover'),

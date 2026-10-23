@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import Row
 
 from ai_document_plugin_service.ai.persistence.database import PostgresDB, TemplateRecord
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
@@ -11,7 +13,7 @@ from ai_document_plugin_service.ai.common.types import TemplateContent
 
 
 @pytest.mark.parametrize('operation', ['create', 'update', 'save'])
-async def test_template_writes_json_and_reads_typed_content(operation):
+async def test_template_writes_json_and_reads_typed_content(operation, monkeypatch):
     database = PostgresDB.__new__(PostgresDB)
     schema = create_persistence_schema('test')
     database.schema_name = 'test'
@@ -24,7 +26,7 @@ async def test_template_writes_json_and_reads_typed_content(operation):
     async def connect():
         yield connection
 
-    database._connect = connect
+    monkeypatch.setattr(database, '_connect', connect)
     raw = {'description': 'Metadata', 'sections': [{'title': 'Parent', 'sections': [{'title': 'Child'}]}]}
     content = TemplateContent.model_validate(raw)
     tenant_uuid = uuid4()
@@ -39,8 +41,8 @@ async def test_template_writes_json_and_reads_typed_content(operation):
     parameters = connection.execute.await_args.args[0].compile().params
     assert parameters['content'] == raw
     assert content.model_dump(mode='json', exclude_unset=True) == raw
-    record = TemplateRecord.from_row(SimpleNamespace(
+    record = TemplateRecord.from_row(cast(Row, SimpleNamespace(
         uuid=template_uuid, title='Template', content=parameters['content'],
         tenant_uuid=tenant_uuid, user_uuid=None, cover_page_version=None,
-    ))
+    )))
     assert record.content == content

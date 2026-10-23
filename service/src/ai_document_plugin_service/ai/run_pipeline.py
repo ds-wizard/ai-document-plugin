@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from haystack import Pipeline
-from haystack.components.routers import ConditionalRouter
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common import (
@@ -31,7 +30,6 @@ from ai_document_plugin_service.ai.persistence.assignment_loader_component impor
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
     AssignmentSaverComponent,
     DBSaver,
-    SerializedSectionAssignment,
 )
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 from ai_document_plugin_service.ai.polishing.llm import SectionPolishingLLM
@@ -41,8 +39,6 @@ from ai_document_plugin_service.cover_page.cover_page_definition import (
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 
 if TYPE_CHECKING:
-    from haystack.components.routers.conditional_router import Route
-
     from ai_document_plugin_service.ai.common.llm_client import LLMClient
     from ai_document_plugin_service.ai.common.types import TemplateContent
     from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
@@ -101,26 +97,8 @@ def build_pipeline(
     )
     cover_page_component = CoverPageComponent()
 
-    # ROUTES
-    routes: list[Route] = [
-        {
-            'condition': '{{ not complete }}',
-            'output': '{{ true }}',
-            'output_name': 'missing_assignment',
-            'output_type': bool,
-        },
-        {
-            'condition': '{{ complete }}',
-            'output': '{{ assignments }}',
-            'output_name': 'retrieved_assignment',
-            'output_type': list[SerializedSectionAssignment],
-        },
-    ]
-    router = ConditionalRouter(routes=routes)
-
     # COMPONENTS
     pipeline.add_component('loader_component', loader_component)
-    pipeline.add_component('router', router)
     pipeline.add_component('parser_component', parser_component)
     pipeline.add_component('assignment_component', assignment_component)
     pipeline.add_component('assignment_saver_component', assignment_saver_component)
@@ -129,20 +107,16 @@ def build_pipeline(
     pipeline.add_component('cover_page_component', cover_page_component)
 
     # CONNECTIONS
-    # loader_component -> router
-    pipeline.connect('loader_component.assignments', 'router.assignments')
-    pipeline.connect('loader_component.complete', 'router.complete')
-    # some sections have no stored assignments -> continue to parser_component
-    pipeline.connect('router.missing_assignment', 'parser_component.trigger')
-    # assignments already done -> continue to dmp_generator_component
-    pipeline.connect('router.retrieved_assignment', 'dmp_generator_component.db_assignments')
+    # loader_component -> assignment_component: stored sections are reused, only the missing ones are assigned
+    pipeline.connect('loader_component.stored_question_paths', 'assignment_component.stored_question_paths')
     # parser_component -> assignment_component
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
     pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
+    pipeline.connect('assignment_component.has_new_assignments', 'assignment_saver_component.has_new_assignments')
     # assignment_saver_component -> dmp_generator_component
-    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.new_assignments')
+    pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
     # dmp_generator_component -> dmp_polisher_component
     pipeline.connect('dmp_generator_component.markdown', 'dmp_polisher_component.markdown')
     # Add the cover page only after the LLM has polished the document body.
@@ -194,8 +168,6 @@ async def run_pipeline(
                 'loader_component': {
                     'knowledge_model_uuid': knowledge_model_uuid,
                     'template_uuid': template_uuid,
-                    'template_data': template_data,
-                    'km': km,
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {

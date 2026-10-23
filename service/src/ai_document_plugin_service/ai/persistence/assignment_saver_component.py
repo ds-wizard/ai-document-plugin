@@ -38,7 +38,7 @@ class AssignmentSaverComponent:
     def __init__(self, saver: Saver) -> None:
         self.saver = saver
 
-    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats | None)
     async def run_async(
         self,
         knowledge_model_uuid: UUID,
@@ -48,8 +48,21 @@ class AssignmentSaverComponent:
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
+        *,
+        has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
-        """Save assignments to storage, optionally including token usage stats."""
+        """Save assignments to storage, optionally including token usage stats.
+
+        Skips the write when ``has_new_assignments`` is false: everything came from storage unchanged.
+        """
+        serializable = [assignment.to_dict() for assignment in assignments]
+        if not has_new_assignments:
+            logger.info(
+                'Reusing stored assignments without saving',
+                extra={'knowledge_model_uuid': knowledge_model_uuid, 'template_uuid': str(template_uuid)},
+            )
+            return {'assignments': serializable, 'stats': stats}
+
         logger.info(
             'Persisting generated assignments',
             extra={
@@ -61,7 +74,6 @@ class AssignmentSaverComponent:
                 'has_stats': stats is not None,
             },
         )
-        serializable = [assignment.to_dict() for assignment in assignments]
         question_paths = collect_leaf_question_paths(assignments)
         stats_payload = _serialize_stats(stats)
 
@@ -81,7 +93,7 @@ class AssignmentSaverComponent:
             'stats': stats,
         }
 
-    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats | None)
     def run(
         self,
         knowledge_model_uuid: UUID,
@@ -91,6 +103,8 @@ class AssignmentSaverComponent:
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
         stats: AssignmentStats | None = None,
+        *,
+        has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'

@@ -9,12 +9,14 @@ assignment:
       "1": ["section 1", "section 2"],
       "2": [],
     }
+  # Sections come first: they are identical for every question chunk of a run, so providers can cache them as a
+  # shared prompt prefix. Only the questions after them differ between calls.
   user_message: |
-    Here are the questions in XML:
-    {question_text}
-
     Here are the DMP template sections in XML. Only the most specific (leaf) sections have id= (e.g. id="A"). Use those IDs in your answer:
     {sections_list}
+
+    Here are the questions in XML:
+    {question_text}
 
     Output JSON: one key per question ID, value = list of section IDs (letters). Example:
     { "1": ["A", "B"], "2": ["C"], "3": [], ... }

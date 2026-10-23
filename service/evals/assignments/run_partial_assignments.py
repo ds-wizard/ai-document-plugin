@@ -1,11 +1,10 @@
 """Run question-to-section assignment fully and then with only some sections missing, and save the results.
 
-First runs the assignment with nothing stored (every leaf section is assigned). Then, by default, runs it
-once per leaf section with only that section missing and all others stored with their baseline paths;
-with --sections, runs it once with exactly the given sections missing. Nothing is evaluated here; every
-run is saved for later comparison.
+First runs the assignment with nothing stored (every leaf section is assigned). With --sections, it then
+runs it once more with exactly the given sections missing and all others stored with their baseline paths.
+Nothing is evaluated here; every run is saved for later comparison.
 
-From the service directory, one run per section:
+From the service directory, baseline only:
 
     uv run --env-file .env python evals/assignments/run_partial_assignments.py --experiment my-experiment \
         --template data/templates/science-europe.json
@@ -107,23 +106,21 @@ async def _run(
         {'question_paths': _paths_json(baseline), 'stats': stats.to_dict() if stats else None},
     )
 
-    section_ids = [UUID(leaf['section_id']) for leaf in leaves]
     if selected_indices is None:
-        combinations = [[section_id] for section_id in section_ids]
-    else:
-        combinations = [[section_ids[index] for index in selected_indices]]
-    for index, missing in enumerate(combinations, start=1):
-        print(f'Combination {index}/{len(combinations)}: assigning {len(missing)} missing section(s)')
-        stored = {section_id: paths for section_id, paths in baseline.items() if section_id not in missing}
-        paths, stats = await _assign(component, questions, template, km, stored=stored)
-        _write_json(
-            experiment_dir / f'combination_{index:03d}.json',
-            {
-                'missing_section_ids': [str(section_id) for section_id in missing],
-                'question_paths': _paths_json({section_id: paths[section_id] for section_id in missing}),
-                'stats': stats.to_dict() if stats else None,
-            },
-        )
+        return
+
+    missing = [UUID(leaves[index]['section_id']) for index in selected_indices]
+    print(f'Combination: assigning {len(missing)} missing section(s)')
+    stored = {section_id: paths for section_id, paths in baseline.items() if section_id not in missing}
+    paths, stats = await _assign(component, questions, template, km, stored=stored)
+    _write_json(
+        experiment_dir / 'combination_001.json',
+        {
+            'missing_section_ids': [str(section_id) for section_id in missing],
+            'question_paths': _paths_json({section_id: paths[section_id] for section_id in missing}),
+            'stats': stats.to_dict() if stats else None,
+        },
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -150,7 +147,7 @@ def _parse_args() -> argparse.Namespace:
         nargs='+',
         metavar='INDEX',
         help='Run once with exactly these sections missing, by index of the leaf sections in tree order '
-        '(as listed in sections.json). Default: one run per section.',
+        '(as listed in sections.json). Default: only the baseline run.',
     )
     parser.add_argument(
         '--config',

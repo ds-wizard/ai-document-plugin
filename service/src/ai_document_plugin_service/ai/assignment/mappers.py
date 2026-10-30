@@ -46,8 +46,8 @@ def _section_id(section: TemplateSection, parent_uuid: uuid.UUID | None) -> uuid
             {
                 'title': section.title.strip(),
                 'content': section.content.strip() if section.content else None,
-                'parent_uuid': str(parent_uuid)
+                'parent_uuid': str(parent_uuid),
             },
-            ensure_ascii=False
-        )
+            ensure_ascii=False,
+        ),
     )

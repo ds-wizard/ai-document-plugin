@@ -2,10 +2,8 @@ import json
 import pathlib
 import uuid
 
-import pytest
-
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
-    convert_mappings_to_assignment_tree,
+    convert_mappings_to_assignment_tree_recursive,
     expand_assignment_paths,
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
@@ -53,10 +51,14 @@ def test_expand_assignment_paths_handles_list_wildcard_segment() -> None:
     assert out['ch1']['children']['q1']['children']['itemQ']['question_path'] == 'ch1.q1.*.itemQ'
 
 
-def test_expand_assignment_paths_raises_for_unknown_leaf() -> None:
+def test_expand_assignment_paths_skips_paths_missing_from_km(caplog) -> None:
     km = _km_fixture()
-    with pytest.raises(Exception, match='Unexpected path as leaf'):
-        expand_assignment_paths(['ch1.unknown'], km)
+    missing_paths = ['ch1.unknown', 'unknown.q1', 'ch1.q1.unknown.q2', 'ch1.q1.ans1']
+
+    out = expand_assignment_paths([*missing_paths, 'ch1.q2'], km)
+
+    assert list(out['ch1']['children']) == ['q2']
+    assert [record.question_path for record in caplog.records] == missing_paths
 
 
 def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> None:
@@ -70,12 +72,12 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
     data_id = sections[0].id
     methods_id = sections[1].id
 
-    path_to_sections = {
-        'ch1.q1': [data_id],
-        'ch1.q2': [methods_id, data_id],
+    section_id_to_paths = {
+        data_id: ['ch1.q1', 'ch1.q2'],
+        methods_id: ['ch1.q2'],
     }
 
-    assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
+    assignments = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
     by_title = {node.title: node.assignments for node in assignments}
     data_assignments = by_title['Data']
     methods_assignments = by_title['Methods']
@@ -125,12 +127,12 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
     desc_b_id = parent_b_children[0].id
     assert desc_a_id != desc_b_id
 
-    path_to_sections = {
-        'ch1.q1': [desc_a_id],
-        'ch1.q2': [desc_b_id],
+    section_id_to_paths = {
+        desc_a_id: ['ch1.q1'],
+        desc_b_id: ['ch1.q2'],
     }
 
-    assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
+    assignments = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
     leaves_by_id = {leaf.id: leaf for parent in assignments for leaf in (parent.children or [])}
 
     desc_a = leaves_by_id[desc_a_id]
@@ -168,13 +170,13 @@ def test_convert_mappings_real_km():
             ],
         )
     ]
-    result_mapping = {
-        '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b': [  # ruff: ignore[line-too-long]
-            project_section_id
+    section_id_to_paths = {
+        project_section_id: [
+            '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b'
         ]
     }
 
-    mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km)
+    mappings = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
     sec_dmp = mappings[0]
     assert sec_dmp.assignments is None
     assert sec_dmp.children is not None

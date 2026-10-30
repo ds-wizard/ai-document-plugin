@@ -815,9 +815,7 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
 
 async def test_no_cover_page_skips_cover_generation():
     cover_stub = StubGenerationLLM()
-    component = DmpGeneratorComponent(
-        StubGenerationLLM(), cover_page_llm=cover_stub, cover_page_field_labels={}
-    )
+    component = DmpGeneratorComponent(StubGenerationLLM(), cover_page_llm=cover_stub, cover_page_field_labels={})
     await component.run_async(replies={}, km=_km_fixture(), assignments=[])
     assert not cover_stub.section_calls
 
@@ -901,7 +899,8 @@ async def test_generated_on_uses_browser_timezone(instant, zone, expected):
         replies={},
         km=_km_with_phase_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        include_cover_page=True, assignments=[],
+        include_cover_page=True,
+        assignments=[],
         created_at=datetime.fromisoformat(instant).astimezone(ZoneInfo(zone)),
     )
     assert expected in result['cover_page']

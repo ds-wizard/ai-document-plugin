@@ -38,7 +38,11 @@ KM = {
 RAW_TEMPLATE = {
     'sections': [
         {'title': 'Intro', 'content': 'Introduce the project.'},
-        {'title': 'Parent', 'content': 'Data handling.', 'sections': [{'title': 'First child'}, {'title': 'Second child'}]},
+        {
+            'title': 'Parent',
+            'content': 'Data handling.',
+            'sections': [{'title': 'First child'}, {'title': 'Second child'}],
+        },
     ],
 }
 TEMPLATE = TemplateContent.model_validate(RAW_TEMPLATE)
@@ -182,20 +186,33 @@ async def test_save_assignments_replaces_section_rows_with_one_row_per_section_i
     first_section, second_section = uuid4(), uuid4()
 
     await database.save_assignments(
-        knowledge_model_uuid, 'Model', '1', {first_section: ['ch1.q1'], second_section: []}, template_uuid,
+        knowledge_model_uuid,
+        'Model',
+        '1',
+        {first_section: ['ch1.q1'], second_section: []},
+        template_uuid,
     )
 
     upsert, delete, insert = connection.execute.await_args_list
     assert upsert.args[0].table is database.assignment_table
     assert delete.args[0].compile().params == {
-        'knowledge_model_uuid_1': knowledge_model_uuid, 'template_uuid_1': template_uuid,
+        'knowledge_model_uuid_1': knowledge_model_uuid,
+        'template_uuid_1': template_uuid,
     }
     assert insert.args[0].table is database.assignment_section_table
     assert insert.args[1] == [
-        {'knowledge_model_uuid': knowledge_model_uuid, 'template_uuid': template_uuid, 'section_id': first_section,
-         'question_paths': ['ch1.q1']},
-        {'knowledge_model_uuid': knowledge_model_uuid, 'template_uuid': template_uuid, 'section_id': second_section,
-         'question_paths': []},
+        {
+            'knowledge_model_uuid': knowledge_model_uuid,
+            'template_uuid': template_uuid,
+            'section_id': first_section,
+            'question_paths': ['ch1.q1'],
+        },
+        {
+            'knowledge_model_uuid': knowledge_model_uuid,
+            'template_uuid': template_uuid,
+            'section_id': second_section,
+            'question_paths': [],
+        },
     ]
 
 

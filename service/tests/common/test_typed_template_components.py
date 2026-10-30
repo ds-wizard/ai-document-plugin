@@ -30,14 +30,22 @@ async def test_haystack_polisher_uses_typed_nested_sections():
     llm.polish_dmp.return_value = '# Body\n\nPolished'
     pipeline = Pipeline()
     pipeline.add_component('polish', DmpPolisherComponent(llm, cover_page_section_count=1))
-    template = TemplateContent(sections=[
-        TemplateSection(title='Cover'),
-        TemplateSection(title='Body', sections=[TemplateSection(title='Child')]),
-    ])
+    template = TemplateContent(
+        sections=[
+            TemplateSection(title='Cover'),
+            TemplateSection(title='Body', sections=[TemplateSection(title='Child')]),
+        ]
+    )
 
-    await pipeline.run_async({'polish': {
-        'markdown': '# Body', 'template_data': template, 'include_cover_page': True,
-    }})
+    await pipeline.run_async(
+        {
+            'polish': {
+                'markdown': '# Body',
+                'template_data': template,
+                'include_cover_page': True,
+            }
+        }
+    )
 
     assert llm.polish_dmp.await_args.kwargs['structure_str'] == '# Body\n## Child'
     assert len(template.sections) == 2

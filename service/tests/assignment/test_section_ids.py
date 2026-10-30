@@ -8,7 +8,11 @@ from ai_document_plugin_service.ai.common.types import TemplateContent
 RAW_TEMPLATE = {
     'sections': [
         {'title': 'Intro', 'content': 'Introduce the project.'},
-        {'title': 'Parent', 'content': 'Data handling.', 'sections': [{'title': 'First child'}, {'title': 'Second child'}]},
+        {
+            'title': 'Parent',
+            'content': 'Data handling.',
+            'sections': [{'title': 'First child'}, {'title': 'Second child'}],
+        },
     ],
 }
 TEMPLATE = TemplateContent.model_validate(RAW_TEMPLATE)

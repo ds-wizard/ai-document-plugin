@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from ai_document_plugin_service.ai.assignment.types import (
@@ -8,9 +9,7 @@ from ai_document_plugin_service.ai.assignment.types import (
     SectionRecord,
 )
 
-
-class UnexpectedAssignmentPathError(ValueError):
-    """Raised when an assignment path points to an invalid leaf."""
+logger = logging.getLogger(__name__)
 
 
 def convert_mappings_to_assignment_tree_recursive(
@@ -62,6 +61,21 @@ def collect_leaf_question_paths(assignments: list[SectionAssignment]) -> Section
     return paths
 
 
+def _path_exists_in_km(segments: list[str], km: dict[str, Any]) -> bool:
+    entities = km['entities']
+    last_index = len(segments) - 1
+    for index, segment in enumerate(segments):
+        if segment == '*':
+            continue
+        if index == 0:
+            found = segment in entities['chapters']
+        else:
+            found = segment in entities['questions'] or (index < last_index and segment in entities['answers'])
+        if not found:
+            return False
+    return True
+
+
 def expand_assignment_paths(
     mappings: list[str],
     km: dict[str, Any],
@@ -69,17 +83,18 @@ def expand_assignment_paths(
     """Decompose flat dot-separated assignment paths into nested question nodes.
 
     This preserves the previous hierarchical output shape consumed by downstream steps.
-
-    Raises:
-        UnexpectedAssignmentPathError: If an invalid leaf path is encountered.
+    Paths not found in the KM are skipped with a warning, because stored assignments are shared
+    between projects whose KMs can differ.
     """
     root: AssignmentTree = {}
     km_questions = km['entities']['questions']
     km_chapters = km['entities']['chapters']
-    km_answers = km['entities']['answers']
 
     for path in mappings:
         segments = path.split('.')
+        if not _path_exists_in_km(segments, km):
+            logger.warning('Skipping assignment path not found in the knowledge model', extra={'question_path': path})
+            continue
         current = root
         prefix_parts: list[str] = []
 
@@ -95,11 +110,9 @@ def expand_assignment_paths(
                     question_data = km_chapters[prefix_parts[0]]
                 elif prefix_parts[-1] in km_questions:
                     question_data = km_questions[prefix_parts[-1]]
-                elif not is_leaf and prefix_parts[-1] in km_answers:
-                    continue
                 else:
-                    msg = f'Unexpected path as leaf: {full_path}'
-                    raise UnexpectedAssignmentPathError(msg)
+                    # An answer segment, which has no node of its own.
+                    continue
 
                 node: AssignmentQuestionNode = {
                     'question_path': full_path,

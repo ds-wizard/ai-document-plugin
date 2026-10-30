@@ -2,8 +2,6 @@ import json
 import pathlib
 import uuid
 
-import pytest
-
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree_recursive,
     expand_assignment_paths,
@@ -53,10 +51,14 @@ def test_expand_assignment_paths_handles_list_wildcard_segment() -> None:
     assert out['ch1']['children']['q1']['children']['itemQ']['question_path'] == 'ch1.q1.*.itemQ'
 
 
-def test_expand_assignment_paths_raises_for_unknown_leaf() -> None:
+def test_expand_assignment_paths_skips_paths_missing_from_km(caplog) -> None:
     km = _km_fixture()
-    with pytest.raises(Exception, match='Unexpected path as leaf'):
-        expand_assignment_paths(['ch1.unknown'], km)
+    missing_paths = ['ch1.unknown', 'unknown.q1', 'ch1.q1.unknown.q2', 'ch1.q1.ans1']
+
+    out = expand_assignment_paths([*missing_paths, 'ch1.q2'], km)
+
+    assert list(out['ch1']['children']) == ['q2']
+    assert [record.question_path for record in caplog.records] == missing_paths
 
 
 def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> None:

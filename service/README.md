@@ -99,10 +99,3 @@ uv run pytest tests/ -v
 
 Tests cover pure functions, reply matching, tree chunking, compatibility utilities, and end-to-end generation using a
 stub LLM (no API calls needed).
-
-
-## Acknowledgements
-
-| ![ELIXIR CZ and MŠMT](https://ds-wizard.org/static/acknowledgements/elixir-msmt@2x.png) | This work is supported by ELIXIR CZ research infrastructure (MŠMT Grant No.: LM2023055) [CZ.02.01.01/00/23_014/0008787](https://www.elixir-czech.cz/). |
-| --- | --- |
-| ![EU and MŠMT](https://dmp.eosc.cz/static/eu-msmt.svg) | **This work is supported by the project National Repository Platform for Research Data no. [CZ.02.01.01/00/23_014/0008787](https://www.eosc.cz/en/projects/national-repository-platform-for-research-data-os-i-nrp/national-repository-platform).** |

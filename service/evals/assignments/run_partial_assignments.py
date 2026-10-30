@@ -6,7 +6,7 @@ Nothing is evaluated here; every run is saved for later comparison.
 
 From the service directory, baseline only:
 
-    uv run --env-file .env python evals/assignments/run_partial_assignments.py --experiment my-experiment \
+    uv run --env-file .env python evals/assignments/run_partial_assignments.py --experiment glm5-3-se-run-2 \
         --template data/templates/science-europe.json
 
 One run with sections 5 and 7 missing together (indices of the leaf sections in tree order, as in sections.json):
@@ -24,6 +24,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -82,9 +83,16 @@ async def _assign(
     template: TemplateContent,
     km: dict[str, Any],
     stored: SectionQuestionPaths | None,
-) -> tuple[SectionQuestionPaths, AssignmentStats | None]:
-    result = await component.run_async(questions, template, km, stored_question_paths=stored)
-    return collect_leaf_question_paths(result['assignments']), result['stats']
+) -> tuple[SectionQuestionPaths, AssignmentStats | None, float]:
+    started = time.perf_counter()
+
+    def on_progress(progress: str):
+        print(progress, end="\r")
+
+    result = await component.run_async(questions, template, km, stored_question_paths=stored, on_progress=on_progress)
+    duration = round(time.perf_counter() - started, 3)
+    print(f'Finished in {duration:.1f} s')
+    return collect_leaf_question_paths(result['assignments']), result['stats'], duration
 
 
 async def _run(
@@ -100,10 +108,14 @@ async def _run(
     _write_json(experiment_dir / 'sections.json', leaves)
 
     print(f'Baseline: assigning all {len(leaves)} leaf sections')
-    baseline, stats = await _assign(component, questions, template, km, stored=None)
+    baseline, stats, duration = await _assign(component, questions, template, km, stored=None)
     _write_json(
         experiment_dir / 'baseline.json',
-        {'question_paths': _paths_json(baseline), 'stats': stats.to_dict() if stats else None},
+        {
+            'duration_seconds': duration,
+            'question_paths': _paths_json(baseline),
+            'stats': stats.to_dict() if stats else None,
+        },
     )
 
     if selected_indices is None:
@@ -112,10 +124,11 @@ async def _run(
     missing = [UUID(leaves[index]['section_id']) for index in selected_indices]
     print(f'Combination: assigning {len(missing)} missing section(s)')
     stored = {section_id: paths for section_id, paths in baseline.items() if section_id not in missing}
-    paths, stats = await _assign(component, questions, template, km, stored=stored)
+    paths, stats, duration = await _assign(component, questions, template, km, stored=stored)
     _write_json(
         experiment_dir / 'combination_001.json',
         {
+            'duration_seconds': duration,
             'missing_section_ids': [str(section_id) for section_id in missing],
             'question_paths': _paths_json({section_id: paths[section_id] for section_id in missing}),
             'stats': stats.to_dict() if stats else None,
@@ -147,7 +160,7 @@ def _parse_args() -> argparse.Namespace:
         nargs='+',
         metavar='INDEX',
         help='Run once with exactly these sections missing, by index of the leaf sections in tree order '
-        '(as listed in sections.json). Default: only the baseline run.',
+             '(as listed in sections.json). Default: only the baseline run.',
     )
     parser.add_argument(
         '--config',
@@ -195,7 +208,7 @@ def main() -> None:
             'started_at': datetime.now(tz=UTC).isoformat(),
             'command': _redact_api_key(sys.argv),
             'arguments': {name: str(value) if isinstance(value, Path) else value for name, value in vars(args).items()}
-            | {'api_key': '<redacted>'},
+                         | {'api_key': '<redacted>'},
             'assignment_prompt': {
                 'system_message': service_config.assignment.system_message,
                 'user_message': service_config.assignment.user_message,

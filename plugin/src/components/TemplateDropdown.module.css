@@ -110,6 +110,16 @@
     background: var(--ai-doc-color-blue-50);
 }
 
+.createItem {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.9rem;
+    border-top: 1px solid var(--ai-doc-color-slate-200);
+    color: var(--ai-doc-color-blue-700);
+    font-weight: 600;
+}
+
 .itemActive {
     background: var(--ai-doc-color-blue-50);
     color: var(--ai-doc-color-blue-700);

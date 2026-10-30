@@ -4,6 +4,22 @@ export type TemplateOption = {
     uuid: string
     title: string
     scope: TemplateScope
+    hasCoverPage: boolean
+}
+
+export type LlmSettings = {
+    model: string | null
+    apiUrl: string | null
+    maxWorkers: number | null
+    apiKeySet: boolean
+}
+
+export type LlmSettingsUpdate = {
+    model: string
+    apiUrl: string
+    /** Null keeps the API key that is already stored. */
+    apiKey: string | null
+    maxWorkers: number | null
 }
 
 export type PipelineErrorResponse = {
@@ -26,6 +42,41 @@ export type TemplateDetail = {
     title: string
     content: ApiTemplateContent
     scope: TemplateScope
+    hasCoverPage: boolean
+}
+
+export type CoverPagePreviewLabel = {
+    id: string
+    text: string
+}
+
+export type CoverPagePreviewDefinition = {
+    version: string
+    metadata: {
+        title: CoverPagePreviewLabel
+        columns: CoverPagePreviewLabel[]
+        fields: Array<{
+            id: string
+            label: string
+            preview: string
+        }>
+        attribution: string
+    }
+    history: {
+        id: string
+        title: CoverPagePreviewLabel
+        columns: CoverPagePreviewLabel[]
+        preview: string
+    }
+    assignedSections: Array<{
+        id: string
+        title: string
+        preview: string
+        fields: Array<{
+            id: string
+            label: string
+        }>
+    }>
 }
 
 export type PipelineStatusResponse = {
@@ -40,8 +91,10 @@ export type PipelineStatusResponse = {
     error: PipelineErrorResponse | null
     resultFormat: string | null
     resultMarkdown: string | null
+    createdAt: string
     progressMessage: string | null
     updatedAt: string
+    namedVersion: string | null
 }
 
 export type PipelineSummaryItem = {
@@ -52,6 +105,7 @@ export type PipelineSummaryItem = {
     progressMessage: string | null
     createdAt: string
     updatedAt: string
+    namedVersion: string | null
 }
 
 export type ResultRenderMode = 'formatted' | 'raw'

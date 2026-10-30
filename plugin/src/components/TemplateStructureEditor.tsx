@@ -276,31 +276,29 @@ export function TemplateStructureEditor({ value, onChange }: TemplateStructureEd
                 </div>
             ) : null}
 
-            <div className="ai-doc-scroll-list">
-                {sections.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        No sections yet. Add a section to get started.
-                    </div>
-                ) : (
-                    <ul className={styles.sectionList}>
-                        {sections.map((section, sectionIndex) => (
-                            <SectionNodeEditor
-                                key={section.id}
-                                section={section}
-                                path={[sectionIndex]}
-                                depth={0}
-                                isEditing={isSectionEditing(section.id)}
-                                isSectionEditing={isSectionEditing}
-                                onUpdate={handleUpdate}
-                                onRemove={handleRemove}
-                                onAddChild={handleAddChild}
-                                onStartEditing={startEditing}
-                                onStopEditing={stopEditing}
-                            />
-                        ))}
-                    </ul>
-                )}
-            </div>
+            {sections.length === 0 ? (
+                <div className={styles.emptyState}>
+                    No sections yet. Add a section to get started.
+                </div>
+            ) : (
+                <ul className={styles.sectionList}>
+                    {sections.map((section, sectionIndex) => (
+                        <SectionNodeEditor
+                            key={section.id}
+                            section={section}
+                            path={[sectionIndex]}
+                            depth={0}
+                            isEditing={isSectionEditing(section.id)}
+                            isSectionEditing={isSectionEditing}
+                            onUpdate={handleUpdate}
+                            onRemove={handleRemove}
+                            onAddChild={handleAddChild}
+                            onStartEditing={startEditing}
+                            onStopEditing={stopEditing}
+                        />
+                    ))}
+                </ul>
+            )}
 
             <button
                 type="button"

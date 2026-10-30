@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-import uuid
 from uuid import UUID
 
 JWT_PART_COUNT = 2
@@ -34,13 +33,13 @@ def decode_jwt_payload(token: str) -> dict[str, object]:
     return parsed
 
 
-def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> str:
+def _get_required_uuid_claim(payload: dict[str, object], *keys: str) -> UUID:
     for key in keys:
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
             try:
                 # TODO: https://github.com/ds-wizard/ai-document-plugin/issues/61
-                return str(UUID(value))
+                return UUID(value)
             except ValueError:
                 logger.exception('JWT claim is not a valid UUID', extra={'claim_name': key})
                 continue
@@ -54,4 +53,4 @@ def extract_identity_from_token(token: str) -> tuple[UUID, UUID]:
     payload = decode_jwt_payload(token)
     user_uuid = _get_required_uuid_claim(payload, 'user_uuid', 'userUuid')
     tenant_uuid = _get_required_uuid_claim(payload, 'tenant_uuid', 'tenantUuid')
-    return uuid.UUID(user_uuid), uuid.UUID(tenant_uuid)
+    return user_uuid, tenant_uuid

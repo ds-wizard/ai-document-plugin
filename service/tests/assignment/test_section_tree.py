@@ -1,11 +1,13 @@
+from uuid import UUID
+
 from ai_document_plugin_service.ai.assignment.section_tree import (
     build_section_records,
-    collect_leaf_section_texts,
+    collect_leaf_sections,
     render_section_tree_as_xml,
 )
 
 
-def test_collect_leaf_section_texts_preserves_tree_order() -> None:
+def test_collect_leaf_sections_preserves_tree_order() -> None:
     template_data = {
         "sections": [
             {
@@ -21,13 +23,12 @@ def test_collect_leaf_section_texts_preserves_tree_order() -> None:
     }
 
     records = build_section_records(template_data)
-    leaves = collect_leaf_section_texts(records)
+    leaves = collect_leaf_sections(records)
 
     assert [leaf.title for leaf in leaves] == ["Leaf A", "Leaf B", "Leaf C"]
-    assert all(isinstance(leaf.text, str) and leaf.text for leaf in leaves)
     ids = [leaf.id for leaf in leaves]
     assert len(set(ids)) == len(ids)
-    assert all(isinstance(rec_id, str) and rec_id for rec_id in ids)
+    assert all(isinstance(rec_id, UUID) for rec_id in ids)
 
 
 def test_collect_leaf_section_duplicate_title() -> None:
@@ -46,7 +47,7 @@ def test_collect_leaf_section_duplicate_title() -> None:
     }
 
     records = build_section_records(template_data)
-    leaves = collect_leaf_section_texts(records)
+    leaves = collect_leaf_sections(records)
 
     titles = [leaf.title for leaf in leaves]
     ids = [leaf.id for leaf in leaves]
@@ -69,7 +70,7 @@ def test_render_section_tree_as_xml_uses_provided_leaf_ids() -> None:
         ]
     }
     records = build_section_records(template_data)
-    leaves = collect_leaf_section_texts(records)
+    leaves = collect_leaf_sections(records)
     record_id_to_sid = {leaf.id: sid for leaf, sid in zip(leaves, ["alpha", "beta"])}
 
     xml = render_section_tree_as_xml(records, record_id_to_sid=record_id_to_sid)
@@ -98,7 +99,7 @@ def test_render_section_tree_assigns_distinct_sids_to_duplicate_titles() -> None
         ]
     }
     records = build_section_records(template_data)
-    leaves = collect_leaf_section_texts(records)
+    leaves = collect_leaf_sections(records)
     assert len(leaves) == 2
     rec_id_a, rec_id_b = leaves[0].id, leaves[1].id
     assert rec_id_a != rec_id_b

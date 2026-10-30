@@ -4,22 +4,30 @@ from uuid import UUID
 
 import fastapi
 
+from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.api.auth import verify_authenticated
 from ai_document_plugin_service.api.types import (
+    CoverPagePreviewDefinition,
+    LanguageOptionResponse,
+    LlmSettingsResponse,
+    LlmSettingsUpdateRequest,
     PipelineExportRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    QuestionnaireLanguageResponse,
     TemplateCreateRequest,
     TemplateDetail,
     TemplateListItem,
     TemplateUpdateRequest,
 )
+from ai_document_plugin_service.data.languages import get_available_languages
 from ai_document_plugin_service.di import (
     AuthenticatedDI,
     ConfigDI,
     ExportServiceDI,
+    LlmSettingsServiceDI,
     PipelineServiceDI,
     TemplateServiceDI,
 )
@@ -36,6 +44,23 @@ protected_router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_authen
 @public_router.get('/health')
 def health_check() -> dict[str, str]:
     return {'status': 'healthy'}
+
+
+@protected_router.get('/language/{questionnaire_uuid}')
+async def get_questionnaire_language(questionnaire_uuid: UUID, auth: AuthenticatedDI) -> QuestionnaireLanguageResponse:
+    questionnaire = await DSWClient(auth.token, auth.api_url).get_questionnaire_detail(questionnaire_uuid)
+    language = questionnaire.get('language') if isinstance(questionnaire, dict) else None
+    return QuestionnaireLanguageResponse(language=language if isinstance(language, str) else None)
+
+
+@protected_router.get('/languages')
+def list_languages() -> list[LanguageOptionResponse]:
+    return [LanguageOptionResponse.model_validate(language) for language in get_available_languages()]
+
+
+@protected_router.get('/cover-page/preview')
+def get_cover_page_preview(config: ConfigDI) -> CoverPagePreviewDefinition:
+    return CoverPagePreviewDefinition.from_definition(config.cover_definition)
 
 
 @protected_router.get('/templates')
@@ -82,6 +107,18 @@ async def export_template_as_json(
     return fastapi.Response(content=export.content, media_type=JSON_MEDIA_TYPE)
 
 
+@protected_router.get('/settings/llm')
+async def get_llm_settings(llm_settings: LlmSettingsServiceDI, auth: AuthenticatedDI) -> LlmSettingsResponse:
+    return await llm_settings.get(auth)
+
+
+@protected_router.put('/settings/llm')
+async def update_llm_settings(
+    payload: LlmSettingsUpdateRequest, llm_settings: LlmSettingsServiceDI, auth: AuthenticatedDI
+) -> LlmSettingsResponse:
+    return await llm_settings.update(auth, payload)
+
+
 @protected_router.post('/pipelines/run')
 async def start_pipeline(
     request: fastapi.Request,
@@ -95,10 +132,10 @@ async def start_pipeline(
 
     run_id = await pipeline.enqueue_pipeline_job(
         payload,
-        template.title,
+        template,
         auth,
         config,
-        getattr(request.state, 'trace_uuid', '-'),
+        getattr(request.state, 'trace_uuid', None),
     )
     status = await pipeline.get_pipeline_status(run_id, auth)
     if status is None:

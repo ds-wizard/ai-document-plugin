@@ -7,7 +7,12 @@ import {
 } from 'react'
 
 import styles from '@/components/HistorySidebar.module.css'
-import type { RunRecord, UseGenerationHistoryResult } from '@/hooks/useGenerationHistory'
+import {
+    getRunTimeLabel,
+    getRunVersionLabel,
+    type RunRecord,
+    type UseGenerationHistoryResult,
+} from '@/hooks/useGenerationHistory'
 
 type HistorySidebarProps = {
     history: UseGenerationHistoryResult
@@ -23,36 +28,9 @@ const STATUS_ICON: Record<RunRecord['status'], string> = {
     failed: 'fas fa-exclamation-circle',
 }
 
-const RELATIVE_TIME_DIVISIONS: [Intl.RelativeTimeFormatUnit, number][] = [
-    ['year', 60 * 60 * 24 * 365],
-    ['month', 60 * 60 * 24 * 30],
-    ['day', 60 * 60 * 24],
-    ['hour', 60 * 60],
-    ['minute', 60],
-]
-
-const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
-
 const MIN_THUMB_HEIGHT = 24
 
 type ScrollThumb = { top: number; height: number }
-
-const formatRelativeTime = (isoString: string): string => {
-    const date = new Date(isoString)
-    if (Number.isNaN(date.getTime())) {
-        return ''
-    }
-
-    const diffSeconds = Math.round((date.getTime() - Date.now()) / 1000)
-
-    for (const [unit, secondsInUnit] of RELATIVE_TIME_DIVISIONS) {
-        if (Math.abs(diffSeconds) >= secondsInUnit) {
-            return relativeTimeFormatter.format(Math.round(diffSeconds / secondsInUnit), unit)
-        }
-    }
-
-    return 'a few seconds ago'
-}
 
 export function HistorySidebar({
     history,
@@ -158,10 +136,13 @@ export function HistorySidebar({
                             aria-hidden="true"
                         />
                         <span className={styles.itemBody}>
-                            <span className={styles.itemTitle}>{item.templateTitle}</span>
-                            <span className={styles.itemTime}>
-                                {formatRelativeTime(item.createdAt)}
+                            <span className={styles.itemTitle} title={item.templateTitle}>
+                                {item.templateTitle}
                             </span>
+                            <span className={styles.itemVersion} title={getRunVersionLabel(item)}>
+                                {getRunVersionLabel(item)}
+                            </span>
+                            <span className={styles.itemTime}>{getRunTimeLabel(item)}</span>
                         </span>
                     </button>
                 ))}

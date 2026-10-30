@@ -4,9 +4,10 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    Float,
     ForeignKey,
-    ForeignKeyConstraint,
     Index,
+    Integer,
     MetaData,
     Table,
     Text,
@@ -21,8 +22,9 @@ class PersistenceSchema:
     metadata: MetaData
     assignment_table: Table
     template_table: Table
-    result_table: Table
     generation_table: Table
+    generation_stats_table: Table
+    llm_settings_table: Table
 
 
 def create_persistence_schema(schema_name: str) -> PersistenceSchema:
@@ -34,6 +36,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('uuid', UUID(as_uuid=True), primary_key=True),
         Column('title', Text, nullable=False),
         Column('content', JSON, nullable=False),
+        # NULL means the template has no cover page; a value identifies the selected version.
+        Column('cover_page_version', Text, nullable=True),
         Column('tenant_uuid', UUID(as_uuid=True), nullable=False),
         # NULL user_uuid marks a tenant-wide template shared with the whole tenant;
         # a set user_uuid marks a personal template owned by that user.
@@ -77,46 +81,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),
     )
 
-    result_table = Table(
-        'result',
-        metadata,
-        Column('knowledge_model_uuid', UUID(as_uuid=True), primary_key=True),
-        Column('template_uuid', UUID(as_uuid=True), primary_key=True),
-        Column(
-            'user_uuid',
-            UUID(as_uuid=True),
-            primary_key=True,
-            nullable=False,
-        ),
-        Column(
-            'tenant_uuid',
-            UUID(as_uuid=True),
-            primary_key=True,
-            nullable=False,
-        ),
-        Column(
-            'created_at',
-            DateTime(timezone=True),
-            nullable=False,
-            server_default=func.now(),
-        ),
-        Column(
-            'updated_at',
-            DateTime(timezone=True),
-            nullable=False,
-            server_default=func.now(),
-        ),
-        Column('dmp', Text, nullable=False),
-        Column('dmp_pre_polished', Text, nullable=False),
-        Column('stats', JSON, nullable=True),
-        ForeignKeyConstraint(['template_uuid'], ['template.uuid'], name='fk_result_template_uuid'),
-        ForeignKeyConstraint(
-            ['knowledge_model_uuid', 'template_uuid'],
-            ['assignment.knowledge_model_uuid', 'assignment.template_uuid'],
-            name='fk_result_assignment',
-        ),
-    )
-
     generation_table = Table(
         'generation',
         metadata,
@@ -124,6 +88,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('questionnaire_uuid', UUID(as_uuid=True), nullable=False),
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), nullable=False),
         Column('title', Text, nullable=False),
+        # Existing rows predate language selection and keep a NULL value after migration.
+        Column('language', Text, nullable=True),
         # Only known once the run has fetched the questionnaire from DSW.
         Column('knowledge_model_uuid', UUID(as_uuid=True), nullable=True),
         Column('user_uuid', UUID(as_uuid=True), nullable=False),
@@ -133,6 +99,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('error_message', Text, nullable=True),
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
+        Column('named_version', Text, nullable=True),
         Column(
             'created_at',
             DateTime(timezone=True),
@@ -154,10 +121,67 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         ),
     )
 
+    # Analysis-only data, one row per generation (created together with it).
+    generation_stats_table = Table(
+        'generation_stats',
+        metadata,
+        Column('run_id', UUID(as_uuid=True), ForeignKey('generation.run_id', ondelete='CASCADE'), primary_key=True),
+        # Request trace id; NULL for runs created before it was recorded.
+        Column('trace_id', UUID(as_uuid=True), nullable=True),
+        Column('dmp_pre_polished', Text, nullable=True),
+        # at start same as generation.result_markdown, but not editable. Older rows don't have the original value saved
+        Column('dmp_polished', Text, nullable=True),
+        # LLM usage per pipeline step. NULL when the step did not run (assignment is skipped
+        # when cached assignments are reused) or the run has no stats (failed or old runs).
+        Column('assignment_llm_calls', Integer, nullable=True),
+        Column('assignment_input_tokens', Integer, nullable=True),
+        Column('assignment_output_tokens', Integer, nullable=True),
+        Column('generation_llm_calls', Integer, nullable=True),
+        Column('generation_input_tokens', Integer, nullable=True),
+        Column('generation_output_tokens', Integer, nullable=True),
+        Column('polishing_llm_calls', Integer, nullable=True),
+        Column('polishing_input_tokens', Integer, nullable=True),
+        Column('polishing_output_tokens', Integer, nullable=True),
+        Column('elapsed_seconds', Float, nullable=True),
+        Column(
+            'created_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+        Column(
+            'updated_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+    )
+
+    # LLM connection settings, one row per tenant. Managed by tenant administrators.
+    llm_settings_table = Table(
+        'llm_settings',
+        metadata,
+        Column('tenant_uuid', UUID(as_uuid=True), primary_key=True),
+        Column('model', Text, nullable=False),
+        Column('api_url', Text, nullable=False),
+        # Encrypted with the 'encryption_key' config value, never stored in plaintext.
+        Column('api_key', Text, nullable=False),
+        # NULL lets the LLM client fall back to its default worker count.
+        Column('max_workers', Integer, nullable=True),
+        Column('updated_by', UUID(as_uuid=True), nullable=False),
+        Column(
+            'updated_at',
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+        ),
+    )
+
     return PersistenceSchema(
         metadata=metadata,
         assignment_table=assignment_table,
         template_table=template_table,
-        result_table=result_table,
         generation_table=generation_table,
+        generation_stats_table=generation_stats_table,
+        llm_settings_table=llm_settings_table,
     )

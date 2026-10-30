@@ -16,9 +16,9 @@ class TreeChunker:
         self.encoding = tiktoken.get_encoding(model_name)
 
         # Central registry mapping node_id -> node metadata
-        self.node_registry = {}
+        self.node_registry: dict[uuid.UUID, dict[str, Any]] = {}
         # List of root-to-leaf paths (each path is a list of node_ids)
-        self.paths = []
+        self.paths: list[list[uuid.UUID]] = []
 
         # Deepcopy to avoid modifying your original data
         self.data = copy.deepcopy(data)
@@ -38,12 +38,12 @@ class TreeChunker:
     def _process_and_flatten(
         self,
         node: dict[Any, Any],
-        current_path: list[str],
+        current_path: list[uuid.UUID],
     ) -> None:
         """Recursively registers nodes and extracts root-to-leaf ID paths."""
         # Assign an ID if one doesn't exist
         if 'node_id' not in node:
-            node['node_id'] = str(uuid.uuid4())
+            node['node_id'] = uuid.uuid4()
 
         node_id = node['node_id']
         title = node.get('title')
@@ -110,7 +110,7 @@ class TreeChunker:
 
         return chunks
 
-    def _reconstruct(self, paths: list[list[str]]) -> list[dict[str, Any]]:
+    def _reconstruct(self, paths: list[list[uuid.UUID]]) -> list[dict[str, Any]]:
         """Rebuilds the nested dictionary structure from a list of ID paths."""
         root_nodes = []
         created_nodes = {}

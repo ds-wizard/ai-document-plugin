@@ -4,6 +4,7 @@ import logging
 import time
 from collections.abc import Callable
 from typing import Any, TypedDict
+from uuid import UUID
 
 from haystack import component
 
@@ -16,9 +17,6 @@ from ai_document_plugin_service.ai.assignment.question_tree import (
 )
 from ai_document_plugin_service.ai.assignment.section_tree import (
     build_section_records,
-)
-from ai_document_plugin_service.ai.assignment.sections.llm import (
-    OpenAISectionIdGenerator,
 )
 from ai_document_plugin_service.ai.assignment.sections.sections_formatter import (
     SectionFormatter,
@@ -48,13 +46,12 @@ class AssignmentComponent:
     def __init__(self, llm_client: LLMClient, config: Config) -> None:
         self.llm_client = llm_client
         self.config = config
-        self.section_id_generator = OpenAISectionIdGenerator(llm_client, config)
         self.section_matcher = OpenAILayerMatcher(self.llm_client, self.config)
 
     @staticmethod
     def _add_chunk_mapping_to_result(
         *,
-        result_mapping: dict[str, list[str]],
+        result_mapping: dict[str, list[UUID]],
         question_to_section_ids: dict[str, list[str]],
         question_id_to_path: dict[str, str],
         section_formatter: SectionFormatter,
@@ -64,7 +61,8 @@ class AssignmentComponent:
             if not question_path:
                 logger.debug('Path not found for question id %s', question_id)
                 continue
-            result_mapping[question_path] = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
+            record_ids = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
+            result_mapping[question_path] = [record_id for record_id in record_ids if record_id is not None]
 
     @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
     async def run_async(
@@ -90,10 +88,9 @@ class AssignmentComponent:
         stats = AssignmentStats()
 
         section_formatter = SectionFormatter(sections)
-        await section_formatter.create_mappings(self.section_id_generator, stats)
         sections_xml = section_formatter.get_sections_as_xml()
 
-        result_mapping: dict[str, list[str]] = {}
+        result_mapping: dict[str, list[UUID]] = {}
         total_chunks = len(question_chunks)
         completed_counter = itertools.count(1)
         worker_count = self.llm_client.get_max_workers()

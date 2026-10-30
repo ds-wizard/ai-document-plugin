@@ -2,16 +2,20 @@ import logging
 import os
 import pathlib
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final, Literal
 from uuid import UUID
 
 import yaml
+from cryptography.fernet import Fernet
+
+from ai_document_plugin_service.cover_page.cover_page_resolvers import validate_cover_data_resolvers
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = 'config.yaml'
 CONFIG_PATH_ENV_VAR = 'AI_DOCUMENT_PLUGIN_CONFIG_PATH'
-WILDCARD = '*'
+WILDCARD: Final = '*'
+Wildcard = Literal['*']
 
 
 @dataclass(frozen=True)
@@ -32,12 +36,13 @@ class SystemPrompt:
 @dataclass(frozen=True)
 class FilePaths:
     prompts_path: str
+    cover_definition_path: str
 
 
 @dataclass(frozen=True)
 class AllowedApi:
     url: str
-    tenant_uuid: str
+    tenant_uuid: UUID | Wildcard
 
 
 @dataclass(frozen=True)
@@ -55,11 +60,13 @@ class Config:
     allowed_apis: tuple[AllowedApi, ...]
     log_level: str
     database: DatabaseConfig
+    encryption_key: str
     files: FilePaths
     assignment: SystemAndUserPrompt
-    section_id: SystemAndUserPrompt
     dmp_generation: SystemPrompt
+    cover_page_generation: str
     dmp_polishing: SystemAndUserPrompt
+    cover_definition: dict[str, Any]
     max_parallel_executions: int
 
 
@@ -108,6 +115,19 @@ def _get_log_level(config: dict) -> str:
     return level
 
 
+def _get_encryption_key(config: dict[str, Any]) -> str:
+    key = _expand_env_vars(str(_get(config, 'encryption_key'))).strip()
+    try:
+        Fernet(key)
+    except ValueError as error:
+        msg = (
+            "Invalid config value: 'encryption_key' must be 32 url-safe base64-encoded bytes. Generate one with: "
+            'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+        )
+        raise ValueError(msg) from error
+    return key
+
+
 def _get_file_path(config: dict, key: str) -> str:
     value = _get(config, 'files', key)
     return _normalize_path(str(value))
@@ -147,11 +167,12 @@ def _get_allowed_apis(config: dict[str, Any]) -> tuple[AllowedApi, ...]:
             raise ValueError(msg)
 
         url = raw_url.strip()
-        tenant_uuid = raw_tenant_uuid.strip()
+        stripped_tenant_uuid = raw_tenant_uuid.strip()
         normalized_url = url if url == WILDCARD else normalize_project_url(url)
-        if tenant_uuid != WILDCARD:
+        tenant_uuid: UUID | Wildcard = WILDCARD
+        if stripped_tenant_uuid != WILDCARD:
             try:
-                tenant_uuid = str(UUID(tenant_uuid))
+                tenant_uuid = UUID(stripped_tenant_uuid)
             except ValueError as error:
                 msg = f"Invalid config value: 'auth.allowed_apis[{index}].tenant_uuid' must be a UUID or '*'"
                 raise ValueError(msg) from error
@@ -209,9 +230,16 @@ def load_config(config_path: str | None = None) -> Config:
 
     configured_prompts_path = _get_relative_file_path(config, 'prompts_path')
     resolved_prompts_path = _resolve_existing_path(configured_prompts_path, base_dir=config_dir)
+    configured_cover_definition_path = _get_relative_file_path(config, 'cover_definition_path')
+    resolved_cover_definition_path = _resolve_existing_path(
+        configured_cover_definition_path,
+        base_dir=config_dir,
+    )
 
     with pathlib.Path(resolved_prompts_path).open(encoding='utf-8') as handle:
         prompts = yaml.safe_load(handle)
+    with pathlib.Path(resolved_cover_definition_path).open(encoding='utf-8') as handle:
+        cover_definition = yaml.safe_load(handle)
 
     if not isinstance(config, dict):
         msg = 'Invalid config format: expected a top-level mapping'
@@ -219,6 +247,11 @@ def load_config(config_path: str | None = None) -> Config:
     if not isinstance(prompts, dict):
         msg = 'Invalid prompts format: expected a top-level mapping'
         raise TypeError(msg)
+    if not isinstance(cover_definition, dict):
+        msg = 'Invalid cover definition format: expected a top-level mapping'
+        raise TypeError(msg)
+
+    validate_cover_data_resolvers(cover_definition)
 
     return Config(
         allowed_apis=_get_allowed_apis(config),
@@ -231,8 +264,10 @@ def load_config(config_path: str | None = None) -> Config:
             password=_expand_env_vars(_get(config, 'database', 'password')),
             schema=_expand_env_vars(_get(config, 'database', 'schema')),
         ),
+        encryption_key=_get_encryption_key(config),
         files=FilePaths(
             prompts_path=resolved_prompts_path,
+            cover_definition_path=resolved_cover_definition_path,
         ),
         assignment=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'assignment', 'temperature')),
@@ -240,22 +275,18 @@ def load_config(config_path: str | None = None) -> Config:
             system_message=_get(prompts, 'assignment', 'system_message'),
             user_message=_get(prompts, 'assignment', 'user_message'),
         ),
-        section_id=SystemAndUserPrompt(
-            temperature=float(_get(prompts, 'section_id', 'temperature')),
-            max_tokens=int(_get(prompts, 'section_id', 'max_tokens')),
-            system_message=_get(prompts, 'section_id', 'system_message'),
-            user_message=_get(prompts, 'section_id', 'user_message'),
-        ),
         dmp_generation=SystemPrompt(
             temperature=float(_get(prompts, 'dmp_generation', 'temperature')),
             max_tokens=int(_get(prompts, 'dmp_generation', 'max_tokens')),
             system_message=_get(prompts, 'dmp_generation', 'system_message'),
         ),
+        cover_page_generation=_get(prompts, 'cover_page_generation', 'instruction'),
         dmp_polishing=SystemAndUserPrompt(
             temperature=float(_get(prompts, 'dmp_polishing', 'temperature')),
             max_tokens=int(_get(prompts, 'dmp_polishing', 'max_tokens')),
             system_message=_get(prompts, 'dmp_polishing', 'system_message'),
             user_message=_get(prompts, 'dmp_polishing', 'user_message'),
         ),
+        cover_definition=cover_definition,
         max_parallel_executions=int(_get(config, 'max_parallel_executions')),
     )

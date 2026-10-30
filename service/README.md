@@ -19,7 +19,9 @@ before starting the API or CLI.
 
 ### Step 1 — Question-to-section assignment (`templates/assignment`)
 
-Assigns questions from the KM to leaf sections (sections with no children) from the DMP template
+Assigns questions from the KM to leaf sections (sections with no children) from the DMP template.
+Leaf sections receive deterministic IDs (`A`, `B`, …, `Z`, `AA`, …) in tree order.
+These IDs are used only for matching; stored assignments retain their internal UUIDs.
 
 ### Step 2 — DMP generation (`templates/generation`)
 
@@ -66,6 +68,9 @@ The project `Makefile` provides a few shortcuts for common development tasks:
 - `make db-migrate` applies all Alembic migrations to the configured database
 - `make db-current` shows the current Alembic revision stored in the database
 - `make db-history` shows available Alembic migration history
+- `make db-revision m="Add foo to bar"` creates a new migration `YYYYMMDD_NN_add_foo_to_bar.py` with revision ID
+  `YYYYMMDD_NN`. Migrations are upgrade-only: there are no `downgrade()` functions, so undo a change with a new
+  migration
 
 Run these commands from the [service](/Users/hana/DSW/AI-playground/ai-document-plugin/service:1) directory.
 

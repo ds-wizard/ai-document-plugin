@@ -1,6 +1,10 @@
 import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
+import type { LanguageDefinition } from '@/data/languages'
 import type {
+    CoverPagePreviewDefinition,
+    LlmSettings,
+    LlmSettingsUpdate,
     PipelineStatusResponse,
     PipelineSummaryItem,
     TemplateDetail,
@@ -36,6 +40,55 @@ export const readApiResponse = async <T>(response: Response, url: string): Promi
 // __API_URL__ (with removed trailing /. e.g.: example.com/ => example.com
 export const getApiBaseUrl = (): string => __API_URL__.replace(/\/+$/, '')
 
+export const getQuestionnaireLanguage = async (
+    questionnaireUuid: string,
+): Promise<string | null> => {
+    const encodedUuid = encodeURIComponent(questionnaireUuid)
+    const url = `${getApiBaseUrl()}/language/${encodedUuid}`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<unknown>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load the questionnaire language (${response.status}).`)
+    }
+
+    if (!data || typeof data !== 'object' || !('language' in data)) {
+        return null
+    }
+
+    return typeof data.language === 'string' ? data.language : null
+}
+
+export const getAvailableLanguages = async (): Promise<LanguageDefinition[]> => {
+    const url = `${getApiBaseUrl()}/languages`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<unknown>(response, url)
+
+    if (!response.ok) {
+        throw new Error(`Failed to load available languages (${response.status}).`)
+    }
+
+    if (
+        !Array.isArray(data) ||
+        !data.every(
+            (item) =>
+                item &&
+                typeof item === 'object' &&
+                typeof item.code === 'string' &&
+                typeof item.iso6392 === 'string' &&
+                typeof item.name === 'string' &&
+                typeof item.nativeName === 'string' &&
+                typeof item.family === 'string',
+        )
+    ) {
+        throw new Error('Invalid available languages returned.')
+    }
+
+    return data as LanguageDefinition[]
+}
+
+const CONNECTION_ERROR_MESSAGE = 'Cannot connect to the server.'
+
 const buildAuthHeaders = (): Record<string, string> => {
     const { apiUrl, token } = getApiUrlAndToken()
     if (!token) {
@@ -53,14 +106,22 @@ const buildAuthHeaders = (): Record<string, string> => {
 
 // false positive for global type RequestInit
 // eslint-disable-next-line no-undef
-const apiFetch = (url: string, init?: RequestInit): Promise<Response> =>
-    fetch(url, {
-        ...init,
-        headers: {
-            ...buildAuthHeaders(),
-            ...init?.headers,
-        },
-    })
+const apiFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    const headers = {
+        ...buildAuthHeaders(),
+        ...init?.headers,
+    }
+
+    try {
+        return await fetch(url, { ...init, headers })
+    } catch (error) {
+        // fetch rejects with a TypeError ("Failed to fetch") when the request never gets a response.
+        if (error instanceof TypeError) {
+            throw new Error(CONNECTION_ERROR_MESSAGE, { cause: error })
+        }
+        throw error
+    }
+}
 
 export const getTemplates = async (): Promise<TemplateOption[]> => {
     const url = `${getApiBaseUrl()}/templates`
@@ -72,6 +133,33 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     }
 
     return templates
+}
+
+export const getCoverPagePreview = async (): Promise<CoverPagePreviewDefinition> => {
+    const url = `${getApiBaseUrl()}/cover-page/preview`
+    const response = await apiFetch(url)
+    const definition = await readApiResponse<CoverPagePreviewDefinition | { detail?: string }>(
+        response,
+        url,
+    )
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in definition && definition.detail
+                ? definition.detail
+                : `Failed to load the cover page preview (${response.status}).`,
+        )
+    }
+
+    if (
+        !('metadata' in definition) ||
+        !('history' in definition) ||
+        !('assignedSections' in definition)
+    ) {
+        throw new Error('Invalid cover page preview returned.')
+    }
+
+    return definition
 }
 
 export const getTemplate = async (templateUuid: string): Promise<TemplateDetail> => {
@@ -128,19 +216,13 @@ export const getPipelineHistory = async (
 type RunPipelineParams = {
     questionnaireUuid: string
     templateUuid: string
-    llmModel?: string | null
-    llmApiKey?: string | null
-    llmApiUrl?: string | null
-    llmMaxWorkers?: number | null
+    language: string
 }
 
 export const runPipeline = async ({
     questionnaireUuid,
     templateUuid,
-    llmModel = null,
-    llmApiKey = null,
-    llmApiUrl = null,
-    llmMaxWorkers = null,
+    language,
 }: RunPipelineParams): Promise<PipelineStatusResponse> => {
     const url = `${getApiBaseUrl()}/pipelines/run`
     const response = await apiFetch(url, {
@@ -151,10 +233,8 @@ export const runPipeline = async ({
         body: JSON.stringify({
             questionnaireUuid,
             templateUuid,
-            llmModel,
-            llmApiKey,
-            llmApiUrl,
-            llmMaxWorkers,
+            language,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
     })
 
@@ -163,7 +243,7 @@ export const runPipeline = async ({
     if (!response.ok) {
         if (response.status == 422) {
             throw new Error(
-                'Plugin is not configured. Set the model, API key, and API URL in the plugin settings.',
+                'Plugin is not configured. Ask your administrator to set the model, API key, and API URL in the plugin settings.',
             )
         }
         const detail = 'detail' in data ? data.detail : undefined
@@ -179,13 +259,51 @@ export const runPipeline = async ({
     return data
 }
 
+export const getLlmSettings = async (): Promise<LlmSettings> => {
+    const url = `${getApiBaseUrl()}/settings/llm`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<LlmSettings | { detail?: string }>(response, url)
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to load the LLM settings.',
+        )
+    }
+
+    return data as LlmSettings
+}
+
+export const updateLlmSettings = async (settings: LlmSettingsUpdate): Promise<LlmSettings> => {
+    const url = `${getApiBaseUrl()}/settings/llm`
+    const response = await apiFetch(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+    })
+
+    const data = await readApiResponse<LlmSettings | { detail?: unknown }>(response, url)
+
+    if (!response.ok) {
+        const detail = 'detail' in data ? data.detail : undefined
+        throw new Error(
+            typeof detail === 'string' && detail ? detail : 'Failed to save the LLM settings.',
+        )
+    }
+
+    return data as LlmSettings
+}
+
 type CreateTemplateParams = {
+    hasCoverPage: boolean
     title: string
     content: unknown
     scope: TemplateScope
 }
 
 export const createTemplate = async ({
+    hasCoverPage,
     title,
     content,
     scope,
@@ -199,6 +317,7 @@ export const createTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            hasCoverPage,
             scope,
         }),
     })
@@ -219,12 +338,14 @@ export const createTemplate = async ({
 }
 
 type UpdateTemplateParams = {
+    hasCoverPage: boolean
     uuid: string
     title: string
     content: unknown
 }
 
 export const updateTemplate = async ({
+    hasCoverPage,
     uuid,
     title,
     content,
@@ -238,6 +359,7 @@ export const updateTemplate = async ({
         body: JSON.stringify({
             title,
             content,
+            hasCoverPage,
         }),
     })
 

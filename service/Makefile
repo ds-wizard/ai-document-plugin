@@ -55,3 +55,21 @@ db-current:
 .PHONY: db-history
 db-history:
 	uv run --active alembic history
+
+# Both targets create versions/YYYYMMDD_NN_<message>.py with revision ID YYYYMMDD_NN (next free NN for today).
+MIGRATIONS_VERSIONS_DIR := src/ai_document_plugin_service/migrations/versions
+NEXT_REVISION_ID = $(shell day=$$(date +%Y%m%d); \
+	count=$$(find $(MIGRATIONS_VERSIONS_DIR) -maxdepth 1 -name "$${day}_*.py" | wc -l); \
+	printf '%s_%02d' "$$day" $$((count + 1)))
+
+# Usage: make db-revision m="Add foo to bar"  (empty migration)
+.PHONY: db-revision
+db-revision:
+	@test -n "$(m)" || { echo 'Usage: make db-revision m="Describe the change"'; exit 1; }
+	uv run --active alembic revision --rev-id "$(NEXT_REVISION_ID)" -m "$(m)"
+
+# Usage: make db-autogenerate m="Add foo to bar"  (diffs schema.py against the DB; DB must be at head)
+.PHONY: db-autogenerate
+db-autogenerate:
+	@test -n "$(m)" || { echo 'Usage: make db-autogenerate m="Describe the change"'; exit 1; }
+	uv run --active alembic revision --autogenerate --rev-id "$(NEXT_REVISION_ID)" -m "$(m)"

@@ -18,7 +18,7 @@ async def log_http_request_response(
     request: fastapi.Request,
     call_next: Callable[[fastapi.Request], Awaitable[fastapi.Response]],
 ) -> fastapi.Response:
-    trace_uuid = str(uuid.uuid4())
+    trace_uuid = uuid.uuid4()
     request.state.trace_uuid = trace_uuid
     request_body = await request.body()
     _restore_request_body(request, request_body)
@@ -69,7 +69,7 @@ async def log_http_request_response(
                 'duration_ms': duration_ms,
             },
         )
-    response.headers[TRACE_UUID_HEADER] = trace_uuid
+    response.headers[TRACE_UUID_HEADER] = str(trace_uuid)
     return response
 
 

@@ -1,3 +1,8 @@
+/* Radix Dialog disables pointer events on the body; keep toasts above a modal clickable. */
+[data-sonner-toaster] {
+    pointer-events: auto;
+}
+
 .ai-doc-title {
     margin: 0;
     font-weight: 500;

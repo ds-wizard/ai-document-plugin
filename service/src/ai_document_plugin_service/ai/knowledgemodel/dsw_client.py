@@ -4,6 +4,7 @@ from uuid import UUID
 import httpx
 
 from ai_document_plugin_service.ai.common.logging_payloads import summarize_payload
+from ai_document_plugin_service.ai.knowledgemodel.project_version import sort_project_versions
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class DSWClient:
         self.token = token
         self.api_url = api_url.rstrip('/')
 
-    async def get_questionnaire_detail(self, questionnaire_uuid: str | UUID) -> dict:
+    async def get_questionnaire_detail(self, questionnaire_uuid: UUID) -> dict:
         url = f'{self.api_url}/projects/{questionnaire_uuid}/questionnaire'
         logger.info(
             'Fetching questionnaire detail from DSW',
@@ -52,3 +53,36 @@ class DSWClient:
             },
         )
         return payload
+
+    async def get_project_versions(self, project_uuid: str | UUID) -> list[dict]:
+        # Fetch versions once and return them newest first for all consumers.
+        url = f'{self.api_url}/projects/{project_uuid}/versions'
+        logger.info(
+            'Fetching project versions from DSW',
+            extra={'url.full': url, 'project_uuid': str(project_uuid)},
+        )
+
+        headers: dict[str, str] = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+            response.raise_for_status()
+        except httpx.HTTPError:
+            logger.exception(
+                'Failed to fetch project versions from DSW',
+                extra={'url.full': url, 'project_uuid': str(project_uuid)},
+            )
+            raise
+
+        payload = response.json()
+        if not isinstance(payload, list):
+            logger.warning(
+                'Project versions response was not a list',
+                extra={'url.full': url, 'project_uuid': str(project_uuid)},
+            )
+            return []
+
+        return sort_project_versions([version for version in payload if isinstance(version, dict)])

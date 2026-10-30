@@ -1,7 +1,9 @@
 import shutil
 from pathlib import Path
 from unittest.mock import patch
+from uuid import UUID
 
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
@@ -15,6 +17,7 @@ from ai_document_plugin_service.app import create_app
 SERVICE_DIR = Path(__file__).resolve().parents[2]
 TEST_CONFIG_PATH = SERVICE_DIR / 'config.test.yaml'
 TEST_PROMPTS_PATH = SERVICE_DIR / 'prompts.yaml'
+TEST_COVER_DEFINITION_PATH = SERVICE_DIR / 'cover-page.yaml'
 
 
 def _copy_test_config(
@@ -23,15 +26,19 @@ def _copy_test_config(
     config_name: str = 'config.yaml',
     allowed_apis: list[dict[str, str]] | None = None,
     prompts_path: str | None = None,
+    encryption_key: str | None = None,
 ) -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TEST_PROMPTS_PATH, base_dir / 'prompts.yaml')
+    shutil.copyfile(TEST_COVER_DEFINITION_PATH, base_dir / 'cover-page.yaml')
 
     config = yaml.safe_load(TEST_CONFIG_PATH.read_text(encoding='utf-8'))
     if allowed_apis is not None:
         config['auth']['allowed_apis'] = allowed_apis
     if prompts_path is not None:
         config['files']['prompts_path'] = prompts_path
+    if encryption_key is not None:
+        config['encryption_key'] = encryption_key
 
     config_path = base_dir / config_name
     config_path.write_text(yaml.safe_dump(config), encoding='utf-8')
@@ -48,9 +55,13 @@ def test_load_config_uses_env_config_path_and_resolves_prompts_relative_to_it(
     config = load_config()
 
     assert config.allowed_apis == (
-        AllowedApi(url='https://your-dsw-instance.example.com/wizard-api', tenant_uuid='123e4567-e89b-12d3-a456-426614174000'),
+        AllowedApi(
+            url='https://your-dsw-instance.example.com/wizard-api',
+            tenant_uuid=UUID('123e4567-e89b-12d3-a456-426614174000'),
+        ),
     )
     assert config.files.prompts_path == str(TEST_PROMPTS_PATH)
+    assert config.files.cover_definition_path == str(TEST_COVER_DEFINITION_PATH)
 
 
 def test_load_config_warns_on_wildcard_allowed_apis_entry(
@@ -83,6 +94,7 @@ def test_load_config_falls_back_to_default_path_when_env_is_missing(
     config = load_config()
 
     assert config.files.prompts_path == str(config_path.parent / 'prompts.yaml')
+    assert config.files.cover_definition_path == str(config_path.parent / 'cover-page.yaml')
 
 
 def test_load_config_rejects_absolute_prompts_path_in_config(
@@ -101,6 +113,31 @@ def test_load_config_rejects_absolute_prompts_path_in_config(
         raise AssertionError('Expected load_config() to reject an absolute prompts path')
 
 
+def test_load_config_expands_env_vars_in_encryption_key(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    key = 'ZW52LXByb3ZpZGVkLWVuY3J5cHRpb24ta2V5LTMyYiE='
+    _copy_test_config(tmp_path, encryption_key='${TEST_ENCRYPTION_KEY}')
+    monkeypatch.setenv('TEST_ENCRYPTION_KEY', key)
+    monkeypatch.chdir(tmp_path)
+
+    assert load_config().encryption_key == key
+
+
+@pytest.mark.parametrize('encryption_key', ['', 'not-a-fernet-key'])
+def test_load_config_rejects_missing_or_malformed_encryption_key(
+    tmp_path: Path,
+    monkeypatch,
+    encryption_key: str,
+) -> None:
+    _copy_test_config(tmp_path, encryption_key=encryption_key)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match='encryption_key'):
+        load_config()
+
+
 def test_create_app_stores_the_resolved_config(
     tmp_path: Path,
     monkeypatch,
@@ -111,6 +148,7 @@ def test_create_app_stores_the_resolved_config(
     app = create_app(run_migrations=False)
 
     assert app.state.config.files.prompts_path == str(TEST_PROMPTS_PATH)
+    assert app.state.config.cover_definition['version'] == '1'
 
 
 @patch('ai_document_plugin_service.app.run_startup_migrations')

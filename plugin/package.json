@@ -1,6 +1,6 @@
 {
     "name": "ai-document-plugin",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Plugin for DSW to generate documents using AI.",
     "license": "MIT",
     "author": "Marek Suchánek <marek.suchanek@ds-wizard.org>",
@@ -38,7 +38,7 @@
         "@typescript-eslint/eslint-plugin": "^8.61.0",
         "@typescript-eslint/parser": "^8.59.1",
         "@vitejs/plugin-react": "^6.0.2",
-        "concurrently": "^9.2.1",
+        "concurrently": "^9.2.5",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-react": "^7.37.5",
@@ -51,7 +51,8 @@
         "vite": "^8.0.16"
     },
     "dependencies": {
-        "@ds-wizard/plugin-sdk": "^0.9.1",
+        "@ds-wizard/plugin-sdk": "^0.11.0",
+        "@radix-ui/react-dialog": "^1.2.0",
         "react": "^19.2.7",
         "react-dom": "^19.2.7",
         "react-markdown": "^10.1.0",

@@ -1,6 +1,6 @@
 .root {
-    /* Content height of a two-line run item (title + timestamp) — every item matches it. */
-    --ai-doc-history-item-body: calc(1.5 * 0.9rem + 0.1rem + 1.5 * 0.75rem);
+    /* Three lines: template, named version, and the generation timestamp. */
+    --ai-doc-history-item-body: calc(1.5 * 0.9rem + 0.2rem + 2 * 1.5 * 0.75rem);
     --ai-doc-history-radius: var(--bs-border-radius);
     --ai-doc-history-line: var(--ai-doc-color-slate-250);
     /* Doubles as the list's inset, so nothing is faded until it actually scrolls. */
@@ -205,13 +205,15 @@
     min-width: 0;
 }
 
-.itemTitle {
+.itemTitle,
+.itemVersion {
     line-height: 1.5;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.itemVersion,
 .itemTime {
     font-size: 0.75rem;
     font-weight: 400;

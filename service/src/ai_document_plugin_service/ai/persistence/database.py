@@ -8,15 +8,17 @@ from datetime import UTC, datetime
 from typing import Any, TypedDict, Unpack
 from uuid import UUID, uuid4
 
-from sqlalchemy import ColumnElement, Connection, Row, and_, inspect, or_
+from sqlalchemy import Column, ColumnElement, Connection, Row, and_, inspect, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from ai_document_plugin_service.ai.common.config import DatabaseConfig
+from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
+from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
+from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
 from ai_document_plugin_service.api.types import TemplateScope
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,11 @@ class TemplateRecord:
     content: dict
     tenant_uuid: UUID
     user_uuid: UUID | None
+    cover_page_version: str | None = None
+
+    @property
+    def has_cover_page(self) -> bool:
+        return self.cover_page_version is not None
 
     @property
     def scope(self) -> TemplateScope:
@@ -51,6 +58,7 @@ class TemplateRecord:
             content=row.content,
             tenant_uuid=row.tenant_uuid,
             user_uuid=row.user_uuid,
+            cover_page_version=row.cover_page_version,
         )
 
 
@@ -61,6 +69,22 @@ class GenerationUpdate(TypedDict, total=False):
     error_message: str | None
     result_markdown: str | None
     progress_message: str | None
+    named_version: str | None
+
+
+class GenerationStats(TypedDict, total=False):
+    dmp_pre_polished: str | None
+    dmp_polished: str | None
+    assignment_llm_calls: int | None
+    assignment_input_tokens: int | None
+    assignment_output_tokens: int | None
+    generation_llm_calls: int | None
+    generation_input_tokens: int | None
+    generation_output_tokens: int | None
+    polishing_llm_calls: int | None
+    polishing_input_tokens: int | None
+    polishing_output_tokens: int | None
+    elapsed_seconds: float | None
 
 
 @dataclass(frozen=True)
@@ -71,6 +95,7 @@ class GenerationRecord:
     questionnaire_uuid: UUID
     template_uuid: UUID
     title: str
+    language: str | None
     knowledge_model_uuid: UUID | None
     user_uuid: UUID
     tenant_uuid: UUID
@@ -81,6 +106,7 @@ class GenerationRecord:
     progress_message: str | None
     created_at: datetime
     updated_at: datetime
+    named_version: str | None = None
 
     @classmethod
     def from_row(cls, row: Row) -> 'GenerationRecord':
@@ -89,6 +115,7 @@ class GenerationRecord:
             questionnaire_uuid=row.questionnaire_uuid,
             template_uuid=row.template_uuid,
             title=row.title,
+            language=row.language,
             knowledge_model_uuid=row.knowledge_model_uuid,
             user_uuid=row.user_uuid,
             tenant_uuid=row.tenant_uuid,
@@ -99,6 +126,7 @@ class GenerationRecord:
             progress_message=row.progress_message,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            named_version=row.named_version,
         )
 
 
@@ -123,6 +151,8 @@ class Database(ABC):
         content: JsonValue,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
+        *,
+        cover_page_version: str | None = None,
     ) -> UUID:
         """Create a new template in a database backend. Return created template UUID.
 
@@ -137,6 +167,8 @@ class Database(ABC):
         tenant_uuid: UUID,
         title: str,
         content: JsonValue,
+        *,
+        cover_page_version: str | None = None,
     ) -> bool:
         """Update an existing template's title and content. Return whether a row was updated."""
 
@@ -154,7 +186,7 @@ class Database(ABC):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: JsonValue,
+        assignments: list[SerializedSectionAssignment],
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -176,7 +208,7 @@ class Database(ABC):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> JsonValue | None:
+    ) -> list[SerializedSectionAssignment] | None:
         """Get assignments from a database backend."""
 
     @abstractmethod
@@ -198,48 +230,16 @@ class Database(ABC):
         """
 
     @abstractmethod
-    async def save_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        prepolished_markdown: str,
-        markdown: str,
-    ) -> None:
-        """Persist a markdown result in a database backend."""
-
-    @abstractmethod
-    async def save_stats(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        stats: JsonValue,
-    ) -> None:
-        """Persist a stats result in a database backend."""
-
-    @abstractmethod
-    async def update_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        markdown: str,
-    ) -> None:
-        """Persist a markdown result in a database backend."""
-
-    @abstractmethod
     async def create_generation(
         self,
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         title: str,
+        language: str,
         user_uuid: UUID,
         tenant_uuid: UUID,
         status: str,
+        named_version: str | None = None,
     ) -> UUID:
         """Create a new generation (pipeline run) row. Return the created run id."""
 
@@ -256,6 +256,15 @@ class Database(ABC):
         set to ``None`` to clear it. Returns ``None`` if no row matches
         ``run_id``/``tenant_uuid``.
         """
+
+    @abstractmethod
+    async def create_generation_stats(
+        self,
+        run_id: UUID,
+        trace_id: UUID | None,
+        **stats: Unpack[GenerationStats],
+    ) -> None:
+        """Create the stats row of a finished generation."""
 
     @abstractmethod
     async def get_generation(
@@ -275,12 +284,22 @@ class Database(ABC):
     ) -> list[GenerationRecord]:
         """List a user's generations for a project, newest first."""
 
+    @abstractmethod
+    async def get_llm_settings(self, tenant_uuid: UUID) -> LLMConfig | None:
+        """Get the tenant's LLM settings, or ``None`` if the tenant has not configured them."""
+
+    @abstractmethod
+    async def save_llm_settings(self, tenant_uuid: UUID, llm_config: LLMConfig, updated_by: UUID) -> None:
+        """Create or replace the tenant's LLM settings."""
+
 
 class PostgresDB(Database):
     def __init__(
         self,
         config: DatabaseConfig,
+        secret_cipher: SecretCipher,
     ) -> None:
+        self._secret_cipher = secret_cipher
         self.dsn = URL.create(
             drivername='postgresql+psycopg',
             username=config.user,
@@ -295,8 +314,9 @@ class PostgresDB(Database):
         self.metadata = schema.metadata
         self.assignment_table = schema.assignment_table
         self.template_table = schema.template_table
-        self.result_table = schema.result_table
         self.generation_table = schema.generation_table
+        self.generation_stats_table = schema.generation_stats_table
+        self.llm_settings_table = schema.llm_settings_table
         self._database_verified = False
         logger.info(
             'Initialized Postgres database client',
@@ -345,6 +365,10 @@ class PostgresDB(Database):
         async with self.engine.begin() as connection:
             yield connection
 
+    def _generation_record_columns(self) -> list[Column[Any]]:
+        """Generation columns read into ``GenerationRecord``."""
+        return [column for column in self.generation_table.c if column.name in GenerationRecord.__dataclass_fields__]
+
     def _list_existing_tables(self, connection: Connection) -> set[str]:
         return set(inspect(connection).get_table_names(schema=self.schema_name))
 
@@ -356,7 +380,14 @@ class PostgresDB(Database):
         async with self.engine.connect() as connection:
             existing_tables = await connection.run_sync(self._list_existing_tables)
 
-        required_tables = {'alembic_version', 'template', 'assignment', 'result', 'generation'}
+        required_tables = {
+            'alembic_version',
+            'template',
+            'assignment',
+            'generation',
+            'generation_stats',
+            'llm_settings',
+        }
         missing_tables = sorted(required_tables - existing_tables)
 
         if missing_tables:
@@ -379,7 +410,7 @@ class PostgresDB(Database):
         knowledge_model_uuid: UUID,
         knowledge_model_name: str,
         knowledge_model_version: str,
-        assignments: JsonValue,
+        assignments: list[SerializedSectionAssignment],
         template_uuid: UUID,
         stats: JsonValue | None = None,
         created_at: datetime | None = None,
@@ -414,7 +445,7 @@ class PostgresDB(Database):
             extra={
                 'knowledge_model_uuid': knowledge_model_uuid,
                 'template_uuid': str(template_uuid),
-                'assignment_count': len(assignments) if isinstance(assignments, Sequence) else None,
+                'assignment_count': len(assignments),
                 'db.schema': self.schema_name,
             },
         )
@@ -430,11 +461,14 @@ class PostgresDB(Database):
         content: JsonValue,
         tenant_uuid: UUID,
         user_uuid: UUID | None,
+        *,
+        cover_page_version: str | None = None,
     ) -> UUID:
         template_uuid = uuid4()
         await self._ensure_schema()
         statement = postgresql_insert(self.template_table).values(
             uuid=template_uuid,
+            cover_page_version=cover_page_version,
             title=title,
             content=content,
             tenant_uuid=tenant_uuid,
@@ -470,6 +504,8 @@ class PostgresDB(Database):
         tenant_uuid: UUID,
         title: str,
         content: JsonValue,
+        *,
+        cover_page_version: str | None = None,
     ) -> bool:
         await self._ensure_schema()
         statement = (
@@ -479,11 +515,29 @@ class PostgresDB(Database):
                 & (self.template_table.c.tenant_uuid == tenant_uuid)
                 & (self.template_table.c.deleted_at.is_(None)),
             )
-            .values(title=title, content=content)
+            .values(
+                title=title,
+                content=content,
+                cover_page_version=cover_page_version,
+            )
         )
 
         try:
             async with self._connect() as connection:
+                await connection.execute(
+                    self.assignment_table.delete().where(
+                        self.assignment_table.c.template_uuid.in_(
+                            self.template_table.select()
+                            .with_only_columns(self.template_table.c.uuid)
+                            .where(
+                                self.template_table.c.uuid == template_uuid,
+                                self.template_table.c.tenant_uuid == tenant_uuid,
+                                self.template_table.c.deleted_at.is_(None),
+                                self.template_table.c.cover_page_version.is_distinct_from(cover_page_version),
+                            ),
+                        ),
+                    ),
+                )
                 result = await connection.execute(statement)
         except IntegrityError as exc:
             raise TemplateTitleConflictError(title) from exc
@@ -553,7 +607,7 @@ class PostgresDB(Database):
         self,
         knowledge_model_uuid: UUID,
         template_uuid: UUID,
-    ) -> JsonValue | None:
+    ) -> list[SerializedSectionAssignment] | None:
         await self._ensure_schema()
 
         statement = self.assignment_table.select().where(
@@ -649,166 +703,16 @@ class PostgresDB(Database):
             return None
         return TemplateRecord.from_row(row)
 
-    async def save_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        prepolished_markdown: str,
-        markdown: str,
-    ) -> None:
-        await self._ensure_schema()
-        now = datetime.now(tz=UTC)
-
-        statement = postgresql_insert(self.result_table).values(
-            template_uuid=template_uuid,
-            knowledge_model_uuid=knowledge_model_uuid,
-            user_uuid=user_uuid,
-            tenant_uuid=tenant_uuid,
-            dmp_pre_polished=prepolished_markdown,
-            dmp=markdown,
-            created_at=now,
-            updated_at=now,
-        )
-
-        upsert_statement = statement.on_conflict_do_update(
-            constraint='pk_result',
-            set_={
-                'dmp_pre_polished': statement.excluded.dmp_pre_polished,
-                'dmp': statement.excluded.dmp,
-                'updated_at': statement.excluded.updated_at,
-            },
-        )
-
-        async with self._connect() as connection:
-            await connection.execute(upsert_statement)
-
-        logger.info(
-            'Saved pipeline result',
-            extra={
-                'knowledge_model_uuid': knowledge_model_uuid,
-                'template_uuid': str(template_uuid),
-                'user_uuid': str(user_uuid),
-                'tenant_uuid': str(tenant_uuid),
-                'prepolished_markdown_length': len(prepolished_markdown),
-                'markdown_length': len(markdown),
-                'db.schema': self.schema_name,
-            },
-        )
-
-    async def save_stats(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        stats: JsonValue,
-    ) -> None:
-        await self._ensure_schema()
-        now = datetime.now(tz=UTC)
-
-        statement = (
-            self.result_table.update()
-            .where(
-                (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
-                & (self.result_table.c.template_uuid == template_uuid)
-                & (self.result_table.c.user_uuid == user_uuid)
-                & (self.result_table.c.tenant_uuid == tenant_uuid)
-            )
-            .values(stats=stats, updated_at=now)
-        )
-
-        async with self._connect() as connection:
-            result = await connection.execute(statement)
-
-        if result.rowcount == 0:
-            msg = 'Cannot save stats because result row does not exist yet. Save dmp and dmp_pre_polished first.'
-            logger.error(
-                'Stats update failed because result row does not exist',
-                extra={
-                    'knowledge_model_uuid': str(knowledge_model_uuid),
-                    'template_uuid': str(template_uuid),
-                    'user_uuid': str(user_uuid),
-                    'tenant_uuid': str(tenant_uuid),
-                    'db.schema': self.schema_name,
-                },
-            )
-            raise ValueError(msg)
-
-        logger.info(
-            'Saved pipeline stats',
-            extra={
-                'knowledge_model_uuid': str(knowledge_model_uuid),
-                'template_uuid': str(template_uuid),
-                'user_uuid': str(user_uuid),
-                'tenant_uuid': str(tenant_uuid),
-                'db.schema': self.schema_name,
-            },
-        )
-
-    async def update_result(
-        self,
-        template_uuid: UUID,
-        knowledge_model_uuid: UUID,
-        user_uuid: UUID,
-        tenant_uuid: UUID,
-        markdown: str,
-    ) -> None:
-        await self._ensure_schema()
-        now = datetime.now(tz=UTC)
-
-        statement = (
-            self.result_table.update()
-            .where(
-                (self.result_table.c.knowledge_model_uuid == knowledge_model_uuid)
-                & (self.result_table.c.template_uuid == template_uuid)
-                & (self.result_table.c.user_uuid == user_uuid)
-                & (self.result_table.c.tenant_uuid == tenant_uuid)
-            )
-            .values(
-                dmp=markdown,
-                updated_at=now,
-            )
-        )
-
-        async with self._connect() as connection:
-            result = await connection.execute(statement)
-
-        if result.rowcount == 0:
-            msg = 'Cannot save result because result row does not exist yet. Create the row first before updating dmp.'
-            logger.error(
-                'Result update failed because result row does not exist',
-                extra={
-                    'knowledge_model_uuid': str(knowledge_model_uuid),
-                    'template_uuid': str(template_uuid),
-                    'user_uuid': str(user_uuid),
-                    'tenant_uuid': str(tenant_uuid),
-                    'db.schema': self.schema_name,
-                },
-            )
-            raise ValueError(msg)
-
-        logger.info(
-            'Updated stored pipeline result markdown',
-            extra={
-                'knowledge_model_uuid': str(knowledge_model_uuid),
-                'template_uuid': str(template_uuid),
-                'user_uuid': str(user_uuid),
-                'tenant_uuid': str(tenant_uuid),
-                'markdown_length': len(markdown),
-                'db.schema': self.schema_name,
-            },
-        )
-
     async def create_generation(
         self,
         questionnaire_uuid: UUID,
         template_uuid: UUID,
         title: str,
+        language: str,
         user_uuid: UUID,
         tenant_uuid: UUID,
         status: str,
+        named_version: str | None = None,
     ) -> UUID:
         run_id = uuid4()
         await self._ensure_schema()
@@ -817,9 +721,11 @@ class PostgresDB(Database):
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
             title=title,
+            language=language,
             user_uuid=user_uuid,
             tenant_uuid=tenant_uuid,
             status=status,
+            named_version=named_version,
         )
 
         async with self._connect() as connection:
@@ -850,7 +756,7 @@ class PostgresDB(Database):
             self.generation_table.update()
             .where((self.generation_table.c.run_id == run_id) & (self.generation_table.c.tenant_uuid == tenant_uuid))
             .values(**updates, updated_at=now)
-            .returning(*self.generation_table.c)
+            .returning(*self._generation_record_columns())
         )
 
         async with self._connect() as connection:
@@ -867,6 +773,18 @@ class PostgresDB(Database):
         )
         return GenerationRecord.from_row(row)
 
+    async def create_generation_stats(
+        self,
+        run_id: UUID,
+        trace_id: UUID | None,
+        **stats: Unpack[GenerationStats],
+    ) -> None:
+        await self._ensure_schema()
+        statement = self.generation_stats_table.insert().values(run_id=run_id, trace_id=trace_id, **stats)
+
+        async with self._connect() as connection:
+            await connection.execute(statement)
+
     async def get_generation(
         self,
         run_id: UUID,
@@ -874,7 +792,7 @@ class PostgresDB(Database):
         user_uuid: UUID,
     ) -> GenerationRecord | None:
         await self._ensure_schema()
-        statement = self.generation_table.select().where(
+        statement = select(*self._generation_record_columns()).where(
             and_(
                 self.generation_table.c.run_id == run_id,
                 self.generation_table.c.tenant_uuid == tenant_uuid,
@@ -896,7 +814,7 @@ class PostgresDB(Database):
     ) -> list[GenerationRecord]:
         await self._ensure_schema()
         statement = (
-            self.generation_table.select()
+            select(*self._generation_record_columns())
             .where(
                 and_(
                     self.generation_table.c.questionnaire_uuid == questionnaire_uuid,
@@ -912,6 +830,51 @@ class PostgresDB(Database):
             rows = result.fetchall()
 
         return [GenerationRecord.from_row(row) for row in rows]
+
+    async def get_llm_settings(self, tenant_uuid: UUID) -> LLMConfig | None:
+        await self._ensure_schema()
+        statement = self.llm_settings_table.select().where(self.llm_settings_table.c.tenant_uuid == tenant_uuid)
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            row = result.fetchone()
+
+        if row is None:
+            return None
+        return LLMConfig(
+            model=row.model,
+            api_key=self._secret_cipher.decrypt(row.api_key),
+            api_url=row.api_url,
+            parallel_workers=row.max_workers,
+        )
+
+    async def save_llm_settings(self, tenant_uuid: UUID, llm_config: LLMConfig, updated_by: UUID) -> None:
+        await self._ensure_schema()
+        values = {
+            'model': llm_config.model,
+            'api_url': llm_config.api_url,
+            'api_key': self._secret_cipher.encrypt(llm_config.api_key),
+            'max_workers': llm_config.parallel_workers,
+            'updated_by': updated_by,
+            'updated_at': datetime.now(tz=UTC),
+        }
+        statement = postgresql_insert(self.llm_settings_table).values(tenant_uuid=tenant_uuid, **values)
+        upsert_statement = statement.on_conflict_do_update(
+            index_elements=[self.llm_settings_table.c.tenant_uuid],
+            set_=values,
+        )
+
+        async with self._connect() as connection:
+            await connection.execute(upsert_statement)
+
+        logger.info(
+            'Saved LLM settings',
+            extra={
+                'tenant_uuid': str(tenant_uuid),
+                'user_uuid': str(updated_by),
+                'llm_model': llm_config.model,
+            },
+        )
 
 
 def _validate_identifier(value: str) -> str:

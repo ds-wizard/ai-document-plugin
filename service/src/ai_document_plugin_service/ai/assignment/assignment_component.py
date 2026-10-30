@@ -78,6 +78,24 @@ class AssignmentComponent:
         on_progress: Callable[[str], None] | None = None,
         stored_question_paths: SectionQuestionPaths | None = None,
     ) -> _InternalAssignmentResult:
+        """
+        Runs assignment on all leaf sections:
+
+        For example, sections marked with [x] will get questions assigned:
+        Section A
+          -> Subsection A.1 [x]
+          -> Subsection A.2 [x]
+        Section B
+          -> Subsection B.1
+            -> Sub-subsection B.1.1 [x]
+
+        stored_question_paths has existing assignments in format: Section ID -> [path.to.question1, path.question2, ...]
+        - Section IDs are generated based on their content. This means if a section has changed, it's id will also change
+            and it's assignments will be recreated.
+
+        Note: Regenerating just one template takes the same amount of time as regenerating all of them. This decision
+        was made to keep consistency between creating and updating.
+        """
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 

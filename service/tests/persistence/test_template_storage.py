@@ -1,15 +1,17 @@
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import Row
 
+from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.ai.persistence.database import PostgresDB, TemplateRecord
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
-from ai_document_plugin_service.ai.common.types import TemplateContent
+
+if TYPE_CHECKING:
+    from sqlalchemy import Row
 
 
 @pytest.mark.parametrize('operation', ['create', 'update', 'save'])
@@ -41,8 +43,17 @@ async def test_template_writes_json_and_reads_typed_content(operation, monkeypat
     parameters = connection.execute.await_args.args[0].compile().params
     assert parameters['content'] == raw
     assert content.model_dump(mode='json', exclude_unset=True) == raw
-    record = TemplateRecord.from_row(cast(Row, SimpleNamespace(
-        uuid=template_uuid, title='Template', content=parameters['content'],
-        tenant_uuid=tenant_uuid, user_uuid=None, cover_page_version=None,
-    )))
+    record = TemplateRecord.from_row(
+        cast(
+            'Row',
+            SimpleNamespace(
+                uuid=template_uuid,
+                title='Template',
+                content=parameters['content'],
+                tenant_uuid=tenant_uuid,
+                user_uuid=None,
+                cover_page_version=None,
+            ),
+        )
+    )
     assert record.content == content

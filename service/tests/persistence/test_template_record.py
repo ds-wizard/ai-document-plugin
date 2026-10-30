@@ -4,14 +4,18 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from ai_document_plugin_service.ai.persistence.database import TemplateRecord
 from ai_document_plugin_service.ai.common.types import TemplateContent
+from ai_document_plugin_service.ai.persistence.database import TemplateRecord
 
 
 def _row(content):
     return SimpleNamespace(
-        uuid=uuid4(), title='Template', content=content,
-        tenant_uuid=uuid4(), user_uuid=None, cover_page_version='1',
+        uuid=uuid4(),
+        title='Template',
+        content=content,
+        tenant_uuid=uuid4(),
+        user_uuid=None,
+        cover_page_version='1',
     )
 
 

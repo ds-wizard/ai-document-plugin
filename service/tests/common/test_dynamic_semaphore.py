@@ -6,7 +6,7 @@ races to probe the bookkeeping of ``_active_count``.
 """
 
 import asyncio
-import threading
+import contextlib
 
 import pytest
 
@@ -83,7 +83,7 @@ def test_acquire_blocks_when_full_then_released():
 
         async def waiter():
             await sem.acquire()
-            order.append("got it")
+            order.append('got it')
 
         task = asyncio.create_task(waiter())
         await asyncio.sleep(0)  # let the waiter enqueue
@@ -91,7 +91,7 @@ def test_acquire_blocks_when_full_then_released():
 
         await sem.release()
         await asyncio.wait_for(task, timeout=1)
-        assert order == ["got it"]
+        assert order == ['got it']
 
     run(main())
 
@@ -254,10 +254,8 @@ def test_cancel_after_being_woken_does_not_leak_slot():
         task.cancel()
 
         # task was woken (got the slot) but cancelled -> should release it back.
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Whether cancellation won or the slot was kept, a fresh acquire must
         # eventually succeed and count must not be leaked above the limit.
@@ -298,9 +296,7 @@ def test_cancelled_waiter_processed_by_wake_does_not_leak_slot():
             await task
 
         # Semaphore should be fully free now: nobody holds a slot.
-        assert sem._active_count == 0, (
-            f"leaked slot: _active_count={sem._active_count} but no holders"
-        )
+        assert sem._active_count == 0, f'leaked slot: _active_count={sem._active_count} but no holders'
 
         # And a fresh acquire must succeed without blocking.
         await asyncio.wait_for(sem.acquire(), timeout=1)

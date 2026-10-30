@@ -20,12 +20,15 @@ def test_template_content_round_trips_nested_json(request_type):
 
 
 @pytest.mark.parametrize('request_type', [TemplateCreateRequest, TemplateUpdateRequest])
-@pytest.mark.parametrize('content', [
-    {},
-    {'sections': 'invalid'},
-    {'sections': [{'content': 'Missing title'}]},
-    {'sections': [{'title': 'Parent', 'sections': [{'title': 123}]}]},
-])
+@pytest.mark.parametrize(
+    'content',
+    [
+        {},
+        {'sections': 'invalid'},
+        {'sections': [{'content': 'Missing title'}]},
+        {'sections': [{'title': 'Parent', 'sections': [{'title': 123}]}]},
+    ],
+)
 def test_template_requests_reject_invalid_content(request_type, content):
     with pytest.raises(ValidationError):
         request_type.model_validate({'title': 'Template', 'content': content})

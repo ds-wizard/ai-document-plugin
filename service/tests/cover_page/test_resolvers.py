@@ -90,7 +90,7 @@ def test_created_by_returns_empty_without_editors(sources: CoverDataSources, per
 
 
 def test_unknown_resolver_is_rejected(sources: CoverDataSources) -> None:
-    with pytest.raises(ValueError, match="Unknown cover data resolver: 'unknown.value'"):
+    with pytest.raises(ValueError, match=r"Unknown cover data resolver: 'unknown\.value'"):
         resolve_cover_data('unknown.value', sources)
 
 

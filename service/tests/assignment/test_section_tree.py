@@ -70,7 +70,7 @@ def test_render_section_tree_as_xml_uses_provided_leaf_ids() -> None:
         )
     ]
     leaves = collect_leaf_sections(records)
-    record_id_to_sid = {leaf.id: sid for leaf, sid in zip(leaves, ['alpha', 'beta'])}
+    record_id_to_sid = {leaf.id: sid for leaf, sid in zip(leaves, ['alpha', 'beta'], strict=True)}
 
     xml = render_section_tree_as_xml(records, record_id_to_sid=record_id_to_sid)
 

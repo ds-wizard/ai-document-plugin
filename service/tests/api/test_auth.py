@@ -8,9 +8,9 @@ import httpx
 from fastapi.testclient import TestClient
 
 from ai_document_plugin_service.ai.common.config import CONFIG_PATH_ENV_VAR, AllowedApi, normalize_project_url
+from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.ai.persistence.database import TemplateRecord
 from ai_document_plugin_service.api.auth import DSW_API_URL_HEADER, is_allowed_request
-from ai_document_plugin_service.ai.common.types import TemplateContent
 from ai_document_plugin_service.app import create_app
 
 TEST_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'config.test.yaml'
@@ -45,7 +45,10 @@ def test_normalize_project_url_strips_trailing_slash() -> None:
 
 
 def test_is_allowed_request_matches_normalized_url_and_tenant() -> None:
-    allowed_api = (AllowedApi(url=ALLOWED_URL, tenant_uuid=ALLOWED_TENANT_UUID),AllowedApi(url="https://some-other-url.com", tenant_uuid=OTHER_TENANT_UUID))
+    allowed_api = (
+        AllowedApi(url=ALLOWED_URL, tenant_uuid=ALLOWED_TENANT_UUID),
+        AllowedApi(url='https://some-other-url.com', tenant_uuid=OTHER_TENANT_UUID),
+    )
     assert is_allowed_request(f'{ALLOWED_URL}/', ALLOWED_TENANT_UUID, allowed_api)
     assert not is_allowed_request('https://other.example.com', ALLOWED_TENANT_UUID, allowed_api)
     assert not is_allowed_request(ALLOWED_URL, OTHER_TENANT_UUID, allowed_api)
@@ -143,16 +146,20 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200
-    assert response.json() == [{
-        'uuid': str(template_uuid), 'title': 'Template 1', 'scope': 'tenant',
-        'hasCoverPage': False,
-    }]
+    assert response.json() == [
+        {
+            'uuid': str(template_uuid),
+            'title': 'Template 1',
+            'scope': 'tenant',
+            'hasCoverPage': False,
+        }
+    ]
     mock_httpx_get.assert_called_once()
 
 
 @patch('ai_document_plugin_service.api.auth.httpx.get')
 @patch('ai_document_plugin_service.di.PostgresDB')
-def test_protected_route_succeeds_when_dsw_validates_user(
+def test_protected_route_succeeds_when_dsw_validates_user_with_legacy_role(
     mock_postgres_db: MagicMock,
     mock_httpx_get: MagicMock,
     monkeypatch,
@@ -160,7 +167,7 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     mock_httpx_get.return_value = httpx.Response(
         200,
         request=httpx.Request('GET', ALLOWED_URL),
-        json={'role': 'researcher'}, # Test DSW version below 4.33
+        json={'role': 'researcher'},  # Test DSW version below 4.33
     )
     template_uuid = UUID('99999999-9999-9999-9999-999999999999')
     mock_postgres_db.return_value.list_templates = AsyncMock(
@@ -182,8 +189,12 @@ def test_protected_route_succeeds_when_dsw_validates_user(
     response = client.get('/templates', headers=_auth_headers())
 
     assert response.status_code == 200
-    assert response.json() == [{
-        'uuid': str(template_uuid), 'title': 'Template 1', 'scope': 'tenant',
-        'hasCoverPage': False,
-    }]
+    assert response.json() == [
+        {
+            'uuid': str(template_uuid),
+            'title': 'Template 1',
+            'scope': 'tenant',
+            'hasCoverPage': False,
+        }
+    ]
     mock_httpx_get.assert_called_once()

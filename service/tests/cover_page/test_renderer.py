@@ -3,8 +3,8 @@ from pathlib import Path
 
 import yaml
 
-from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
+from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 from ai_document_plugin_service.cover_page.cover_page_resolvers import CoverDataSources
 
 SERVICE_DIR = Path(__file__).resolve().parents[2]

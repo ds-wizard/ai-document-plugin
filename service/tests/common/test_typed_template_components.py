@@ -33,11 +33,21 @@ async def test_haystack_saver_passes_typed_template_to_storage():
     pipeline.add_component('save', AssignmentSaverComponent(saver))
     template = TemplateContent(sections=[TemplateSection(title='Body')])
 
-    await pipeline.run_async({'save': {
-        'knowledge_model_uuid': uuid4(), 'knowledge_model_name': 'Model', 'knowledge_model_version': '1',
-        'template_uuid': uuid4(), 'template_title': 'Template', 'template_data': template,
-        'tenant_uuid': uuid4(), 'assignments': [], 'stats': AssignmentStats(),
-    }})
+    await pipeline.run_async(
+        {
+            'save': {
+                'knowledge_model_uuid': uuid4(),
+                'knowledge_model_name': 'Model',
+                'knowledge_model_version': '1',
+                'template_uuid': uuid4(),
+                'template_title': 'Template',
+                'template_data': template,
+                'tenant_uuid': uuid4(),
+                'assignments': [],
+                'stats': AssignmentStats(),
+            }
+        }
+    )
 
     saved_template = saver.save.await_args.kwargs['template_data']
     assert isinstance(saved_template, TemplateContent)
@@ -49,14 +59,22 @@ async def test_haystack_polisher_uses_typed_nested_sections():
     llm.polish_dmp.return_value = '# Body\n\nPolished'
     pipeline = Pipeline()
     pipeline.add_component('polish', DmpPolisherComponent(llm, cover_page_section_count=1))
-    template = TemplateContent(sections=[
-        TemplateSection(title='Cover'),
-        TemplateSection(title='Body', sections=[TemplateSection(title='Child')]),
-    ])
+    template = TemplateContent(
+        sections=[
+            TemplateSection(title='Cover'),
+            TemplateSection(title='Body', sections=[TemplateSection(title='Child')]),
+        ]
+    )
 
-    await pipeline.run_async({'polish': {
-        'markdown': '# Body', 'template_data': template, 'include_cover_page': True,
-    }})
+    await pipeline.run_async(
+        {
+            'polish': {
+                'markdown': '# Body',
+                'template_data': template,
+                'include_cover_page': True,
+            }
+        }
+    )
 
     assert llm.polish_dmp.await_args.kwargs['structure_str'] == '# Body\n## Child'
     assert len(template.sections) == 2

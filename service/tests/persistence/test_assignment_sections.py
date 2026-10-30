@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     collect_leaf_question_paths,
-    convert_mappings_to_assignment_tree,
+    convert_mappings_to_assignment_tree_recursive,
 )
 from ai_document_plugin_service.ai.assignment.mappers import template_sections_to_records
 from ai_document_plugin_service.ai.assignment.section_tree import collect_leaf_sections
@@ -55,8 +55,8 @@ def _leaf_ids(template: TemplateContent) -> list[UUID]:
 def _generated_assignments():
     sections = template_sections_to_records(TEMPLATE.sections)
     intro, _first_child, second_child = collect_leaf_sections(sections)
-    mapping = {'ch1.q1': [intro.id, second_child.id], 'ch1.q2': [second_child.id]}
-    return convert_mappings_to_assignment_tree(sections, mapping, KM)
+    section_id_to_paths = {intro.id: ['ch1.q1'], second_child.id: ['ch1.q1', 'ch1.q2']}
+    return convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, KM)
 
 
 def test_leaf_question_paths_are_collected_by_section_id():

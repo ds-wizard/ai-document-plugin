@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
-    convert_mappings_to_assignment_tree,
+    convert_mappings_to_assignment_tree_recursive,
     expand_assignment_paths,
 )
 from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
@@ -70,12 +70,12 @@ def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> 
     data_id = sections[0].id
     methods_id = sections[1].id
 
-    path_to_sections = {
-        'ch1.q1': [data_id],
-        'ch1.q2': [methods_id, data_id],
+    section_id_to_paths = {
+        data_id: ['ch1.q1', 'ch1.q2'],
+        methods_id: ['ch1.q2'],
     }
 
-    assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
+    assignments = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
     by_title = {node.title: node.assignments for node in assignments}
     data_assignments = by_title['Data']
     methods_assignments = by_title['Methods']
@@ -125,12 +125,12 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
     desc_b_id = parent_b_children[0].id
     assert desc_a_id != desc_b_id
 
-    path_to_sections = {
-        'ch1.q1': [desc_a_id],
-        'ch1.q2': [desc_b_id],
+    section_id_to_paths = {
+        desc_a_id: ['ch1.q1'],
+        desc_b_id: ['ch1.q2'],
     }
 
-    assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
+    assignments = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
     leaves_by_id = {leaf.id: leaf for parent in assignments for leaf in (parent.children or [])}
 
     desc_a = leaves_by_id[desc_a_id]
@@ -168,13 +168,13 @@ def test_convert_mappings_real_km():
             ],
         )
     ]
-    result_mapping = {
-        '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b': [  # ruff: ignore[line-too-long]
-            project_section_id
+    section_id_to_paths = {
+        project_section_id: [
+            '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b'  # ruff: ignore[line-too-long]
         ]
     }
 
-    mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km)
+    mappings = convert_mappings_to_assignment_tree_recursive(sections, section_id_to_paths, km)
     sec_dmp = mappings[0]
     assert sec_dmp.assignments is None
     assert sec_dmp.children is not None

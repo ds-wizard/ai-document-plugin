@@ -1,5 +1,4 @@
 from typing import Any
-from uuid import UUID
 
 from ai_document_plugin_service.ai.assignment.types import (
     AssignmentQuestionNode,
@@ -12,29 +11,6 @@ from ai_document_plugin_service.ai.assignment.types import (
 
 class UnexpectedAssignmentPathError(ValueError):
     """Raised when an assignment path points to an invalid leaf."""
-
-
-def convert_mappings_to_assignment_tree(
-    sections: list[SectionRecord],
-    path_to_sections_mappings: dict[str, list[UUID]],
-    km: dict[str, Any],
-) -> list[SectionAssignment]:
-    """Build the assignment tree from question-path -> section-id mappings.
-
-    Keys in `path_to_sections_mappings` values are the synthetic record ids
-    (`SectionRecord.id`), not titles, so duplicate-titled leaves stay distinct.
-    """
-    section_id_to_paths: SectionQuestionPaths = {}
-    for path, section_ids in path_to_sections_mappings.items():
-        for section_id in section_ids:
-            if section_id not in section_id_to_paths:
-                section_id_to_paths[section_id] = []
-            section_id_to_paths[section_id].append(path)
-    return convert_mappings_to_assignment_tree_recursive(
-        sections,
-        section_id_to_paths,
-        km,
-    )
 
 
 def convert_mappings_to_assignment_tree_recursive(

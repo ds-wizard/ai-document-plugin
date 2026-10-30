@@ -1,8 +1,22 @@
 import copy
+import os
 import uuid
+from collections.abc import Callable
 from typing import Any
 
-import tiktoken
+TOKEN_COUNTER_ENV_VAR = 'TOKEN_COUNTER'
+APPROX_CHARS_PER_TOKEN = 4
+
+
+def _build_token_counter(encoding_name: str) -> Callable[[str], int]:
+    """Benchmark switch: TOKEN_COUNTER=approx avoids importing tiktoken at all."""
+    if os.getenv(TOKEN_COUNTER_ENV_VAR) == 'approx':
+        return lambda content: len(content) // APPROX_CHARS_PER_TOKEN
+
+    import tiktoken  # ruff: ignore[import-outside-top-level]
+
+    encoding = tiktoken.get_encoding(encoding_name)
+    return lambda content: len(encoding.encode(content))
 
 
 class TreeChunker:
@@ -13,7 +27,7 @@ class TreeChunker:
         model_name: str = 'cl100k_base',
     ) -> None:
         self.max_tokens = max_tokens
-        self.encoding = tiktoken.get_encoding(model_name)
+        self._count_tokens = _build_token_counter(model_name)
 
         # Central registry mapping node_id -> node metadata
         self.node_registry: dict[uuid.UUID, dict[str, Any]] = {}
@@ -33,7 +47,7 @@ class TreeChunker:
     def _get_token_count(self, title: str | None, text: str | None) -> int:
         """Counts tokens for only the title and text."""
         content = f'{title if title is not None else ""}\n{text if text is not None else ""}'
-        return len(self.encoding.encode(content))
+        return self._count_tokens(content)
 
     def _process_and_flatten(
         self,

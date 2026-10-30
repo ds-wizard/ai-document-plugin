@@ -1,0 +1,26 @@
+{
+  "sections": [
+    {
+      "title": "Data management plan",
+      "sections": [
+        {"title": "Project"},
+        {"title": "Data management plan"},
+        {"title": "1. Data Summary"},
+        {
+          "title": "2. FAIR data",
+          "sections": [
+            {"title": "2.1 Making data findable, including provisions for metadata"},
+            {"title": "2.2 Making data openly accessible"},
+            {"title": "2.3 Making data interoperable"},
+            {"title": "2.4 Increase data re-use"}
+          ]
+        },
+        {"title": "3. Other research outputs"},
+        {"title": "4. Allocation of resources"},
+        {"title": "5. Data security"},
+        {"title": "6. Ethics"},
+        {"title": "7. Other issues"}
+      ]
+    }
+  ]
+}

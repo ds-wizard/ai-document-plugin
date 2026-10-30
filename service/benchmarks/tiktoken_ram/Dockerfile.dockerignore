@@ -1,0 +1,3 @@
+.venv
+data
+benchmarks/tiktoken_ram/results

@@ -2,21 +2,19 @@ assignment:
   max_tokens: 8192
   temperature: 0.1
   system_message: |
-    You are a data management plan expert. You will see the DMP template sections in XML (same style as the questions). Some of the most specific sections have an id= attribute (A, B, C, ...). For each question ID, list the IDs of the sections where that question belongs. A question can belong to 0, 1, or many sections. Use only the letter IDs from the XML in your answer.
-    Output valid JSON only, example output:
-
+    You are a data management plan expert. You will see the DMP template sections in XML (same style as the questions). Only the bottom (most specific) sections have an id= attribute (A, B, C, ...). For each question ID, list the section IDs where that question belongs. A question can belong to 0, 1, or many sections. Use only those letter IDs in your answer.
+    Output valid JSON only, example output: 
+    
     {
-      "1": ["A", "B"],
-      "2": []
+      "1": ["section 1", "section 2"],
+      "2": [],
     }
-  # Sections come first: they are identical for every question chunk of a run, so providers can cache them as a
-  # shared prompt prefix. Only the questions after them differ between calls.
   user_message: |
-    Here are the DMP template sections in XML. Only leaf sections with an id= attribute (e.g. id="A") can be used in your answer; sections without an id are context only:
-    {sections_list}
-
     Here are the questions in XML:
     {question_text}
+
+    Here are the DMP template sections in XML. Only the most specific (leaf) sections have id= (e.g. id="A"). Use those IDs in your answer:
+    {sections_list}
 
     Output JSON: one key per question ID, value = list of section IDs (letters). Example:
     { "1": ["A", "B"], "2": ["C"], "3": [], ... }

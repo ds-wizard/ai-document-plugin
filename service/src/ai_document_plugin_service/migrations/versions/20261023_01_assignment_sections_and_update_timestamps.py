@@ -1,7 +1,9 @@
-"""Store assignments as one row per leaf section, keyed by a content-derived section id, instead of a JSON list.
+"""Store assignments as one row per leaf section and track template and assignment updates for cache invalidation.
+
+Assignments move from a JSON list to one row per leaf section, keyed by a content-derived section id.
 
 Revision ID: 20261023_01
-Revises: 20261016_02
+Revises: 37cb34f64ef7
 Create Date: 2026-10-23 00:00:00
 """
 
@@ -10,7 +12,7 @@ from alembic import context, op
 from sqlalchemy.dialects import postgresql
 
 revision = '20261023_01'
-down_revision = '20261016_02'
+down_revision = '37cb34f64ef7'
 branch_labels = None
 depends_on = None
 
@@ -27,6 +29,13 @@ def upgrade() -> None:
     # Cached assignments are regenerated in the new format on the next run.
     op.execute(sa.table('assignment', schema=schema).delete())
     op.drop_column('assignment', 'assignments', schema=schema)
+
+    for table in ('template', 'assignment'):
+        op.add_column(
+            table,
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            schema=schema,
+        )
 
     op.create_table(
         'assignment_section',
@@ -46,11 +55,3 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('knowledge_model_uuid', 'template_uuid', 'section_id', name='pk_assignment_section'),
         schema=schema,
     )
-
-
-def downgrade() -> None:
-    schema = context.get_context().version_table_schema
-
-    op.drop_table('assignment_section', schema=schema)
-    op.execute(sa.table('assignment', schema=schema).delete())
-    op.add_column('assignment', sa.Column('assignments', sa.JSON(), nullable=False), schema=schema)

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any, TypedDict, Unpack
 from uuid import UUID, uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import Column, ColumnElement, Connection, Row, and_, inspect, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.engine import URL
@@ -662,7 +663,17 @@ class PostgresDB(Database):
                 'db.schema': self.schema_name,
             },
         )
-        return [TemplateRecord.from_row(row) for row in rows]
+        records = []
+        for row in rows:
+            # Rows saved before content was validated may be invalid. One of them must not break the whole list.
+            try:
+                records.append(TemplateRecord.from_row(row))
+            except ValidationError:
+                logger.warning(
+                    'Skipping stored template with invalid content',
+                    extra={'template_uuid': str(row.uuid), 'tenant_uuid': str(tenant_uuid)},
+                )
+        return records
 
     async def get_template(
         self,

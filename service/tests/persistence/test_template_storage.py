@@ -55,3 +55,34 @@ async def test_template_writes_json_and_reads_typed_content(operation, monkeypat
         )
     )
     assert record.content == content
+
+
+async def test_list_templates_skips_rows_with_invalid_content(monkeypatch):
+    database = PostgresDB.__new__(PostgresDB)
+    database.schema_name = 'test'
+    database.template_table = create_persistence_schema('test').template_table
+    database._ensure_schema = AsyncMock()
+    tenant_uuid = uuid4()
+
+    def row(title, content):
+        return SimpleNamespace(
+            uuid=uuid4(),
+            title=title,
+            content=content,
+            tenant_uuid=tenant_uuid,
+            user_uuid=None,
+            cover_page_version=None,
+        )
+
+    rows = [row('Invalid', {'sections': [{'content': 'Missing title'}]}), row('Valid', {'sections': []})]
+    connection = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(fetchall=lambda: rows)))
+
+    @asynccontextmanager
+    async def connect():
+        yield connection
+
+    monkeypatch.setattr(database, '_connect', connect)
+
+    records = await database.list_templates(tenant_uuid, uuid4())
+
+    assert [record.title for record in records] == ['Valid']

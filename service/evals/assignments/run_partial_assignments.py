@@ -41,6 +41,9 @@ from ai_document_plugin_service.ai.knowledgemodel.parser_component import Parser
 
 SERVICE_DIR = Path(__file__).resolve().parents[2]
 RESULTS_DIR = SERVICE_DIR / 'data' / 'results' / 'assignments'
+BASELINE_FILE = 'baseline.json'
+# Arguments which may differ between runs of one experiment, as they do not affect the assignment itself.
+RUN_SPECIFIC_ARGUMENTS = {'experiment', 'sections', 'api_key', 'parallel_workers'}
 
 
 def _leaf_sections(sections: list[SectionRecord], titles: list[str] | None = None) -> list[dict[str, Any]]:
@@ -77,6 +80,40 @@ def _write_json(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
 
 
+def _result_file(selected_indices: list[int] | None) -> str:
+    if selected_indices is None:
+        return BASELINE_FILE
+    return f'sections_{"_".join(map(str, selected_indices))}.json'
+
+
+def _config_differences(stored_run: dict[str, Any], run: dict[str, Any]) -> list[str]:
+    """Names of the settings in which an experiment's stored run.json differs from the current run."""
+    stored, current = stored_run['arguments'], run['arguments']
+    names = (stored.keys() | current.keys()) - RUN_SPECIFIC_ARGUMENTS
+    differences = {name for name in names if stored.get(name) != current.get(name)}
+    if stored_run['assignment_prompt'] != run['assignment_prompt']:
+        differences.add('assignment_prompt')
+    return sorted(differences)
+
+
+def _check_can_extend(
+    experiment_dir: Path, run: dict[str, Any], leaves: list[dict[str, Any]], result_file: str
+) -> None:
+    """Stop unless the new result can be added to the existing experiment without mixing configurations."""
+    if (experiment_dir / result_file).exists():
+        msg = f'{experiment_dir / result_file} already exists'
+        raise SystemExit(msg)
+    stored_run = json.loads((experiment_dir / 'run.json').read_text(encoding='utf-8'))
+    differences = _config_differences(stored_run, run)
+    if differences:
+        msg = f'{experiment_dir} exists with a different configuration: {", ".join(differences)}'
+        raise SystemExit(msg)
+    stored_leaves = json.loads((experiment_dir / 'sections.json').read_text(encoding='utf-8'))
+    if stored_leaves != leaves:
+        msg = f'{experiment_dir} exists with different template sections'
+        raise SystemExit(msg)
+
+
 async def _assign(
     component: AssignmentComponent,
     questions: list[Any],
@@ -107,16 +144,22 @@ async def _run(
     leaves = _leaf_sections(template_sections_to_records(template.sections))
     _write_json(experiment_dir / 'sections.json', leaves)
 
-    print(f'Baseline: assigning all {len(leaves)} leaf sections')
-    baseline, stats, duration = await _assign(component, questions, template, km, stored=None)
-    _write_json(
-        experiment_dir / 'baseline.json',
-        {
-            'duration_seconds': duration,
-            'question_paths': _paths_json(baseline),
-            'stats': stats.to_dict() if stats else None,
-        },
-    )
+    baseline_path = experiment_dir / BASELINE_FILE
+    if baseline_path.exists():
+        print(f'Baseline: reusing {baseline_path}')
+        stored_paths = json.loads(baseline_path.read_text(encoding='utf-8'))['question_paths']
+        baseline = {UUID(section_id): paths for section_id, paths in stored_paths.items()}
+    else:
+        print(f'Baseline: assigning all {len(leaves)} leaf sections')
+        baseline, stats, duration = await _assign(component, questions, template, km, stored=None)
+        _write_json(
+            baseline_path,
+            {
+                'duration_seconds': duration,
+                'question_paths': _paths_json(baseline),
+                'stats': stats.to_dict() if stats else None,
+            },
+        )
 
     if selected_indices is None:
         return
@@ -126,7 +169,7 @@ async def _run(
     stored = {section_id: paths for section_id, paths in baseline.items() if section_id not in missing}
     paths, stats, duration = await _assign(component, questions, template, km, stored=stored)
     _write_json(
-        experiment_dir / 'combination_001.json',
+        experiment_dir / _result_file(selected_indices),
         {
             'duration_seconds': duration,
             'missing_section_ids': [str(section_id) for section_id in missing],
@@ -174,8 +217,6 @@ def _parse_args() -> argparse.Namespace:
         parser.error(f'template {args.template} does not exist')
     if not args.api_key:
         parser.error('set --api-key or LLM_API_KEY')
-    if (RESULTS_DIR / args.experiment).exists():
-        parser.error(f'{RESULTS_DIR / args.experiment} already exists')
     return args
 
 
@@ -201,21 +242,22 @@ def main() -> None:
     llm_client.update_config(args.model, args.api_key, args.api_url, args.parallel_workers)
     component = AssignmentComponent(llm_client, service_config)
 
-    experiment_dir.mkdir(parents=True)
-    _write_json(
-        experiment_dir / 'run.json',
-        {
-            'started_at': datetime.now(tz=UTC).isoformat(),
-            'command': _redact_api_key(sys.argv),
-            'arguments': {name: str(value) if isinstance(value, Path) else value for name, value in vars(args).items()}
-                         | {'api_key': '<redacted>'},
-            'assignment_prompt': {
-                'system_message': service_config.assignment.system_message,
-                'user_message': service_config.assignment.user_message,
-                'temperature': service_config.assignment.temperature,
-            },
+    run = {
+        'started_at': datetime.now(tz=UTC).isoformat(),
+        'command': _redact_api_key(sys.argv),
+        'arguments': {name: str(value) if isinstance(value, Path) else value for name, value in vars(args).items()}
+                     | {'api_key': '<redacted>'},
+        'assignment_prompt': {
+            'system_message': service_config.assignment.system_message,
+            'user_message': service_config.assignment.user_message,
+            'temperature': service_config.assignment.temperature,
         },
-    )
+    }
+    if experiment_dir.exists():
+        _check_can_extend(experiment_dir, run, leaves, _result_file(args.sections))
+    else:
+        experiment_dir.mkdir(parents=True)
+        _write_json(experiment_dir / 'run.json', run)
     asyncio.run(
         _run(
             experiment_dir,

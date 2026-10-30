@@ -1,7 +1,7 @@
 """Compare the question paths of two assignment result files, section by section.
 
-Takes two files written by run_partial_assignments.py (baseline.json or combination_NNN.json, from the same
-or different experiments) and compares the sections present in both. A combination file only holds its
+Takes two files written by run_partial_assignments.py (baseline.json or sections_<indices>.json, from the same
+or different experiments) and compares the sections present in both. A sections file only holds its
 missing sections, so comparing it with a baseline compares exactly the reassigned sections.
 
 Similarity per section is the Jaccard index of the two sets of question paths: |A & B| / |A | B|, so 1.0
@@ -11,7 +11,7 @@ From the service directory:
 
     uv run python evals/assignments/compare_assignments.py \
         data/results/assignments/my-experiment/baseline.json \
-        data/results/assignments/my-experiment/combination_001.json
+        data/results/assignments/my-experiment/sections_5_7.json
 """
 
 import argparse
@@ -49,7 +49,7 @@ def jaccard(first: set[str], second: set[str]) -> float:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('first', type=Path, help='First result file (e.g. baseline.json).')
-    parser.add_argument('second', type=Path, help='Second result file (e.g. combination_001.json).')
+    parser.add_argument('second', type=Path, help='Second result file (e.g. sections_5_7.json).')
     parser.add_argument('--title-width', type=int, default=60, help='Truncate section titles to this width.')
     args = parser.parse_args()
 

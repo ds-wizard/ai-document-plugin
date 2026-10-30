@@ -172,7 +172,7 @@ def test_convert_mappings_real_km():
     ]
     section_id_to_paths = {
         project_section_id: [
-            '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b'  # ruff: ignore[line-too-long]
+            '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b'
         ]
     }
 

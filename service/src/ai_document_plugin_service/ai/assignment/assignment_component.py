@@ -90,8 +90,8 @@ class AssignmentComponent:
             -> Sub-subsection B.1.1 [x]
 
         stored_question_paths has existing assignments in format: Section ID -> [path.to.question1, path.question2, ...]
-        - Section IDs are generated based on their content. This means if a section has changed, it's id will also change
-            and it's assignments will be recreated.
+        - Section IDs are generated based on their content. This means if a section has changed, its id will also
+            change and its assignments will be recreated.
 
         Note: Regenerating just one template takes the same amount of time as regenerating all of them. This decision
         was made to keep consistency between creating and updating.

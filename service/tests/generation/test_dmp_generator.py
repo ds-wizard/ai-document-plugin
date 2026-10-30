@@ -798,7 +798,7 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        assignments=cover_page_assignments + [SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict()],
+        assignments=[*cover_page_assignments, SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict()],
         include_cover_page=True,
     )
     assert '# Data Management Plan' in result['cover_page']

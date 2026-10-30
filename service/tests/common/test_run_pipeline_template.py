@@ -4,8 +4,8 @@ from uuid import uuid4
 import pytest
 from haystack import Pipeline
 
-from ai_document_plugin_service.ai.run_pipeline import run_pipeline
 from ai_document_plugin_service.ai.common.types import TemplateContent
+from ai_document_plugin_service.ai.run_pipeline import run_pipeline
 
 
 async def test_run_pipeline_passes_typed_template_to_components(monkeypatch):

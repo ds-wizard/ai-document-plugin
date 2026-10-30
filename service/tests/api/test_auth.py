@@ -159,6 +159,33 @@ def test_protected_route_succeeds_when_dsw_validates_user(
 
 @patch('ai_document_plugin_service.api.auth.httpx.get')
 @patch('ai_document_plugin_service.di.PostgresDB')
+def test_invalid_request_body_returns_string_detail(
+    mock_postgres_db: MagicMock,
+    mock_httpx_get: MagicMock,
+    monkeypatch,
+) -> None:
+    mock_httpx_get.return_value = httpx.Response(
+        200,
+        request=httpx.Request('GET', ALLOWED_URL),
+        json={'role': 'researcher'},
+    )
+    mock_postgres_db.return_value.dispose = AsyncMock()
+
+    _use_test_config(monkeypatch)
+
+    client = TestClient(create_app(run_migrations=False))
+    response = client.post(
+        '/templates',
+        headers=_auth_headers(),
+        json={'title': 'Template 1', 'content': {'sections': [{'content': 'No title'}]}},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {'detail': 'body.content.sections.0.title: Field required'}
+
+
+@patch('ai_document_plugin_service.api.auth.httpx.get')
+@patch('ai_document_plugin_service.di.PostgresDB')
 def test_protected_route_succeeds_when_dsw_validates_user_with_legacy_role(
     mock_postgres_db: MagicMock,
     mock_httpx_get: MagicMock,

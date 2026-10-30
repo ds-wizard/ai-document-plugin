@@ -112,8 +112,7 @@ class AssignmentComponent:
         )
         stats = AssignmentStats()
 
-        # All sections stay in the prompt for context, but only the missing ones get an id the LLM can answer with.
-        section_formatter = SectionFormatter(sections, assignable_ids=missing_ids)
+        section_formatter = SectionFormatter(sections)
         sections_xml = section_formatter.get_sections_as_xml()
 
         result_mapping: dict[str, list[UUID]] = {}
@@ -151,10 +150,11 @@ class AssignmentComponent:
         section_id_to_paths = {section_id: list(paths) for section_id, paths in stored.items()}
         # clear missing section ids because they will be added in the next step
         section_id_to_paths.update({section_id: [] for section_id in missing_ids})
-        # add in missing section ids here:
+        # Every section is assigned, but only the missing ones are updated so the stored ones do not shift.
         for path, section_ids in result_mapping.items():
             for section_id in section_ids:
-                section_id_to_paths[section_id].append(path)
+                if section_id in missing_ids:
+                    section_id_to_paths[section_id].append(path)
         logger.info(
             'Completed question-to-section assignment',
             extra={

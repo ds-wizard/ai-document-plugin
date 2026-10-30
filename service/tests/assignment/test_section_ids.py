@@ -65,14 +65,3 @@ def test_identical_leaves_share_an_id_and_an_sid():
 
     assert same.id == same_again.id
     assert formatter.id_to_sid == {same.id: 'A', other.id: 'B'}
-
-
-def test_only_assignable_leaves_get_an_sid_in_the_xml():
-    sections = template_sections_to_records(TEMPLATE.sections)
-    _intro, first_child, _second_child = collect_leaf_sections(sections)
-
-    xml = SectionFormatter(sections, assignable_ids={first_child.id}).get_sections_as_xml()
-
-    assert xml.count(' id="') == 1
-    assert '<section id="A">\n<title>First child</title>' in xml
-    assert '<title>Intro</title>' in xml

@@ -100,11 +100,12 @@ def _assignment_component(llm_answer: dict[str, list[str]]) -> tuple[AssignmentC
     return component, match_questions
 
 
-async def test_assignment_only_asks_for_missing_leaves_and_merges_the_stored_ones():
+async def test_assignment_asks_for_all_leaves_but_only_updates_the_missing_ones():
     intro, first_child, second_child = _leaf_ids(TEMPLATE)
     questions = ParserComponent().run({'knowledgeModel': KM, 'replies': {}})['data']
-    # Question 2 -> the only assignable section, which is "First child" ("A").
-    component, match_questions = _assignment_component({'2': ['A']})
+    # Sections are "Intro" ("A"), "First child" ("B") and "Second child" ("C"). The answers for the stored
+    # "Intro" and "Second child" differ from what is stored and must not replace it.
+    component, match_questions = _assignment_component({'1': ['B', 'C'], '2': ['A', 'B']})
     stale_section_id = uuid4()
 
     result = await component.run_async(
@@ -116,12 +117,12 @@ async def test_assignment_only_asks_for_missing_leaves_and_merges_the_stored_one
 
     assert match_questions.await_args is not None
     sections_xml = match_questions.await_args.args[0]
-    assert sections_xml.count(' id="') == 1
+    assert sections_xml.count(' id="') == 3
     assert result['has_new_assignments'] is True
     assert result['stats'] is not None
     assert collect_leaf_question_paths(result['assignments']) == {
         intro: ['ch1.q1'],
-        first_child: ['ch1.q2'],
+        first_child: ['ch1.q1', 'ch1.q2'],
         second_child: ['ch1.q1', 'ch1.q2'],
     }
 

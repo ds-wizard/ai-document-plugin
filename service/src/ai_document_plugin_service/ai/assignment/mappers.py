@@ -45,7 +45,7 @@ def _section_id(section: TemplateSection, parent_uuid: uuid.UUID | None) -> uuid
         json.dumps(
             {
                 'title': section.title.strip(),
-                'content': section.content.strip() if section.content else None,
+                'content': (section.content or '').strip() or None,
                 'parent_uuid': str(parent_uuid),
             },
             ensure_ascii=False,

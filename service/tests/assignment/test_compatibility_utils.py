@@ -1,5 +1,5 @@
 import json
-import os
+import pathlib
 import uuid
 
 import pytest
@@ -8,23 +8,23 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
     expand_assignment_paths,
 )
-from ai_document_plugin_service.ai.assignment.section_tree import build_section_records
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionNode, SectionRecord
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionRecord
+from ai_document_plugin_service.ai.common.types import TemplateSection
 
 
 def _km_fixture() -> dict:
     return {
-        "entities": {
-            "chapters": {
-                "ch1": {"title": "Chapter 1", "text": "Chapter text"},
+        'entities': {
+            'chapters': {
+                'ch1': {'title': 'Chapter 1', 'text': 'Chapter text'},
             },
-            "questions": {
-                "q1": {"title": "Question 1", "text": "Q1 text"},
-                "q2": {"title": "Question 2", "text": "Q2 text"},
-                "itemQ": {"title": "Item question", "text": "Item text"},
+            'questions': {
+                'q1': {'title': 'Question 1', 'text': 'Q1 text'},
+                'q2': {'title': 'Question 2', 'text': 'Q2 text'},
+                'itemQ': {'title': 'Item question', 'text': 'Item text'},
             },
-            "answers": {
-                "ans1": {"label": "Yes"},
+            'answers': {
+                'ans1': {'label': 'Yes'},
             },
         }
     }
@@ -32,83 +32,91 @@ def _km_fixture() -> dict:
 
 def test_expand_assignment_paths_builds_nested_tree() -> None:
     km = _km_fixture()
-    mappings = ["ch1.q1", "ch1.q2"]
+    mappings = ['ch1.q1', 'ch1.q2']
 
     out = expand_assignment_paths(mappings, km)
 
-    assert "ch1" in out
-    assert "q1" in out["ch1"]["children"]
-    assert "q2" in out["ch1"]["children"]
-    assert out["ch1"]["children"]["q1"]["include"] is True
-    assert out["ch1"]["children"]["q2"]["include"] is True
+    assert 'ch1' in out
+    assert 'q1' in out['ch1']['children']
+    assert 'q2' in out['ch1']['children']
+    assert out['ch1']['children']['q1']['include'] is True
+    assert out['ch1']['children']['q2']['include'] is True
 
 
 def test_expand_assignment_paths_handles_list_wildcard_segment() -> None:
     km = _km_fixture()
-    mappings = ["ch1.q1.*.itemQ"]
+    mappings = ['ch1.q1.*.itemQ']
 
     out = expand_assignment_paths(mappings, km)
 
-    assert out["ch1"]["children"]["q1"]["children"]["itemQ"]["include"] is True
-    assert out["ch1"]["children"]["q1"]["children"]["itemQ"]["question_path"] == "ch1.q1.*.itemQ"
+    assert out['ch1']['children']['q1']['children']['itemQ']['include'] is True
+    assert out['ch1']['children']['q1']['children']['itemQ']['question_path'] == 'ch1.q1.*.itemQ'
 
 
 def test_expand_assignment_paths_raises_for_unknown_leaf() -> None:
     km = _km_fixture()
-    with pytest.raises(Exception, match="Unexpected path as leaf"):
-        expand_assignment_paths(["ch1.unknown"], km)
+    with pytest.raises(Exception, match='Unexpected path as leaf'):
+        expand_assignment_paths(['ch1.unknown'], km)
 
 
 def test_convert_mappings_to_assignment_tree_maps_paths_into_leaf_sections() -> None:
     km = _km_fixture()
-    template_data = {
-        "sections": [
-            {"title": "Data", "content": "Section data"},
-            {"title": "Methods", "content": "Section methods"},
-        ]
-    }
-    sections = build_section_records(template_data)
+    sections = [
+        SectionRecord(id=uuid.uuid4(), title='Data', section=TemplateSection(title='Data', content='Section data')),
+        SectionRecord(
+            id=uuid.uuid4(), title='Methods', section=TemplateSection(title='Methods', content='Section methods')
+        ),
+    ]
     data_id = sections[0].id
     methods_id = sections[1].id
 
     path_to_sections = {
-        "ch1.q1": [data_id],
-        "ch1.q2": [methods_id, data_id],
+        'ch1.q1': [data_id],
+        'ch1.q2': [methods_id, data_id],
     }
 
     assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
     by_title = {node.title: node.assignments for node in assignments}
-    data_assignments = by_title["Data"]
-    methods_assignments = by_title["Methods"]
+    data_assignments = by_title['Data']
+    methods_assignments = by_title['Methods']
 
     assert data_assignments is not None
     assert methods_assignments is not None
 
-    assert "ch1" in data_assignments
-    assert "q1" in data_assignments["ch1"]["children"]
-    assert "q2" in data_assignments["ch1"]["children"]
-    assert "q2" in methods_assignments["ch1"]["children"]
+    assert 'ch1' in data_assignments
+    assert 'q1' in data_assignments['ch1']['children']
+    assert 'q2' in data_assignments['ch1']['children']
+    assert 'q2' in methods_assignments['ch1']['children']
 
 
 def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
     km = _km_fixture()
-    template_data = {
-        "sections": [
-            {
-                "title": "Parent A",
-                "sections": [
-                    {"title": "Description", "content": "Alpha desc"},
-                ],
-            },
-            {
-                "title": "Parent B",
-                "sections": [
-                    {"title": "Description", "content": "Beta desc"},
-                ],
-            },
-        ]
-    }
-    sections = build_section_records(template_data)
+    sections = [
+        SectionRecord(
+            id=uuid.uuid4(),
+            title='Parent A',
+            section=TemplateSection(title='Parent A'),
+            children=[
+                SectionRecord(
+                    id=uuid.uuid4(),
+                    title='Description',
+                    section=TemplateSection(title='Description', content='Alpha desc'),
+                )
+            ],
+        ),
+        SectionRecord(
+            id=uuid.uuid4(),
+            title='Parent B',
+            section=TemplateSection(title='Parent B'),
+            children=[
+                SectionRecord(
+                    id=uuid.uuid4(),
+                    title='Description',
+                    section=TemplateSection(title='Description', content='Beta desc'),
+                )
+            ],
+        ),
+    ]
     parent_a_children = sections[0].children
     parent_b_children = sections[1].children
     assert parent_a_children is not None
@@ -118,32 +126,29 @@ def test_convert_mappings_keeps_duplicate_titled_leaves_distinct() -> None:
     assert desc_a_id != desc_b_id
 
     path_to_sections = {
-        "ch1.q1": [desc_a_id],
-        "ch1.q2": [desc_b_id],
+        'ch1.q1': [desc_a_id],
+        'ch1.q2': [desc_b_id],
     }
 
     assignments = convert_mappings_to_assignment_tree(sections, path_to_sections, km)
-    leaves_by_id = {
-        leaf.id: leaf
-        for parent in assignments
-        for leaf in (parent.children or [])
-    }
+    leaves_by_id = {leaf.id: leaf for parent in assignments for leaf in (parent.children or [])}
 
     desc_a = leaves_by_id[desc_a_id]
     desc_b = leaves_by_id[desc_b_id]
 
-    assert desc_a.title == "Description"
-    assert desc_b.title == "Description"
-    assert desc_a.assignments and "q1" in desc_a.assignments["ch1"]["children"]
-    assert "q2" not in (desc_a.assignments["ch1"]["children"])
-    assert desc_b.assignments and "q2" in desc_b.assignments["ch1"]["children"]
-    assert "q1" not in (desc_b.assignments["ch1"]["children"])
+    assert desc_a.title == 'Description'
+    assert desc_b.title == 'Description'
+    assert desc_a.assignments
+    assert 'q1' in desc_a.assignments['ch1']['children']
+    assert 'q2' not in (desc_a.assignments['ch1']['children'])
+    assert desc_b.assignments
+    assert 'q2' in desc_b.assignments['ch1']['children']
+    assert 'q1' not in (desc_b.assignments['ch1']['children'])
 
 
 def test_convert_mappings_real_km():
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    resource_path = os.path.join(test_dir, "../resources/dsw_root_km.json.json")
-    with open(resource_path, encoding='utf-8', mode='r') as f:
+    resource_path = pathlib.Path(__file__).resolve().parent / '../resources/dsw_root_km.json.json'
+    with resource_path.open(encoding='utf-8', mode='r') as f:
         km = json.load(f)
 
     dmp_section_id = uuid.uuid4()
@@ -152,20 +157,21 @@ def test_convert_mappings_real_km():
         SectionRecord(
             id=dmp_section_id,
             title='Data management plan',
-            section=SectionNode({'title': 'Data management plan'}),
+            section=TemplateSection(title='Data management plan'),
             children=[
                 SectionRecord(
                     id=project_section_id,
                     title='Project',
-                    section=SectionNode({'title': 'Project'}),
+                    section=TemplateSection(title='Project'),
                     children=None,
                 ),
             ],
         )
     ]
     result_mapping = {
-        '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b':
-            [project_section_id]
+        '1e85da40-bbfc-4180-903e-6c569ed2da38.c3dabaaf-c946-4a0d-889c-ede966f97667.*.f0ef08fd-d733-465c-bc66-5de0b826c41b': [  # ruff: ignore[line-too-long]
+            project_section_id
+        ]
     }
 
     mappings = convert_mappings_to_assignment_tree(sections, result_mapping, km)
@@ -176,17 +182,17 @@ def test_convert_mappings_real_km():
     assert sec_project.children is None
     assert sec_project.assignments is not None
     assert len(sec_project.assignments) > 0
-    administrative_info = list(sec_project.assignments.values())[0]
+    administrative_info = next(iter(sec_project.assignments.values()))
     assert administrative_info['question_title'] == 'Administrative information'
 
     # Research Project
-    research_proj_key = list(administrative_info['children'])[0]
+    research_proj_key = next(iter(administrative_info['children']))
     assert research_proj_key == 'c3dabaaf-c946-4a0d-889c-ede966f97667'
     research_proj = administrative_info['children'][research_proj_key]
     assert research_proj['question_title'] == 'Research Project(s)'
 
     # Project name
-    proj_name_key = list(research_proj['children'])[0]
+    proj_name_key = next(iter(research_proj['children']))
     assert proj_name_key == 'f0ef08fd-d733-465c-bc66-5de0b826c41b'
     proj_name = research_proj['children'][proj_name_key]
     assert proj_name['question_title'] == 'Project name'

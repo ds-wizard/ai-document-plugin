@@ -14,7 +14,7 @@ class _ComponentError(Exception):
 @component
 class _Echo:
     @component.output_types(value=str)
-    async def run_async(self, value: str) -> dict[str, Any]:  # ruff: ignore[no-self-use]
+    async def run_async(self, value: str) -> dict[str, Any]:
         return {'value': value}
 
     @component.output_types(value=str)
@@ -25,7 +25,7 @@ class _Echo:
 @component
 class _Failing:
     @component.output_types(value=str)
-    async def run_async(self, value: str) -> dict[str, Any]:  # ruff: ignore[no-self-use]
+    async def run_async(self, value: str) -> dict[str, Any]:
         raise _ComponentError(value)
 
     @component.output_types(value=str)

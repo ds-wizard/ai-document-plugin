@@ -12,11 +12,9 @@ from ai_document_plugin_service.ai.assignment.compatibility_utils import (
     convert_mappings_to_assignment_tree,
 )
 from ai_document_plugin_service.ai.assignment.llm import OpenAILayerMatcher
+from ai_document_plugin_service.ai.assignment.mappers import template_sections_to_records
 from ai_document_plugin_service.ai.assignment.question_tree import (
     build_question_chunks,
-)
-from ai_document_plugin_service.ai.assignment.section_tree import (
-    build_section_records,
 )
 from ai_document_plugin_service.ai.assignment.sections.sections_formatter import (
     SectionFormatter,
@@ -25,7 +23,7 @@ from ai_document_plugin_service.ai.assignment.types import SectionAssignment
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.progress import progress_percent
-from ai_document_plugin_service.ai.common.types import AssignmentStats
+from ai_document_plugin_service.ai.common.types import AssignmentStats, TemplateContent
 from ai_document_plugin_service.ai.knowledgemodel.types import QuestionData
 
 logger = logging.getLogger(__name__)
@@ -68,14 +66,14 @@ class AssignmentComponent:
     async def run_async(
         self,
         data: list[QuestionData],
-        template_data: dict[str, Any],
+        template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
-        sections = build_section_records(template_data)
+        sections = template_sections_to_records(template_data.sections)
         question_chunks, question_id_to_path = build_question_chunks(data)
         logger.info(
             'Starting question-to-section assignment',
@@ -146,7 +144,7 @@ class AssignmentComponent:
     def run(
         self,
         data: list[QuestionData],
-        template_data: dict[str, Any],
+        template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
     ) -> AssignmentComponentResult:

@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from haystack.components.routers.conditional_router import Route
 
     from ai_document_plugin_service.ai.common.llm_client import LLMClient
+    from ai_document_plugin_service.ai.common.types import TemplateContent
     from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
     from ai_document_plugin_service.ai.persistence.database import Database
 
@@ -96,7 +97,7 @@ def build_pipeline(
         cover_page_renderer=cover_page.renderer,
     )
     dmp_polisher_component = DmpPolisherComponent(
-        SectionPolishingLLM(llm_client, config, language), len(config.cover_definition['sections'])
+        SectionPolishingLLM(llm_client, config, language), len(config.cover_definition.sections)
     )
     cover_page_component = CoverPageComponent()
 
@@ -155,7 +156,7 @@ async def run_pipeline(
     questionnaire_uuid: UUID,
     template_uuid: UUID,
     template_title: str,
-    template_data: Mapping[str, object],
+    template_data: TemplateContent,
     tenant_uuid: UUID,
     pipeline: Pipeline,
     dsw_client: DSWClient,
@@ -197,7 +198,7 @@ async def run_pipeline(
                 },
                 'parser_component': {'data': km_data},
                 'assignment_component': {
-                    'template_data': dict(template_data),
+                    'template_data': template_data,
                     'km': km,
                     'on_progress': on_progress,
                 },

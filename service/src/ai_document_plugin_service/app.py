@@ -8,8 +8,12 @@ from starlette.responses import JSONResponse
 from ai_document_plugin_service.ai.common import configure_logging
 from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
 from ai_document_plugin_service.ai.persistence.migrations import run_startup_migrations
+from ai_document_plugin_service.api.language_routes import languages_router
+from ai_document_plugin_service.api.pipeline_routes import pipeline_router
 from ai_document_plugin_service.api.request_logging import log_http_request_response
-from ai_document_plugin_service.api.routes import protected_router, public_router
+from ai_document_plugin_service.api.routes import unprotected_healthcheck_router
+from ai_document_plugin_service.api.settings_routes import settings_router
+from ai_document_plugin_service.api.template_routes import templates_router
 from ai_document_plugin_service.di import setup_app_state
 from ai_document_plugin_service.service.errors import ServiceError
 
@@ -49,8 +53,14 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
         allow_methods=['*'],
         allow_headers=['*'],
     )
-    app.include_router(public_router)
-    app.include_router(protected_router)
+    for router in (
+        unprotected_healthcheck_router,
+        languages_router,
+        pipeline_router,
+        settings_router,
+        templates_router,
+    ):
+        app.include_router(router)
     return app
 
 

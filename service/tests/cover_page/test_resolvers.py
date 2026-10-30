@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 from ai_document_plugin_service.cover_page.cover_page_resolvers import (
     COVER_DATA_RESOLVERS,
     CoverDataSources,
@@ -89,14 +90,14 @@ def test_created_by_returns_empty_without_editors(sources: CoverDataSources, per
 
 
 def test_unknown_resolver_is_rejected(sources: CoverDataSources) -> None:
-    with pytest.raises(ValueError, match="Unknown cover data resolver: 'unknown.value'"):
+    with pytest.raises(ValueError, match=r"Unknown cover data resolver: 'unknown\.value'"):
         resolve_cover_data('unknown.value', sources)
 
 
 def test_default_cover_definition_only_uses_registered_resolvers() -> None:
     raw_definition = yaml.safe_load((SERVICE_DIR / 'cover-page.yaml').read_text(encoding='utf-8'))
 
-    validate_cover_data_resolvers(raw_definition)
+    validate_cover_data_resolvers(CoverPageDefinition.model_validate(raw_definition))
 
     configured_resolvers = {
         *(field['resolver'] for field in raw_definition['metadata']['fields']),

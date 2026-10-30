@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -88,5 +87,5 @@ class ExportService:
         if record.user_uuid is not None and record.user_uuid != auth.user_uuid:
             raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
 
-        content = json.dumps(record.content, ensure_ascii=False, indent=2).encode('utf-8') + b'\n'
+        content = record.content.model_dump_json(indent=2, exclude_unset=True).encode('utf-8') + b'\n'
         return JsonExport(content=content, file_name=_json_file_name(record.title))

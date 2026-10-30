@@ -29,7 +29,7 @@ export type PipelineErrorResponse = {
 
 export type ApiTemplateSection = {
     title: string
-    content?: string
+    content?: string | null
     sections?: ApiTemplateSection[]
 }
 

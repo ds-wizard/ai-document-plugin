@@ -1,5 +1,3 @@
-import time
-
 from ai_document_plugin_service.ai.common.pipeline_metrics import (
     get_component_markdown,
     get_component_stats,

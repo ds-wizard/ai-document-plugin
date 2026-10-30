@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny
+
 
 @dataclass
 class AssignmentStats:
@@ -39,3 +41,17 @@ class AssignmentStats:
             'total_llm_response_ms': self.total_llm_response_ms,
             'total_duration_ms': self.total_duration_ms,
         }
+
+
+class TemplateSection(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    title: str
+    content: str | None = None
+    sections: list['TemplateSection'] = Field(default_factory=list)
+
+
+class TemplateContent(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    sections: list[SerializeAsAny[TemplateSection]]

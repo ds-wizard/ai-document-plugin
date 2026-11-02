@@ -28,6 +28,20 @@
 .heading h4 {
     color: var(--ai-doc-color-slate-950);
     margin: 0;
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.titleRow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.nameInput {
+    flex: 1 1 12rem;
+    min-width: 0;
 }
 
 .metadata {

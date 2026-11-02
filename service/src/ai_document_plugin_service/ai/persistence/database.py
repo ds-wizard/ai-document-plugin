@@ -63,6 +63,7 @@ class TemplateRecord:
 
 
 class GenerationUpdate(TypedDict, total=False):
+    title: str
     status: str
     knowledge_model_uuid: UUID | None
     error_type: str | None

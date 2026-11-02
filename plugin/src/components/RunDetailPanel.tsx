@@ -15,22 +15,33 @@ type RunDetailPanelProps = {
     history: UseGenerationHistoryResult
 }
 
-function RunNameEditor({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+function RunNameEditor({
+    name,
+    onRename,
+}: {
+    name: string
+    onRename: (name: string) => Promise<boolean>
+}) {
     const [isEditing, setIsEditing] = useState(false)
     const [draft, setDraft] = useState(name)
+    const [isSaving, setIsSaving] = useState(false)
 
     if (isEditing) {
         return (
             <form
                 className={styles.titleRow}
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                     event.preventDefault()
-                    if (!draft.trim()) return
-                    onRename(draft)
-                    setIsEditing(false)
+                    if (!draft.trim() || isSaving) return
+                    setIsSaving(true)
+                    try {
+                        if (await onRename(draft)) setIsEditing(false)
+                    } finally {
+                        setIsSaving(false)
+                    }
                 }}
                 onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
+                    if (event.key === 'Escape' && !isSaving) {
                         event.preventDefault()
                         setIsEditing(false)
                     }
@@ -40,15 +51,21 @@ function RunNameEditor({ name, onRename }: { name: string; onRename: (name: stri
                     className={`form-control ${styles.nameInput}`}
                     aria-label="Run name"
                     value={draft}
+                    disabled={isSaving}
                     onChange={(event) => setDraft(event.target.value)}
                     autoFocus
                 />
-                <button className="btn btn-primary btn-sm" type="submit" disabled={!draft.trim()}>
-                    Apply
+                <button
+                    className="btn btn-primary btn-sm"
+                    type="submit"
+                    disabled={!draft.trim() || isSaving}
+                >
+                    {isSaving ? 'Saving...' : 'Apply'}
                 </button>
                 <button
                     className="btn btn-outline-secondary btn-sm"
                     type="button"
+                    disabled={isSaving}
                     onClick={() => setIsEditing(false)}
                 >
                     Cancel

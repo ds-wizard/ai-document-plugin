@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
+import { getPipelineHistory, getPipelineStatus, renamePipeline, runPipeline } from '@/client'
 import { pollRunStatus } from '@/runPoller'
 import type { PipelineErrorResponse, PipelineStatusResponse, PipelineSummaryItem } from '@/types'
 
@@ -18,8 +18,6 @@ export type RunRecord = {
     runId: string
     status: RunStatusValue
     templateTitle: string
-    /** UI-only name; never sent to the API or persisted. */
-    displayName?: string
     error: PipelineErrorResponse | null
     progressMessage: string | null
     createdAt: string
@@ -33,7 +31,7 @@ export type RunRecord = {
 export const getRunVersionLabel = (run: RunRecord): string =>
     run.namedVersion?.trim() || 'Unknown version'
 
-export const getRunTitle = (run: RunRecord): string => run.displayName || run.templateTitle
+export const getRunTitle = (run: RunRecord): string => run.templateTitle
 
 export const getRunTimeLabel = (run: RunRecord): string => {
     const date = new Date(run.createdAt)
@@ -55,7 +53,7 @@ export type UseGenerationHistoryResult = {
     startRun: (templateUuid: string, language: string) => Promise<RunRecord | null>
     ensureDetailLoaded: (runId: string) => void
     applyStatus: (status: PipelineStatusResponse) => RunRecord
-    renameRun: (runId: string, name: string) => void
+    renameRun: (runId: string, name: string) => Promise<boolean>
 }
 
 const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
@@ -101,7 +99,6 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 runId: status.runId,
                 status: status.status,
                 templateTitle: status.templateTitle,
-                displayName: runsRef.current[status.runId]?.displayName,
                 error: status.error,
                 createdAt: status.createdAt,
                 namedVersion: status.namedVersion,
@@ -192,14 +189,17 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     const getRun = useCallback((runId: string) => runsRef.current[runId], [])
 
     const renameRun = useCallback(
-        (runId: string, name: string) => {
-            const run = runsRef.current[runId]
-            const displayName = name.trim()
-            if (run && displayName) {
-                setRunRecord({ ...run, displayName })
+        async (runId: string, name: string): Promise<boolean> => {
+            if (!name.trim()) return false
+            try {
+                applyStatus(await renamePipeline(runId, name.trim()))
+                return true
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Failed to rename the run.')
+                return false
             }
         },
-        [setRunRecord],
+        [applyStatus],
     )
 
     const startRun = useCallback(

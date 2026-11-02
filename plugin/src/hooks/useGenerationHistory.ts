@@ -24,6 +24,8 @@ export type RunRecord = {
     runId: string
     status: RunStatusValue
     templateTitle: string
+    /** UI-only name; never sent to the API or persisted. */
+    displayName?: string
     error: PipelineErrorResponse | null
     progressMessage: string | null
     createdAt: string
@@ -36,6 +38,8 @@ export type RunRecord = {
 
 export const getRunVersionLabel = (run: RunRecord): string =>
     run.namedVersion?.trim() || 'Unknown version'
+
+export const getRunTitle = (run: RunRecord): string => run.displayName || run.templateTitle
 
 export const getRunTimeLabel = (run: RunRecord): string => {
     const date = new Date(run.createdAt)
@@ -61,6 +65,7 @@ export type UseGenerationHistoryResult = {
     startRun: (templateUuid: string, language: string) => Promise<RunRecord | null>
     ensureDetailLoaded: (runId: string) => void
     applyStatus: (status: PipelineStatusResponse) => RunRecord
+    renameRun: (runId: string, name: string) => void
 }
 
 const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
@@ -116,6 +121,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 runId: status.runId,
                 status: status.status,
                 templateTitle: status.templateTitle,
+                displayName: runsRef.current[status.runId]?.displayName,
                 error: status.error,
                 createdAt: status.createdAt,
                 namedVersion: status.namedVersion,
@@ -205,6 +211,17 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     }, [project?.uuid, beginPolling, project])
 
     const getRun = useCallback((runId: string) => runsRef.current[runId], [])
+
+    const renameRun = useCallback(
+        (runId: string, name: string) => {
+            const run = runsRef.current[runId]
+            const displayName = name.trim()
+            if (run && displayName) {
+                setRunRecord({ ...run, displayName })
+            }
+        },
+        [setRunRecord],
+    )
 
     const startRun = useCallback(
         async (templateUuid: string, language: string): Promise<RunRecord | null> => {
@@ -330,5 +347,6 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         startRun,
         ensureDetailLoaded,
         applyStatus,
+        renameRun,
     }
 }

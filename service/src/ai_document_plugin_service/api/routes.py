@@ -12,6 +12,7 @@ from ai_document_plugin_service.api.types import (
     LlmSettingsResponse,
     LlmSettingsUpdateRequest,
     PipelineExportRequest,
+    PipelineRenameRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatusResponse,
@@ -162,6 +163,13 @@ async def get_pipeline_status(
     if status is None:
         raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
     return status
+
+
+@protected_router.patch('/pipelines/status/{run_id}/title')
+async def rename_pipeline(
+    run_id: UUID, payload: PipelineRenameRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
+) -> PipelineStatusResponse:
+    return await pipeline.rename_pipeline(run_id, payload, auth)
 
 
 @protected_router.post('/pipelines/status/{run_id}/save')

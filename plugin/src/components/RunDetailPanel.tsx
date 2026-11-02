@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
 import styles from '@/components/RunDetailPanel.module.css'
 import {
     getRunTimeLabel,
+    getRunTitle,
     getRunVersionLabel,
     type UseGenerationHistoryResult,
 } from '@/hooks/useGenerationHistory'
@@ -12,6 +13,84 @@ import {
 type RunDetailPanelProps = {
     runId: string
     history: UseGenerationHistoryResult
+}
+
+function RunNameEditor({
+    name,
+    onRename,
+}: {
+    name: string
+    onRename: (name: string) => Promise<boolean>
+}) {
+    const [isEditing, setIsEditing] = useState(false)
+    const [draft, setDraft] = useState(name)
+    const [isSaving, setIsSaving] = useState(false)
+
+    if (isEditing) {
+        return (
+            <form
+                className={styles.titleRow}
+                onSubmit={async (event) => {
+                    event.preventDefault()
+                    if (!draft.trim() || isSaving) return
+                    setIsSaving(true)
+                    try {
+                        if (await onRename(draft)) setIsEditing(false)
+                    } finally {
+                        setIsSaving(false)
+                    }
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === 'Escape' && !isSaving) {
+                        event.preventDefault()
+                        setIsEditing(false)
+                    }
+                }}
+            >
+                <input
+                    className={`form-control ${styles.nameInput}`}
+                    aria-label="Run name"
+                    value={draft}
+                    disabled={isSaving}
+                    onChange={(event) => setDraft(event.target.value)}
+                    autoFocus
+                />
+                <button
+                    className="btn btn-primary btn-sm"
+                    type="submit"
+                    disabled={!draft.trim() || isSaving}
+                >
+                    {isSaving ? 'Saving...' : 'Apply'}
+                </button>
+                <button
+                    className="btn btn-outline-secondary btn-sm"
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => setIsEditing(false)}
+                >
+                    Cancel
+                </button>
+            </form>
+        )
+    }
+
+    return (
+        <div className={styles.titleRow}>
+            <h4>{name}</h4>
+            <button
+                className={styles.renameButton}
+                type="button"
+                aria-label="Rename run"
+                title="Rename run"
+                onClick={() => {
+                    setDraft(name)
+                    setIsEditing(true)
+                }}
+            >
+                <i className="fas fa-pencil-alt" aria-hidden="true" />
+            </button>
+        </div>
+    )
 }
 
 export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
@@ -37,7 +116,11 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
 
     const heading = (
         <header className={styles.heading}>
-            <h4>{run.templateTitle}</h4>
+            <RunNameEditor
+                key={runId}
+                name={getRunTitle(run)}
+                onRename={(name) => history.renameRun(runId, name)}
+            />
             <div className={styles.metadata}>
                 <span className={`badge bg-secondary ${styles.versionBadge}`}>
                     {getRunVersionLabel(run)}

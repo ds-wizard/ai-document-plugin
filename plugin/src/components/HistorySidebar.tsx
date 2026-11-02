@@ -9,6 +9,7 @@ import {
 import styles from '@/components/HistorySidebar.module.css'
 import {
     getRunTimeLabel,
+    getRunTitle,
     getRunVersionLabel,
     type RunRecord,
     type UseGenerationHistoryResult,
@@ -136,8 +137,8 @@ export function HistorySidebar({
                             aria-hidden="true"
                         />
                         <span className={styles.itemBody}>
-                            <span className={styles.itemTitle} title={item.templateTitle}>
-                                {item.templateTitle}
+                            <span className={styles.itemTitle} title={getRunTitle(item)}>
+                                {getRunTitle(item)}
                             </span>
                             <span className={styles.itemVersion} title={getRunVersionLabel(item)}>
                                 {getRunVersionLabel(item)}

@@ -78,7 +78,7 @@ function RunNameEditor({
         <div className={styles.titleRow}>
             <h4>{name}</h4>
             <button
-                className="btn btn-outline-secondary btn-sm"
+                className={styles.renameButton}
                 type="button"
                 aria-label="Rename run"
                 title="Rename run"

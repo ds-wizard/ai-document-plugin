@@ -246,6 +246,10 @@ class PipelineSaveRequest(ApiModel):
     result_markdown: str
 
 
+class PipelineRenameRequest(ApiModel):
+    title: NonEmptyStr
+
+
 class PipelineExportRequest(ApiModel):
     """Carries the editor's current text so unsaved edits can be exported."""
 

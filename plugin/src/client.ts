@@ -218,6 +218,27 @@ export const cancelPipeline = async (runId: string): Promise<PipelineStatusRespo
     return data
 }
 
+export const renamePipeline = async (
+    runId: string,
+    title: string,
+): Promise<PipelineStatusResponse> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/title`
+    const response = await apiFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+    })
+    const data = await readApiResponse<PipelineStatusResponse | { detail?: unknown }>(response, url)
+    if (!response.ok) {
+        const detail = 'detail' in data ? data.detail : undefined
+        throw new Error(typeof detail === 'string' ? detail : 'Failed to rename the run.')
+    }
+    if (!isPipelineStatusResponse(data)) {
+        throw new Error('Invalid pipeline status returned.')
+    }
+    return data
+}
+
 export const getPipelineHistory = async (
     questionnaireUuid: string,
 ): Promise<PipelineSummaryItem[]> => {

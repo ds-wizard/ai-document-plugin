@@ -26,6 +26,7 @@ from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
     ErrorType,
     PipelineErrorResponse,
+    PipelineRenameRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatus,
@@ -267,6 +268,18 @@ class PipelineService:
             trace_id=trace_id,
         )
         return run_id
+
+    async def rename_pipeline(
+        self, run_id: UUID, payload: PipelineRenameRequest, auth: AuthenticatedUser
+    ) -> PipelineStatusResponse:
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
+        updated_record = await self.database.update_generation(run_id, auth.tenant_uuid, title=payload.title)
+        if updated_record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        return _generation_record_to_status_response(updated_record)
 
     async def update_pipeline_result(
         self, run_id: UUID, save_request: PipelineSaveRequest, auth: AuthenticatedUser

@@ -1,74 +1,12 @@
-.root {
-    display: grid;
-    gap: 1.25rem;
-}
-
-.header {
-    display: grid;
-    gap: 1.1rem;
-}
-
-.toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    padding-top: 0.25rem;
-}
-
-.actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-left: auto;
-}
-
-.rawEditor {
-    display: grid;
-    gap: 0.75rem;
-}
-
-.rawToolbar {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.buttonIcon {
-    margin-right: 0.45rem;
-}
-
-.saveButton:disabled {
-    opacity: 1;
-}
-
+/* The result reads as a page of its own, at least this tall even while short. */
 .body {
     min-width: 0;
     min-height: 14rem;
-    padding: 1.25rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px solid var(--ai-doc-color-slate-300);
-    background: var(--ai-doc-color-slate-50);
-    display: grid;
-    gap: 1rem;
 }
 
-.empty {
-    color: var(--ai-doc-color-slate-500);
-    line-height: 1.6;
-}
-
-.textarea {
-    margin: 0;
-    color: var(--ai-doc-color-slate-950);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    width: 100%;
+/* The raw Markdown in a monospaced editor, tall enough to work in. */
+.rawField textarea {
     min-height: 20rem;
     resize: vertical;
-    border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: var(--bs-border-radius);
-    padding: 1rem;
-    background: var(--ai-doc-color-white);
-    line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }

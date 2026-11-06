@@ -1,9 +1,11 @@
 import { ProjectTabComponentProps } from '@ds-wizard/plugin-sdk/elements'
+import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 
 import { getAvailableLanguages, getQuestionnaireLanguage } from '@/client'
-import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { HistorySidebar } from '@/components/HistorySidebar'
 import styles from '@/components/ProjectTab.module.css'
 import { ProjectTemplatePanel } from '@/components/ProjectTemplatePanel'
@@ -109,14 +111,12 @@ export default function ProjectTab({
 
     if (!project) {
         return (
-            <div>
+            <Stack>
+                <Alert tone="warning">
+                    The project is not loaded; the pipeline cannot be started yet.
+                </Alert>
                 <Toaster richColors closeButton />
-                <div className={styles.root}>
-                    <FeedbackAlert kind="warning">
-                        The project is not loaded; the pipeline cannot be started yet.
-                    </FeedbackAlert>
-                </div>
-            </div>
+            </Stack>
         )
     }
 
@@ -127,22 +127,34 @@ export default function ProjectTab({
         }
     }
 
-    return (
-        <div className="Projects__Detail__Content Projects__Detail__Content--Metrics">
-            <Toaster richColors closeButton />
-            <div className={`questionnaire__summary-report ${styles.layout}`}>
-                <HistorySidebar
-                    history={history}
-                    selectedRunId={selectedRunId}
-                    onSelectNew={() => setSelectedRunId(null)}
-                    onSelectRun={setSelectedRunId}
-                />
+    // Why the pipeline cannot be run yet; starting it shows on the button as loading instead.
+    const runUnavailableReason =
+        templates.isLoading || languagesLoading
+            ? 'Templates and languages are still loading.'
+            : languageOptions.length === 0
+              ? 'No languages are available.'
+              : !selectedUuid
+                ? 'Select a template first.'
+                : !getLanguageOption(languageOptions, language)
+                  ? 'Select a language first.'
+                  : null
 
-                <div className={styles.main}>
+    return (
+        // Edge to edge: the history sidebar runs along the tab's edge, the main panel pads itself.
+        <div className={styles.layout}>
+            <HistorySidebar
+                history={history}
+                selectedRunId={selectedRunId}
+                onSelectNew={() => setSelectedRunId(null)}
+                onSelectRun={setSelectedRunId}
+            />
+
+            <div className={styles.main}>
+                <div className={styles.content}>
                     {selectedRunId ? (
                         <RunDetailPanel runId={selectedRunId} history={history} />
                     ) : (
-                        <div className={styles.root}>
+                        <Stack loose>
                             <ProjectTemplatePanel
                                 templates={templates}
                                 selectedUuid={selectedUuid}
@@ -154,25 +166,29 @@ export default function ProjectTab({
                                 onLanguageChange={handleLanguageChange}
                             />
 
-                            <button
-                                type="button"
-                                onClick={() => void handleRunPipeline()}
-                                disabled={
-                                    templates.isLoading ||
-                                    languagesLoading ||
-                                    languageOptions.length === 0 ||
-                                    history.isStarting ||
-                                    !selectedUuid ||
-                                    !getLanguageOption(languageOptions, language)
-                                }
-                                className={`btn btn-primary btn-wide ${styles.runButton}`}
-                            >
-                                {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}
-                            </button>
-                        </div>
+                            <Inline>
+                                <Button
+                                    variant="primary"
+                                    icon="fa-play"
+                                    loading={history.isStarting}
+                                    disabledReason={
+                                        runUnavailableReason && !history.isStarting
+                                            ? {
+                                                  id: 'ai-doc-run-pipeline-reason',
+                                                  reason: runUnavailableReason,
+                                              }
+                                            : undefined
+                                    }
+                                    onClick={() => void handleRunPipeline()}
+                                >
+                                    {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}
+                                </Button>
+                            </Inline>
+                        </Stack>
                     )}
                 </div>
             </div>
+            <Toaster richColors closeButton />
         </div>
     )
 }

@@ -1,3 +1,5 @@
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { Icon } from '@ds-wizard/plugin-sdk/ui/Icon'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -87,19 +89,18 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
 
     return (
         <div className={styles.root} ref={rootRef}>
-            <button
-                type="button"
+            <Button
+                icon="fa-download"
+                loading={isDownloadingDocx}
                 onClick={() => setIsOpen((currentValue) => !currentValue)}
-                disabled={isDownloadingDocx}
-                className="btn btn-outline-secondary"
                 aria-expanded={isOpen}
                 aria-haspopup="menu"
             >
                 {isDownloadingDocx ? 'Preparing...' : 'Download'}
-                <span className={styles.caret} aria-hidden="true">
-                    ▼
+                <span className={styles.caret}>
+                    <Icon name="fa-chevron-down" />
                 </span>
-            </button>
+            </Button>
 
             {isOpen ? (
                 <div className={styles.menu} role="menu">
@@ -109,7 +110,7 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
                         onClick={onDownloadMarkdown}
                         className={styles.item}
                     >
-                        <i className={`fa far fa-file-alt ${styles.itemIcon}`} aria-hidden="true" />
+                        <Icon name="far fa-file-lines" className={styles.itemIcon} />
                         Markdown
                     </button>
 
@@ -120,10 +121,7 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
                         disabled={!runId}
                         className={styles.item}
                     >
-                        <i
-                            className={`fa far fa-file-word ${styles.itemIcon}`}
-                            aria-hidden="true"
-                        />
+                        <Icon name="far fa-file-word" className={styles.itemIcon} />
                         MS Word
                     </button>
                 </div>

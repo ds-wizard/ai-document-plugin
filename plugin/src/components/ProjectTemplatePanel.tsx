@@ -1,8 +1,9 @@
+import { Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Title } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { LanguageDropdown } from '@/components/LanguageDropdown'
-import styles from '@/components/ProjectTemplatePanel.module.css'
 import { TemplateDropdown } from '@/components/TemplateDropdown'
 import { TemplateFormDialog, type TemplateFormTarget } from '@/components/TemplateFormDialog'
 import { TemplatePreview } from '@/components/TemplatePreview'
@@ -77,17 +78,15 @@ export function ProjectTemplatePanel({
 
     return (
         <>
-            <div className={styles.selector}>
-                <h4>Generate DMP from your questionnaire</h4>
-                <div className={styles.languageControl}>
-                    <LanguageDropdown
-                        options={languageOptions}
-                        value={language}
-                        onChange={onLanguageChange}
-                        disabled={disabled || languageOptions.length === 0}
-                        loading={languagesLoading}
-                    />
-                </div>
+            <Stack>
+                <Title>Generate DMP from your questionnaire</Title>
+                <LanguageDropdown
+                    options={languageOptions}
+                    value={language}
+                    onChange={onLanguageChange}
+                    disabled={disabled || languageOptions.length === 0}
+                    loading={languagesLoading}
+                />
                 <TemplateDropdown
                     value={selectedUuid}
                     onChange={onSelectedUuidChange}
@@ -96,7 +95,7 @@ export function ProjectTemplatePanel({
                     isLoading={isLoading}
                     disabled={disabled}
                 />
-            </div>
+            </Stack>
 
             {detail || isDetailLoading ? (
                 <TemplatePreview

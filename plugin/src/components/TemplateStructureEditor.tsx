@@ -1,3 +1,9 @@
+import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
+import { Button, IconButton } from '@ds-wizard/plugin-sdk/ui/Button'
+import { EmptyState } from '@ds-wizard/plugin-sdk/ui/EmptyState'
+import { TextareaField, TextField } from '@ds-wizard/plugin-sdk/ui/Field'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Body, Muted } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import styles from '@/components/TemplateStructureEditor.module.css'
@@ -60,91 +66,68 @@ function SectionNodeEditor({
             } ${isEditing ? '' : styles.sectionCardCollapsed}`}
         >
             {isEditing ? (
-                <div className={styles.sectionFields}>
-                    <label className={styles.field}>
-                        <span className={styles.fieldLabel}>Title</span>
-                        <input
-                            type="text"
-                            value={section.title}
-                            onChange={(event) => onUpdate(path, { title: event.target.value })}
-                            placeholder="Section title"
-                            className="form-control"
-                        />
-                    </label>
+                <Stack>
+                    <TextField
+                        label="Title"
+                        value={section.title}
+                        onChange={(title) => onUpdate(path, { title })}
+                        placeholder="Section title"
+                    />
 
-                    <label className={styles.field}>
-                        <span className={styles.fieldLabel}>Description</span>
-                        <textarea
-                            value={section.description}
-                            onChange={(event) =>
-                                onUpdate(path, { description: event.target.value })
-                            }
-                            placeholder="Section description or guidance"
-                            className={`form-control ${styles.descriptionField}`}
-                        />
-                    </label>
-                </div>
+                    <TextareaField
+                        label="Description"
+                        value={section.description}
+                        onChange={(description) => onUpdate(path, { description })}
+                        placeholder="Section description or guidance"
+                    />
+                </Stack>
             ) : (
-                <div className={styles.sectionSummary}>
-                    <p className={styles.sectionTitle}>{displayTitle(section.title)}</p>
+                <Stack className={styles.sectionSummary}>
+                    <Body className={styles.sectionTitle}>{displayTitle(section.title)}</Body>
                     {section.description.trim() ? (
-                        <p className={styles.sectionDescription}>{section.description}</p>
+                        <Muted className={styles.sectionDescription}>{section.description}</Muted>
                     ) : null}
-                </div>
+                </Stack>
             )}
 
-            <div className={styles.sectionActions}>
-                {isEditing ? (
-                    <>
-                        <button
-                            type="button"
-                            className="btn btn-outline-secondary with-icon"
-                            onClick={() => onAddChild(path)}
-                        >
-                            <i className="fas fa-plus" aria-hidden="true" />
-                            Add subsection
-                        </button>
-                        <div className={styles.sectionActionsEnd}>
-                            <button
-                                type="button"
-                                className={`btn btn-outline-secondary ${styles.iconButton}`}
-                                onClick={() => onRemove(path)}
-                                aria-label={`Remove ${label}`}
-                            >
-                                <i className="fas fa-trash" aria-hidden="true" />
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-wide with-icon"
-                                onClick={() => onStopEditing(section.id)}
-                                aria-label={`Finish editing ${label}`}
-                            >
-                                <i className="fas fa-check" aria-hidden="true" />
-                                Confirm
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                    <div className={styles.sectionActionsEnd}>
-                        <button
-                            type="button"
-                            className={`btn btn-outline-secondary ${styles.iconButton}`}
+            {isEditing ? (
+                <Inline align="between">
+                    <Button icon="fa-plus" onClick={() => onAddChild(path)}>
+                        Add subsection
+                    </Button>
+                    <Inline>
+                        <IconButton
+                            icon="fa-trash"
+                            label={`Remove ${label}`}
+                            tooltip
                             onClick={() => onRemove(path)}
-                            aria-label={`Remove ${label}`}
+                        />
+                        <Button
+                            variant="primary"
+                            icon="fa-check"
+                            accessibleName={`Finish editing ${label}`}
+                            onClick={() => onStopEditing(section.id)}
                         >
-                            <i className="fas fa-trash" aria-hidden="true" />
-                        </button>
-                        <button
-                            type="button"
-                            className={`btn btn-outline-secondary ${styles.iconButton}`}
-                            onClick={() => onStartEditing(section.id)}
-                            aria-label={`Edit ${label}`}
-                        >
-                            <i className="fas fa-pen" aria-hidden="true" />
-                        </button>
-                    </div>
-                )}
-            </div>
+                            Confirm
+                        </Button>
+                    </Inline>
+                </Inline>
+            ) : (
+                <Inline align="end">
+                    <IconButton
+                        icon="fa-trash"
+                        label={`Remove ${label}`}
+                        tooltip
+                        onClick={() => onRemove(path)}
+                    />
+                    <IconButton
+                        icon="fa-pen"
+                        label={`Edit ${label}`}
+                        tooltip
+                        onClick={() => onStartEditing(section.id)}
+                    />
+                </Inline>
+            )}
 
             {section.sections.length > 0 ? (
                 <ul className={styles.nestedSectionList}>
@@ -268,18 +251,20 @@ export function TemplateStructureEditor({ value, onChange }: TemplateStructureEd
     }
 
     return (
-        <div className={styles.root}>
+        <Stack>
             {parseWarning ? (
-                <div className={styles.parseWarning}>
+                <Alert tone="warning">
                     Uploaded JSON could not be loaded into the editor. Fix the file or edit the
                     structure below; saving will overwrite the previous JSON.
-                </div>
+                </Alert>
             ) : null}
 
             {sections.length === 0 ? (
-                <div className={styles.emptyState}>
-                    No sections yet. Add a section to get started.
-                </div>
+                <EmptyState
+                    headingLevel={3}
+                    title="No sections yet"
+                    description="Add a section to get started."
+                />
             ) : (
                 <ul className={styles.sectionList}>
                     {sections.map((section, sectionIndex) => (
@@ -300,14 +285,11 @@ export function TemplateStructureEditor({ value, onChange }: TemplateStructureEd
                 </ul>
             )}
 
-            <button
-                type="button"
-                className="btn btn-outline-secondary with-icon"
-                onClick={handleAddRootSection}
-            >
-                <i className="fas fa-plus" aria-hidden="true" />
-                Add section
-            </button>
-        </div>
+            <Inline>
+                <Button icon="fa-plus" onClick={handleAddRootSection}>
+                    Add section
+                </Button>
+            </Inline>
+        </Stack>
     )
 }

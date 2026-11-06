@@ -1,3 +1,4 @@
+import { Icon, Spinner } from '@ds-wizard/plugin-sdk/ui/Icon'
 import { useDeferredValue, useEffect, useId, useRef, useState } from 'react'
 
 import styles from '@/components/LanguageDropdown.module.css'
@@ -95,13 +96,9 @@ export function LanguageDropdown({
                     aria-controls={listboxId}
                 >
                     <span className={styles.toggleLabel}>{displayLabel}</span>
-                    {loading ? (
-                        <span className={styles.spinner} aria-hidden="true" />
-                    ) : (
-                        <span className={styles.caret} aria-hidden="true">
-                            ▼
-                        </span>
-                    )}
+                    <span className={styles.caret}>
+                        {loading ? <Spinner /> : <Icon name="fa-chevron-down" />}
+                    </span>
                 </button>
 
                 {isOpen ? (
@@ -113,7 +110,7 @@ export function LanguageDropdown({
                                 value={query}
                                 onChange={(event) => setQuery(event.target.value)}
                                 placeholder={searchPlaceholder}
-                                className={styles.searchInput}
+                                className={`ui-input ${styles.searchInput}`}
                             />
                         </div>
 

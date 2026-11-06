@@ -1,3 +1,5 @@
+import { Icon } from '@ds-wizard/plugin-sdk/ui/Icon'
+import { Muted } from '@ds-wizard/plugin-sdk/ui/Text'
 import {
     type PointerEvent as ReactPointerEvent,
     useCallback,
@@ -21,11 +23,11 @@ type HistorySidebarProps = {
     onSelectRun: (runId: string) => void
 }
 
-const STATUS_ICON: Record<RunRecord['status'], string> = {
-    queued: 'fas fa-spinner fa-spin',
-    running: 'fas fa-spinner fa-spin',
-    succeeded: 'fas fa-check-circle',
-    failed: 'fas fa-exclamation-circle',
+const STATUS_ICON: Record<RunRecord['status'], { name: string; spin?: boolean }> = {
+    queued: { name: 'fa-spinner', spin: true },
+    running: { name: 'fa-spinner', spin: true },
+    succeeded: { name: 'fa-circle-check' },
+    failed: { name: 'fa-circle-exclamation' },
 }
 
 const MIN_THUMB_HEIGHT = 24
@@ -117,7 +119,7 @@ export function HistorySidebar({
                 disabled={selectedRunId === null}
                 className={`${styles.newButton} ${selectedRunId === null ? styles.itemActive : ''}`}
             >
-                <i className={`fas fa-plus ${styles.statusIcon}`} aria-hidden="true" />
+                <Icon name="fa-plus" className={styles.statusIcon} />
                 Generate new DMP
             </button>
 
@@ -131,9 +133,10 @@ export function HistorySidebar({
                         onClick={() => onSelectRun(item.runId)}
                         className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''}`}
                     >
-                        <i
-                            className={`${STATUS_ICON[item.status]} ${styles.statusIcon} ${styles[item.status]}`}
-                            aria-hidden="true"
+                        <Icon
+                            name={STATUS_ICON[item.status].name}
+                            spin={STATUS_ICON[item.status].spin}
+                            className={`${styles.statusIcon} ${styles[item.status]}`}
                         />
                         <span className={styles.itemBody}>
                             <span className={styles.itemTitle} title={item.templateTitle}>
@@ -148,7 +151,7 @@ export function HistorySidebar({
                 ))}
 
                 {items.length === 0 && !isLoading ? (
-                    <div className={styles.emptyState}>No generations yet.</div>
+                    <Muted className={styles.emptyState}>No generations yet.</Muted>
                 ) : null}
             </div>
 

@@ -3,46 +3,26 @@
     pointer-events: auto;
 }
 
-.ai-doc-title {
-    margin: 0;
-    font-weight: 500;
-    line-height: 1.2;
-}
-
-.ai-doc-card {
-    display: grid;
-    gap: 0.75rem;
-    min-width: 0;
-    padding: 1rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px solid var(--bs-border-color);
-    background: var(--ai-doc-color-slate-50);
-}
-
-.ai-doc-field {
-    display: grid;
-    gap: 0.5rem;
-}
-
-.ai-doc-field-label {
-    font-weight: 600;
-}
-
-.ai-doc-input {
-    padding: 0.75rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px solid var(--ai-doc-color-slate-300);
-    background: var(--ai-doc-color-white);
-}
-
-.ai-doc-scroll-list {
-    max-height: 36rem;
-    min-height: 0;
-    overflow-y: auto;
-    padding-right: 0.15rem;
-}
-
-.ai-doc-segmented-control {
-    display: inline-flex;
-    justify-self: start;
+/*
+ * Sonner's toasts in the wizard's colors, so they follow the theme (light or dark) and the
+ * instance's palette. The extra `html` outranks Sonner's own per-theme rules.
+ */
+html [data-sonner-toaster][data-sonner-theme] {
+    --normal-bg: var(--ui-elevation-2-surface);
+    --normal-border: var(--ui-border-elevated);
+    --normal-text: var(--ui-text);
+    --success-bg: var(--ui-success-subtle);
+    --success-border: var(--ui-success-border);
+    --success-text: var(--ui-success-on-subtle);
+    --info-bg: var(--ui-info-subtle);
+    --info-border: var(--ui-info-border);
+    --info-text: var(--ui-info-on-subtle);
+    --warning-bg: var(--ui-warning-subtle);
+    --warning-border: var(--ui-warning-border);
+    --warning-text: var(--ui-warning-on-subtle);
+    --error-bg: var(--ui-danger-subtle);
+    --error-border: var(--ui-danger-border);
+    --error-text: var(--ui-danger-on-subtle);
+    --border-radius: var(--ui-radius-surface);
+    font-family: inherit;
 }

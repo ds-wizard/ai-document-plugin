@@ -1,3 +1,7 @@
+import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
+import { FormCollapsible } from '@ds-wizard/plugin-sdk/ui/Form'
+import { Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { BodySmall } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useState } from 'react'
 
 import { getCoverPagePreview } from '@/client'
@@ -33,14 +37,14 @@ export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
     }, [])
 
     const previewContent = (
-        <>
-            {error && <p className={styles.note}>{error}</p>}
-            {!error && !definition && <p className={styles.note}>Loading preview...</p>}
+        <AsyncBlock
+            loading={!error && !definition}
+            error={error ?? undefined}
+            loadingLabel="Loading preview..."
+        >
             {definition && (
-                <>
-                    {!embedded && (
-                        <p className={styles.note}>The cover page is always in English.</p>
-                    )}
+                <Stack>
+                    {!embedded && <BodySmall>The cover page is always in English.</BodySmall>}
 
                     <section aria-label="Cover page structure" className={styles.page}>
                         <h3 className={styles.title}>{definition.metadata.title.text}</h3>
@@ -104,19 +108,14 @@ export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
                             </div>
                         ))}
                     </section>
-                </>
+                </Stack>
             )}
-        </>
+        </AsyncBlock>
     )
 
     if (embedded) {
         return <div className={styles.embedded}>{previewContent}</div>
     }
 
-    return (
-        <details className={styles.root}>
-            <summary className={styles.summary}>Preview the cover page</summary>
-            <div className={styles.content}>{previewContent}</div>
-        </details>
-    )
+    return <FormCollapsible label="Preview the cover page">{previewContent}</FormCollapsible>
 }

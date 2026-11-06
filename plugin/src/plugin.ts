@@ -1,4 +1,3 @@
-import '@/styles/tokens.css'
 import '@/styles/global.css'
 
 import { PluginBuilder } from '@ds-wizard/plugin-sdk/core'

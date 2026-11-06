@@ -20,7 +20,7 @@ export function pollRunStatus(
     intervalMs = DEFAULT_POLL_INTERVAL_MS,
 ): () => void {
     let cancelled = false
-    let timeoutId: ReturnType<typeof window.setTimeout> | undefined
+    let timeoutId: number | undefined
 
     const tick = async () => {
         try {

@@ -1,3 +1,8 @@
+import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
+import { IconButton } from '@ds-wizard/plugin-sdk/ui/Button'
+import { Card } from '@ds-wizard/plugin-sdk/ui/Card'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Muted, Subtitle } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useState } from 'react'
 
 import { CoverPagePreview } from '@/components/CoverPagePreview'
@@ -74,79 +79,67 @@ export function TemplatePreview({
     const isBusy = busyAction !== null
 
     return (
-        <section className="ai-doc-card" aria-label="Template preview">
-            <div className={styles.label}>
-                <div className={styles.header}>
-                    <h5 className="ai-doc-title">Template preview:</h5>
-                    {canManage ? (
-                        <div className={styles.actions}>
-                            <button
-                                type="button"
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={onEdit}
-                                disabled={isBusy}
-                                title="Edit template"
-                                aria-label="Edit template"
-                            >
-                                <i className="fas fa-pen" aria-hidden="true" />
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={() => void runAction('export', onExport)}
-                                disabled={isBusy}
-                                title="Export template"
-                                aria-label="Export template"
-                            >
-                                <i
-                                    className={
-                                        busyAction === 'export'
-                                            ? 'fas fa-spinner fa-spin'
-                                            : 'fas fa-download'
-                                    }
-                                    aria-hidden="true"
+        <section aria-label="Template preview">
+            <Card>
+                <Stack>
+                    <Inline align="between">
+                        <Subtitle>Template preview:</Subtitle>
+                        {canManage ? (
+                            <Inline>
+                                <IconButton
+                                    icon="fa-pen"
+                                    label="Edit template"
+                                    tooltip
+                                    size="small"
+                                    disabled={isBusy}
+                                    onClick={onEdit}
                                 />
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-outline-danger btn-sm"
-                                onClick={() => void runAction('delete', onDelete)}
-                                disabled={isBusy}
-                                title="Delete template"
-                                aria-label="Delete template"
-                            >
-                                <i
-                                    className={
-                                        busyAction === 'delete'
-                                            ? 'fas fa-spinner fa-spin'
-                                            : 'fas fa-trash'
-                                    }
-                                    aria-hidden="true"
+                                <IconButton
+                                    icon="fa-download"
+                                    label="Export template"
+                                    tooltip
+                                    size="small"
+                                    loading={busyAction === 'export'}
+                                    disabled={isBusy}
+                                    onClick={() => void runAction('export', onExport)}
                                 />
-                            </button>
-                        </div>
-                    ) : null}
-                </div>
-                {hasCoverPage ? <CoverPagePreview embedded /> : null}
-                <div className="ai-doc-scroll-list">
-                    {isLoading ? (
-                        <p className={styles.status}>Loading template structure...</p>
-                    ) : sections.length === 0 ? (
-                        <p className={styles.status}>This template has no sections.</p>
-                    ) : (
-                        <ul className={styles.sectionList}>
-                            {sections.map((section, sectionIndex) => (
-                                <PreviewSectionNode
-                                    key={String(sectionIndex)}
-                                    section={section}
-                                    depth={0}
-                                    path={String(sectionIndex)}
+                                <IconButton
+                                    icon="fa-trash"
+                                    label="Delete template"
+                                    tooltip
+                                    size="small"
+                                    variant="dangerSecondary"
+                                    loading={busyAction === 'delete'}
+                                    disabled={isBusy}
+                                    onClick={() => void runAction('delete', onDelete)}
                                 />
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            </div>
+                            </Inline>
+                        ) : null}
+                    </Inline>
+                    {hasCoverPage ? <CoverPagePreview embedded /> : null}
+                    <div className={styles.scrollList}>
+                        <AsyncBlock
+                            loading={isLoading}
+                            loadingLabel="Loading template structure..."
+                        >
+                            {sections.length === 0 ? (
+                                <Muted>This template has no sections.</Muted>
+                            ) : (
+                                <ul className={styles.sectionList}>
+                                    {sections.map((section, sectionIndex) => (
+                                        <PreviewSectionNode
+                                            key={String(sectionIndex)}
+                                            section={section}
+                                            depth={0}
+                                            path={String(sectionIndex)}
+                                        />
+                                    ))}
+                                </ul>
+                            )}
+                        </AsyncBlock>
+                    </div>
+                </Stack>
+            </Card>
         </section>
     )
 }

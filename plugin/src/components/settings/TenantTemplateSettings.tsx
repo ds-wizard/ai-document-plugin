@@ -1,15 +1,22 @@
+import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { EmptyState } from '@ds-wizard/plugin-sdk/ui/EmptyState'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { List, ListItem } from '@ds-wizard/plugin-sdk/ui/ListItem'
+import { Muted, Title } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import styles from '@/components/settings/TenantTemplateSettings.module.css'
 import { TemplateFormDialog, type TemplateFormTarget } from '@/components/TemplateFormDialog'
 import { downloadTemplateJson } from '@/download'
 import { useTemplates } from '@/hooks/useTemplates'
 import type { TemplateOption } from '@/types'
 
+type BusyAction = { uuid: string; action: 'edit' | 'export' | 'delete' }
+
 export function TenantTemplateSection() {
     const [formTarget, setFormTarget] = useState<TemplateFormTarget | null>(null)
-    const [busyUuid, setBusyUuid] = useState<string | null>(null)
+    const [busy, setBusy] = useState<BusyAction | null>(null)
 
     const { templates, isLoading, upsertSaved, deleteByUuid, loadDetail } = useTemplates({
         scope: 'tenant',
@@ -23,7 +30,7 @@ export function TenantTemplateSection() {
     }
 
     const handleEdit = async (template: TemplateOption) => {
-        setBusyUuid(template.uuid)
+        setBusy({ uuid: template.uuid, action: 'edit' })
         try {
             setFormTarget(await loadDetail(template.uuid))
         } catch (editError) {
@@ -31,12 +38,12 @@ export function TenantTemplateSection() {
                 editError instanceof Error ? editError.message : 'Failed to load the template.',
             )
         } finally {
-            setBusyUuid(null)
+            setBusy(null)
         }
     }
 
     const handleDelete = async (template: TemplateOption) => {
-        setBusyUuid(template.uuid)
+        setBusy({ uuid: template.uuid, action: 'delete' })
 
         const deleted = await deleteByUuid(template, {
             confirmMessage: `Delete the tenant-wide template "${template.title}"? This cannot be undone.`,
@@ -47,86 +54,89 @@ export function TenantTemplateSection() {
             toast.success(`Tenant-wide template "${template.title}" was deleted.`)
         }
 
-        setBusyUuid(null)
+        setBusy(null)
     }
 
     const handleExport = async (template: TemplateOption) => {
-        setBusyUuid(template.uuid)
+        setBusy({ uuid: template.uuid, action: 'export' })
         await downloadTemplateJson(template)
-        setBusyUuid(null)
+        setBusy(null)
     }
 
-    if (isLoading) {
-        return (
-            <section className={styles.root}>
-                <h4 className={styles.heading}>Common templates</h4>
-                <p className={styles.muted}>Loading common templates...</p>
-            </section>
-        )
-    }
+    const isBusy = (template: TemplateOption, action: BusyAction['action']) =>
+        busy?.uuid === template.uuid && busy.action === action
 
     return (
-        <section className={styles.root}>
-            <div>
-                <h4 className={styles.heading}>Common templates</h4>
-                <p className={styles.muted}>
-                    Templates created here are available to everyone in your tenant.
-                </p>
-            </div>
+        <Stack>
+            <Stack>
+                <Title>Common templates</Title>
+                <Muted>Templates created here are available to everyone in your tenant.</Muted>
+            </Stack>
 
-            {templates.length === 0 ? (
-                <p className={styles.muted}>No common templates yet.</p>
-            ) : (
-                <ul className={styles.list}>
-                    {templates.map((template) => (
-                        <li key={template.uuid} className={styles.listItem}>
-                            <div className={styles.listItemRow}>
-                                <span className={styles.listTitle}>{template.title}</span>
-                                <div className={styles.listActions}>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-secondary btn-sm with-icon"
-                                        onClick={() => void handleEdit(template)}
-                                        disabled={busyUuid !== null}
-                                    >
-                                        <i className="fas fa-pen" aria-hidden="true" />
-                                        Edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-secondary btn-sm with-icon"
-                                        onClick={() => void handleExport(template)}
-                                        disabled={busyUuid !== null}
-                                    >
-                                        <i className="fas fa-download" aria-hidden="true" />
-                                        {busyUuid === template.uuid
-                                            ? 'Exporting...'
-                                            : 'Export template'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-danger btn-sm with-icon"
-                                        onClick={() => void handleDelete(template)}
-                                        disabled={busyUuid !== null}
-                                    >
-                                        <i className="fas fa-trash" aria-hidden="true" />
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            )}
+            <AsyncBlock loading={isLoading} loadingLabel="Loading common templates...">
+                <Stack>
+                    {templates.length === 0 ? (
+                        <EmptyState
+                            headingLevel={3}
+                            title="No common templates yet"
+                            description="Common templates you create will be listed here."
+                        />
+                    ) : (
+                        <List>
+                            {templates.map((template) => (
+                                <ListItem
+                                    key={template.uuid}
+                                    title={template.title}
+                                    actions={
+                                        <Inline>
+                                            <Button
+                                                size="small"
+                                                icon="fa-pen"
+                                                loading={isBusy(template, 'edit')}
+                                                disabled={busy !== null}
+                                                onClick={() => void handleEdit(template)}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                icon="fa-download"
+                                                loading={isBusy(template, 'export')}
+                                                disabled={busy !== null}
+                                                onClick={() => void handleExport(template)}
+                                            >
+                                                {isBusy(template, 'export')
+                                                    ? 'Exporting...'
+                                                    : 'Export template'}
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                variant="dangerSecondary"
+                                                icon="fa-trash"
+                                                loading={isBusy(template, 'delete')}
+                                                disabled={busy !== null}
+                                                onClick={() => void handleDelete(template)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Inline>
+                                    }
+                                />
+                            ))}
+                        </List>
+                    )}
 
-            <button
-                type="button"
-                className="btn btn-primary with-icon"
-                onClick={() => setFormTarget('new')}
-            >
-                <i className="fas fa-plus" aria-hidden="true" />
-                Create tenant-wide template
-            </button>
+                    <Inline>
+                        <Button
+                            variant="primary"
+                            icon="fa-plus"
+                            onClick={() => setFormTarget('new')}
+                        >
+                            Create tenant-wide template
+                        </Button>
+                    </Inline>
+                </Stack>
+            </AsyncBlock>
 
             {formTarget ? (
                 <TemplateFormDialog
@@ -136,6 +146,6 @@ export function TenantTemplateSection() {
                     onClose={() => setFormTarget(null)}
                 />
             ) : null}
-        </section>
+        </Stack>
     )
 }

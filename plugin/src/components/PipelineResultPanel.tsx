@@ -1,3 +1,8 @@
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { Card } from '@ds-wizard/plugin-sdk/ui/Card'
+import { TextareaField } from '@ds-wizard/plugin-sdk/ui/Field'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Muted } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -72,10 +77,10 @@ export function PipelineResultPanel({
     }
 
     return (
-        <section className={styles.root}>
-            <div className={styles.header}>
-                <div className={styles.toolbar}>
-                    <div className="ai-doc-segmented-control btn-group" role="group">
+        <Stack>
+            <Inline align="between">
+                <div role="group" aria-label="View">
+                    <Inline>
                         {(
                             [
                                 {
@@ -90,78 +95,70 @@ export function PipelineResultPanel({
                                 },
                             ] as const
                         ).map(({ mode, label, dataCy }) => (
-                            <button
+                            <Button
                                 key={mode}
-                                type="button"
+                                pressed={resultRenderMode === mode}
                                 onClick={() => setResultRenderMode(mode)}
-                                className={
-                                    resultRenderMode === mode
-                                        ? 'btn btn-primary'
-                                        : 'btn btn-outline-primary'
-                                }
                                 data-cy={dataCy}
                             >
                                 {label}
-                            </button>
+                            </Button>
                         ))}
-                    </div>
-
-                    {displayedResultMarkdown ? (
-                        <div className={styles.actions}>
-                            <button
-                                type="button"
-                                onClick={() => void onCopyMarkdown()}
-                                className="btn btn-outline-secondary"
-                            >
-                                <i
-                                    className={`fas fa-copy ${styles.buttonIcon}`}
-                                    aria-hidden="true"
-                                />
-                                Copy markdown
-                            </button>
-
-                            <DownloadDropdown
-                                markdown={displayedResultMarkdown}
-                                runId={resultRunId}
-                                baseName={downloadBaseName}
-                            />
-                        </div>
-                    ) : null}
+                    </Inline>
                 </div>
-            </div>
 
-            <div className={styles.body}>
-                {!resultMarkdown ? (
-                    <div className={styles.empty}>
-                        The generated markdown will appear here after a successful pipeline run.
-                    </div>
-                ) : resultRenderMode === 'raw' ? (
-                    <div className={styles.rawEditor}>
-                        <div className={styles.rawToolbar}>
-                            <button
-                                type="button"
-                                onClick={() => void onSaveEditedVersion()}
-                                disabled={!hasResultChanges || isSavingEditedVersion}
-                                className={`btn btn-outline-secondary ${styles.saveButton}`}
-                            >
-                                <i
-                                    className={`fas fa-save ${styles.buttonIcon}`}
-                                    aria-hidden="true"
-                                />
-                                {isSavingEditedVersion ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
+                {displayedResultMarkdown ? (
+                    <Inline align="end">
+                        <Button icon="fa-copy" onClick={() => void onCopyMarkdown()}>
+                            Copy markdown
+                        </Button>
 
-                        <textarea
-                            value={editableResultMarkdown}
-                            onChange={(event) => setEditableResultMarkdown(event.target.value)}
-                            className={styles.textarea}
+                        <DownloadDropdown
+                            markdown={displayedResultMarkdown}
+                            runId={resultRunId}
+                            baseName={downloadBaseName}
                         />
-                    </div>
+                    </Inline>
+                ) : null}
+            </Inline>
+
+            <Card className={styles.body}>
+                {!resultMarkdown ? (
+                    <Muted>
+                        The generated markdown will appear here after a successful pipeline run.
+                    </Muted>
+                ) : resultRenderMode === 'raw' ? (
+                    <Stack>
+                        <Inline align="end">
+                            <Button
+                                icon="fa-floppy-disk"
+                                loading={isSavingEditedVersion}
+                                disabledReason={
+                                    hasResultChanges
+                                        ? undefined
+                                        : {
+                                              id: `ai-doc-save-reason-${resultRunId ?? 'result'}`,
+                                              reason: 'There are no changes to save.',
+                                          }
+                                }
+                                onClick={() => void onSaveEditedVersion()}
+                            >
+                                {isSavingEditedVersion ? 'Saving...' : 'Save'}
+                            </Button>
+                        </Inline>
+
+                        <TextareaField
+                            label="Markdown"
+                            hiddenLabel
+                            value={editableResultMarkdown}
+                            onChange={setEditableResultMarkdown}
+                            className={styles.rawField}
+                        />
+                    </Stack>
                 ) : (
                     <MarkdownRenderer markdown={displayedResultMarkdown || ''} />
                 )}
-            </div>
-        </section>
+            </Card>
+        </Stack>
     )
 }

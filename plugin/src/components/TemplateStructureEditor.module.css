@@ -1,130 +1,44 @@
-.root {
-    display: grid;
-    gap: 0.75rem;
-    min-width: 0;
-}
-
-.hint {
-    margin: 0;
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.875rem;
-    line-height: 1.5;
-}
-
-.emptyState {
-    padding: 1rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px dashed var(--bs-border-color);
-    color: var(--ai-doc-color-slate-500);
-    text-align: center;
-    font-size: 0.9rem;
-}
-
 .sectionList,
 .nestedSectionList {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
 .nestedSectionList {
-    padding-left: 0.75rem;
-    border-left: 3px solid var(--bs-border-color);
+    padding-left: var(--ui-space-3);
+    border-left: 3px solid var(--ui-border-subtle);
 }
 
 .sectionCard {
     display: grid;
-    gap: 0.65rem;
-    padding: 0.85rem;
-    border-radius: var(--bs-border-radius);
-    border: 1px solid var(--bs-border-color);
-    background: var(--ai-doc-color-white);
+    gap: var(--ui-space-3);
+    padding: var(--ui-space-3);
+    border-radius: var(--ui-radius-surface);
+    border: 1px solid var(--ui-border-subtle);
+    background: var(--ui-surface);
 }
 
+/* Every other nesting level is tinted, so the levels read apart. */
 .sectionCardTinted {
-    background: var(--ai-doc-color-slate-50);
-    border-color: var(--bs-border-color);
+    background: var(--ui-surface-sunken);
 }
 
 .sectionCardCollapsed {
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
 }
 
 .sectionSummary {
-    display: grid;
-    gap: 0.35rem;
     min-width: 0;
 }
 
 .sectionTitle {
     margin: 0;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--ai-doc-color-slate-950);
-    line-height: 1.35;
+    font-weight: var(--ui-weight-bold);
 }
 
 .sectionDescription {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--ai-doc-color-slate-600);
-    line-height: 1.5;
     white-space: pre-wrap;
-}
-
-.sectionFields {
-    display: grid;
-    gap: 0.55rem;
-    min-width: 0;
-}
-
-.field {
-    display: grid;
-    gap: 0.35rem;
-}
-
-.fieldLabel {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--ai-doc-color-slate-600);
-}
-
-.descriptionField {
-    min-height: 4.5rem;
-    resize: vertical;
-}
-
-.sectionActions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-
-.sectionActionsEnd {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-left: auto;
-}
-
-.iconButton {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    padding: 0;
-}
-
-.parseWarning {
-    padding: 0.65rem 0.75rem;
-    border-radius: var(--bs-border-radius);
-    background: var(--ai-doc-color-orange-50);
-    color: var(--ai-doc-color-orange-700);
-    font-size: 0.85rem;
-    line-height: 1.45;
 }

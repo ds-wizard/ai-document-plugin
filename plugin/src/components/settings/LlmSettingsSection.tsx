@@ -1,9 +1,13 @@
+import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { PasswordField, TextField } from '@ds-wizard/plugin-sdk/ui/Field'
+import { FormActions } from '@ds-wizard/plugin-sdk/ui/Form'
+import { Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Muted, Title } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { getLlmSettings, updateLlmSettings } from '@/client'
-import { FeedbackAlert } from '@/components/FeedbackAlert'
-import styles from '@/components/settings/LlmSettingsSection.module.css'
 
 // Shown in the API key field while a key is saved; the real key never reaches the browser.
 const SAVED_API_KEY_MASK = '••••••••••••••••••••••••'
@@ -80,98 +84,75 @@ export function LlmSettingsSection() {
     // A saved key shows as dots until the field is clicked; left empty, the dots come back.
     const showSavedApiKeyMask = apiKeySet && !isApiKeyFocused && apiKey === ''
 
-    if (isLoading) {
-        return (
-            <section className={styles.root}>
-                <h4 className={styles.heading}>LLM Settings</h4>
-                <p className={styles.muted}>Loading LLM settings...</p>
-            </section>
-        )
-    }
-
-    // Without the stored settings the form would look unconfigured and saving it would overwrite them.
-    if (loadError) {
-        return (
-            <section className={styles.root}>
-                <h4 className={styles.heading}>LLM Settings</h4>
-                <FeedbackAlert kind="error">{loadError}</FeedbackAlert>
-            </section>
-        )
-    }
-
     return (
         // Not a <form>: DSW renders the settings page inside its own form.
-        <section className={styles.root}>
-            <div>
-                <h4 className={styles.heading}>LLM Settings</h4>
-                <p className={styles.muted}>
+        <Stack>
+            <Stack>
+                <Title>LLM Settings</Title>
+                <Muted>
                     Configure the LLM connection the plugin should use for pipeline execution.
                     Please select a model that supports the OpenAI API to use this plugin.
-                </p>
-            </div>
+                </Muted>
+            </Stack>
 
-            <label className="ai-doc-field">
-                <span className="ai-doc-field-label">Model</span>
-                <input
-                    type="text"
-                    value={model}
-                    onChange={(event) => setModel(event.target.value)}
-                    placeholder="gpt-4.1-mini"
-                    className="ai-doc-input"
-                />
-            </label>
+            {/* Without the stored settings the form would look unconfigured and saving it would overwrite them. */}
+            <AsyncBlock
+                loading={isLoading}
+                error={loadError ?? undefined}
+                loadingLabel="Loading LLM settings..."
+            >
+                <Stack>
+                    <TextField
+                        label="Model"
+                        value={model}
+                        onChange={setModel}
+                        placeholder="gpt-4.1-mini"
+                    />
 
-            <label className="ai-doc-field">
-                <span className="ai-doc-field-label">API key</span>
-                <input
-                    type="password"
-                    value={showSavedApiKeyMask ? SAVED_API_KEY_MASK : apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    onFocus={() => setIsApiKeyFocused(true)}
-                    onBlur={() => setIsApiKeyFocused(false)}
-                    placeholder={apiKeySet ? undefined : 'sk-...'}
-                    className="ai-doc-input"
-                    autoComplete="off"
-                />
-            </label>
+                    {/* Focus is tracked around the field: it drives the saved-key mask above. */}
+                    <div
+                        onFocus={() => setIsApiKeyFocused(true)}
+                        onBlur={() => setIsApiKeyFocused(false)}
+                    >
+                        <PasswordField
+                            label="API key"
+                            value={showSavedApiKeyMask ? SAVED_API_KEY_MASK : apiKey}
+                            onChange={setApiKey}
+                            autoComplete="off"
+                        />
+                    </div>
 
-            <label className="ai-doc-field">
-                <span className="ai-doc-field-label">API URL</span>
-                <input
-                    type="url"
-                    value={apiUrl}
-                    onChange={(event) => setApiUrl(event.target.value)}
-                    placeholder="https://... "
-                    className="ai-doc-input"
-                />
-            </label>
+                    <TextField
+                        label="API URL"
+                        type="url"
+                        value={apiUrl}
+                        onChange={setApiUrl}
+                        placeholder="https://... "
+                    />
 
-            <label className="ai-doc-field">
-                <span className="ai-doc-field-label">Maximum parallel calls to LLM server</span>
-                <input
-                    type="number"
-                    min={1}
-                    value={maxWorkers ?? ''}
-                    onChange={(event) => {
-                        const raw = event.target.value
-                        setMaxWorkers(
-                            raw === '' ? null : Math.max(1, Number.parseInt(raw, 10) || 1),
-                        )
-                    }}
-                    className="ai-doc-input"
-                />
-            </label>
+                    <TextField
+                        label="Maximum parallel calls to LLM server"
+                        type="number"
+                        inputMode="numeric"
+                        value={maxWorkers === null ? '' : String(maxWorkers)}
+                        onChange={(raw) =>
+                            setMaxWorkers(
+                                raw === '' ? null : Math.max(1, Number.parseInt(raw, 10) || 1),
+                            )
+                        }
+                    />
 
-            <div className={styles.actions}>
-                <button
-                    type="button"
-                    className="btn btn-primary btn-wide"
-                    onClick={() => void handleSave()}
-                    disabled={isSaving}
-                >
-                    {isSaving ? 'Saving...' : 'Save LLM settings'}
-                </button>
-            </div>
-        </section>
+                    <FormActions>
+                        <Button
+                            variant="primary"
+                            loading={isSaving}
+                            onClick={() => void handleSave()}
+                        >
+                            {isSaving ? 'Saving...' : 'Save LLM settings'}
+                        </Button>
+                    </FormActions>
+                </Stack>
+            </AsyncBlock>
+        </Stack>
     )
 }

@@ -1,10 +1,12 @@
-import path from 'path'
+import { fileURLToPath } from 'node:url'
 
 import { emitManifestPlugin } from '@ds-wizard/plugin-sdk/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, PluginOption } from 'vite'
+import { defineConfig, PluginOption, Rolldown } from 'vite'
 
-import { pluginMetadata } from './src/metadata'
+import { pluginMetadata } from './src/metadata.ts'
+
+type OutputAsset = Rolldown.OutputAsset
 
 function inlineCssIntoJsPlugin(): PluginOption {
     return {
@@ -12,8 +14,9 @@ function inlineCssIntoJsPlugin(): PluginOption {
         apply: 'build',
         enforce: 'post',
         generateBundle(_options, bundle) {
-            const cssAssets = Object.entries(bundle).filter(
-                ([, output]) => output.type === 'asset' && output.fileName.endsWith('.css'),
+            const cssAssets = Object.values(bundle).filter(
+                (output): output is OutputAsset =>
+                    output.type === 'asset' && output.fileName.endsWith('.css'),
             )
 
             if (cssAssets.length === 0) {
@@ -21,11 +24,11 @@ function inlineCssIntoJsPlugin(): PluginOption {
             }
 
             const cssText = cssAssets
-                .map(([, output]) => output.source)
+                .map((output) => output.source)
                 .filter((source): source is string => typeof source === 'string')
                 .join('\n')
 
-            for (const [fileName] of cssAssets) {
+            for (const { fileName } of cssAssets) {
                 delete bundle[fileName]
             }
 
@@ -48,7 +51,7 @@ export default defineConfig(({ mode }) => {
 
         resolve: {
             alias: {
-                '@': path.resolve(__dirname, 'src'),
+                '@': fileURLToPath(new URL('./src', import.meta.url)),
             },
         },
 
@@ -58,7 +61,7 @@ export default defineConfig(({ mode }) => {
 
         // Ensure the bundle works in a plain browser host (no Node "process")
         define: {
-            '__API_URL__': JSON.stringify(
+            __API_URL__: JSON.stringify(
                 mode === 'production'
                     ? `/gateway/plugins/${pluginMetadata.uuid}`
                     : 'http://localhost:8010',
@@ -102,7 +105,7 @@ export default defineConfig(({ mode }) => {
             emptyOutDir: true,
 
             // Single-file bundle (handy for plugin loaders)
-            rollupOptions: {
+            rolldownOptions: {
                 plugins: [emitManifestPlugin(pluginMetadata)],
             },
         },

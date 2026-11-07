@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { SelectField } from '@ds-wizard/plugin-sdk/ui/Field'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
 
-import styles from '@/components/TemplateDropdown.module.css'
 import type { TemplateOption } from '@/types'
-
-export const CUSTOM_TEMPLATE_OPTION = '__custom_template__'
 
 type TemplateDropdownProps = {
     value: string
@@ -12,11 +11,14 @@ type TemplateDropdownProps = {
     onCreate?: () => void
     isLoading?: boolean
     disabled?: boolean
+    label?: string
     placeholder?: string
     loadingLabel?: string
-    customOptionLabel?: string
 }
 
+const toOption = (template: TemplateOption) => ({ value: template.uuid, label: template.title })
+
+/** The template select, personal and tenant-wide templates grouped, with a button to create one. */
 export function TemplateDropdown({
     value,
     onChange,
@@ -24,140 +26,42 @@ export function TemplateDropdown({
     onCreate,
     isLoading = false,
     disabled = false,
+    label = 'Template',
     placeholder = 'Select a template',
     loadingLabel = 'Loading templates...',
-    customOptionLabel = 'Custom template...',
 }: TemplateDropdownProps) {
-    const [isOpen, setIsOpen] = useState(false)
-    const rootRef = useRef<HTMLDivElement | null>(null)
-
-    const isCustomOption = value === CUSTOM_TEMPLATE_OPTION
-
-    const displayLabel = useMemo(() => {
-        if (!value) {
-            return isLoading ? loadingLabel : placeholder
-        }
-
-        if (isCustomOption) {
-            return customOptionLabel
-        }
-
-        const selectedTemplate = templates.find((template) => template.uuid === value)
-        return selectedTemplate?.title ?? placeholder
-    }, [customOptionLabel, isCustomOption, isLoading, loadingLabel, placeholder, templates, value])
-
-    useEffect(() => {
-        if (!isOpen) {
-            return
-        }
-
-        const handlePointerDown = (event: MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) {
-                setIsOpen(false)
-            }
-        }
-
-        const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setIsOpen(false)
-            }
-        }
-
-        document.addEventListener('mousedown', handlePointerDown)
-        document.addEventListener('keydown', handleEscape)
-
-        return () => {
-            document.removeEventListener('mousedown', handlePointerDown)
-            document.removeEventListener('keydown', handleEscape)
-        }
-    }, [isOpen])
-
-    const handleSelect = (nextValue: string) => {
-        onChange(nextValue)
-        setIsOpen(false)
-    }
-
-    const handleCreate = () => {
-        setIsOpen(false)
-        onCreate?.()
-    }
-
     const personalTemplates = templates.filter((template) => template.scope === 'personal')
     const tenantTemplates = templates.filter((template) => template.scope === 'tenant')
 
-    const renderOption = (template: TemplateOption) => (
-        <button
-            key={template.uuid}
-            type="button"
-            role="option"
-            aria-selected={value === template.uuid}
-            className={`${styles.item} ${value === template.uuid ? styles.itemActive : ''}`}
-            onClick={() => handleSelect(template.uuid)}
-        >
-            {template.title}
-        </button>
-    )
+    const groups = [
+        { label: 'My templates', options: personalTemplates.map(toOption) },
+        { label: 'Common templates', options: tenantTemplates.map(toOption) },
+    ].filter((group) => group.options.length > 0)
+
+    // A value that is no longer listed (e.g. just deleted) falls back to the placeholder.
+    const selectedValue = templates.some((template) => template.uuid === value) ? value : ''
 
     return (
-        <div className={styles.root} ref={rootRef}>
-            <button
-                type="button"
+        <Stack>
+            <SelectField
+                label={label}
+                value={selectedValue}
+                onChange={onChange}
+                options={[{ value: '', label: isLoading ? loadingLabel : placeholder }]}
+                groups={groups}
                 disabled={isLoading || disabled}
-                className={styles.toggle}
-                onClick={() => setIsOpen((currentValue) => !currentValue)}
-                aria-expanded={isOpen}
-                aria-haspopup="listbox"
-            >
-                <span>{displayLabel}</span>
-                <span className={styles.caret} aria-hidden="true">
-                    ▼
-                </span>
-            </button>
+                hint={
+                    !isLoading && templates.length === 0 ? 'No templates available yet.' : undefined
+                }
+            />
 
-            {isOpen ? (
-                <div className={styles.menu} role="listbox">
-                    {personalTemplates.length > 0 ? (
-                        <div className={styles.group} role="group" aria-label="My templates">
-                            <div className={styles.groupLabel}>
-                                <i
-                                    className={`fas fa-user ${styles.groupIcon}`}
-                                    aria-hidden="true"
-                                />
-                                My templates
-                            </div>
-                            {personalTemplates.map(renderOption)}
-                        </div>
-                    ) : null}
-
-                    {tenantTemplates.length > 0 ? (
-                        <div className={styles.group} role="group" aria-label="Common templates">
-                            <div className={styles.groupLabel}>
-                                <i
-                                    className={`fas fa-building ${styles.groupIcon}`}
-                                    aria-hidden="true"
-                                />
-                                Common templates
-                            </div>
-                            {tenantTemplates.map(renderOption)}
-                        </div>
-                    ) : null}
-
-                    {templates.length === 0 ? (
-                        <div className={styles.emptyState}>No templates available yet.</div>
-                    ) : null}
-
-                    {onCreate ? (
-                        <button
-                            type="button"
-                            className={`${styles.item} ${styles.createItem}`}
-                            onClick={handleCreate}
-                        >
-                            <i className="fas fa-plus" aria-hidden="true" />
-                            Create your own template
-                        </button>
-                    ) : null}
-                </div>
+            {onCreate ? (
+                <Inline>
+                    <Button icon="fa-plus" disabled={disabled} onClick={onCreate}>
+                        Create your own template
+                    </Button>
+                </Inline>
             ) : null}
-        </div>
+        </Stack>
     )
 }

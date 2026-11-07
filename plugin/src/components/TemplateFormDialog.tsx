@@ -1,10 +1,14 @@
-import { ChangeEvent, DragEvent, useRef, useState } from 'react'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { CheckboxField, TextField } from '@ds-wizard/plugin-sdk/ui/Field'
+import { FileUpload } from '@ds-wizard/plugin-sdk/ui/FileUpload'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Label } from '@ds-wizard/plugin-sdk/ui/Text'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { createTemplate, updateTemplate } from '@/client'
 import { CoverPagePreview } from '@/components/CoverPagePreview'
 import { Modal } from '@/components/Modal'
-import styles from '@/components/TemplateFormDialog.module.css'
 import { TemplateStructureEditor } from '@/components/TemplateStructureEditor'
 import type { ApiTemplateContent, TemplateDetail, TemplateOption, TemplateScope } from '@/types'
 
@@ -48,64 +52,21 @@ export function TemplateFormDialog({ scope, target, onSaved, onClose }: Template
     const [json, setJson] = useState(
         editedTemplate ? JSON.stringify(editedTemplate.content, null, 2) : '',
     )
-    const [fileName, setFileName] = useState('')
+    const [file, setFile] = useState<File | null>(null)
     const [isSaving, setIsSaving] = useState(false)
     const [inputMode, setInputMode] = useState<InputMode>('visual')
-    const [isDraggingFile, setIsDraggingFile] = useState(false)
-    const dragDepthRef = useRef(0)
 
-    const processTemplateFile = async (file: File) => {
+    const processTemplateFile = async (nextFile: File) => {
         try {
-            const content = await file.text()
-            setFileName(file.name)
+            const content = await nextFile.text()
+            setFile(nextFile)
             setJson(content)
             if (!title.trim()) {
-                setTitle(file.name.replace(/\.json$/i, ''))
+                setTitle(nextFile.name.replace(/\.json$/i, ''))
             }
             setInputMode('visual')
         } catch {
             toast.error('Failed to read the selected JSON file.')
-        }
-    }
-
-    const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) {
-            setFileName('')
-            return
-        }
-
-        await processTemplateFile(file)
-        event.target.value = ''
-    }
-
-    const handleDragEnter = (event: DragEvent<HTMLLabelElement>) => {
-        event.preventDefault()
-        dragDepthRef.current += 1
-        setIsDraggingFile(true)
-    }
-
-    const handleDragLeave = (event: DragEvent<HTMLLabelElement>) => {
-        event.preventDefault()
-        dragDepthRef.current -= 1
-        if (dragDepthRef.current <= 0) {
-            dragDepthRef.current = 0
-            setIsDraggingFile(false)
-        }
-    }
-
-    const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
-        event.preventDefault()
-    }
-
-    const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
-        event.preventDefault()
-        dragDepthRef.current = 0
-        setIsDraggingFile(false)
-
-        const file = event.dataTransfer.files?.[0]
-        if (file) {
-            void processTemplateFile(file)
         }
     }
 
@@ -157,100 +118,65 @@ export function TemplateFormDialog({ scope, target, onSaved, onClose }: Template
             closeDisabled={isSaving}
             footer={
                 <>
-                    <button
-                        type="button"
-                        onClick={() => void handleSave()}
-                        disabled={isSaving}
-                        className="btn btn-primary btn-wide"
-                    >
-                        {isSaving ? savingLabel : saveLabel}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isSaving}
-                        className="btn btn-outline-secondary"
-                    >
+                    <Button variant="ghost" onClick={onClose} disabled={isSaving}>
                         Cancel
-                    </button>
+                    </Button>
+                    <Button variant="primary" loading={isSaving} onClick={() => void handleSave()}>
+                        {isSaving ? savingLabel : saveLabel}
+                    </Button>
                 </>
             }
         >
-            <label className="ai-doc-field">
-                <span className="ai-doc-field-label">Template title</span>
-                <input
-                    type="text"
+            <Stack loose>
+                <TextField
+                    label="Template title"
                     value={title}
-                    onChange={(event) => setTitle(event.target.value)}
+                    onChange={setTitle}
                     placeholder="My custom DMP template"
-                    className="form-control"
                 />
-            </label>
 
-            <div className={styles.metadataSection}>
-                <label className={styles.metadataOption}>
-                    <input
-                        type="checkbox"
+                <Stack>
+                    <CheckboxField
+                        label="Include a cover page with DMP metadata and project information"
                         checked={hasCoverPage}
-                        onChange={(event) => setHasCoverPage(event.target.checked)}
+                        onChange={setHasCoverPage}
                         disabled={isSaving}
                     />
-                    <span>Include a cover page with DMP metadata and project information</span>
-                </label>
-                <CoverPagePreview />
-            </div>
+                    <CoverPagePreview />
+                </Stack>
 
-            <div className="ai-doc-field">
-                <span className="ai-doc-field-label">Template structure</span>
-                <div className="ai-doc-segmented-control btn-group" role="group">
-                    {INPUT_MODES.map(({ mode, label }) => (
-                        <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setInputMode(mode)}
-                            className={
-                                inputMode === mode
-                                    ? 'btn btn-secondary'
-                                    : 'btn btn-outline-secondary'
-                            }
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
+                <Stack>
+                    <Label>Template structure</Label>
+                    <div role="group" aria-label="Template structure">
+                        <Inline>
+                            {INPUT_MODES.map(({ mode, label }) => (
+                                <Button
+                                    key={mode}
+                                    size="small"
+                                    pressed={inputMode === mode}
+                                    onClick={() => setInputMode(mode)}
+                                >
+                                    {label}
+                                </Button>
+                            ))}
+                        </Inline>
+                    </div>
 
-                {inputMode === 'visual' ? (
-                    <TemplateStructureEditor value={json} onChange={setJson} />
-                ) : (
-                    <label
-                        className={`${styles.fileDropZone} ${
-                            isDraggingFile ? styles.fileDropZoneDragging : ''
-                        } ${fileName ? styles.fileDropZoneFilled : ''}`}
-                        onDragEnter={handleDragEnter}
-                        onDragLeave={handleDragLeave}
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                    >
-                        <input
-                            type="file"
+                    {inputMode === 'visual' ? (
+                        <TemplateStructureEditor value={json} onChange={setJson} />
+                    ) : (
+                        <FileUpload
+                            label="Template JSON file"
                             accept=".json,application/json"
-                            onChange={(event) => void handleFileInputChange(event)}
-                            className={styles.hiddenInput}
+                            file={file}
+                            onChange={(nextFile) => void processTemplateFile(nextFile)}
+                            onClear={() => setFile(null)}
+                            buttonLabel="Choose a JSON template"
+                            hint="or drop it here"
                         />
-                        <span className={styles.fileDropIcon} aria-hidden="true">
-                            <i className="fas fa-upload" />
-                        </span>
-                        <span className={styles.fileDropTitle}>
-                            {fileName || 'Drop JSON template here'}
-                        </span>
-                        <span className={styles.fileDropHint}>
-                            {fileName
-                                ? 'Click or drop another file to replace'
-                                : 'or click anywhere to browse'}
-                        </span>
-                    </label>
-                )}
-            </div>
+                    )}
+                </Stack>
+            </Stack>
         </Modal>
     )
 }

@@ -58,6 +58,13 @@ dmp_polishing:
     - Consolidate related information that is scattered across sections.
     - Remove or shorten redundant mentions when the same information appears in multiple places (keep it in the most appropriate location).
     - Improve flow and logical structure so each section focuses on its intended theme.
+
+    # Source attribution rules:
+    - Preserve the <statement source="question path"> text </statement> markup and the association between each statement and its supporting source paths. Keep rephrased or translated statements inside their tags with their original sources.
+    - When moving a statement, move its entire statement element, including the opening tag, source attribute, text, and closing tag.
+    - When merging statements, combine their supporting source paths in the resulting statement's source attribute, separated by a single space and without duplicates. Do not attach sources from unrelated statements.
+    - Use only source paths already present in the input statement elements. Copy paths exactly; never invent, shorten, or translate them.
+    - Do not move factual text out of its statement tags, nest statement tags, escape the tags, or wrap them in code blocks. When removing a redundant statement, remove its enclosing tags together with its text.
     
     # Language rules:
     - Write all section content exclusively in {language}.

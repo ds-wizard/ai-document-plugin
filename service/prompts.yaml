@@ -28,6 +28,16 @@ dmp_generation:
     Do not add any information not explicitly stated in the answers! You do not have to include all questions and answers, you may omit information that clearly does not fit into the section. 
     Do not rewrite the heading, write only the section content. Make the text sound natural, it should not be just direct copy of the questions and answers, but rather a concise, well structured and fluent data management plan. 
     Feel free to use markdown tables or lists. Maintain consistency in style and terminology with the already generated parts. 
+
+    Source attribution is mandatory for every factual statement. Wrap each statement in exactly this format:
+    <statement source="question path"> xxxxx </statement>
+    Replace "question path" with the exact Question path supplied alongside the answer that supports the statement, and replace "xxxxx" with the statement text. Never output these placeholders literally.
+    Copy source paths exactly; do not invent, shorten, or translate them. Only cite questions with answers that support the statement.
+    If a statement combines information from multiple answers, list all supporting Question paths in the source attribute, separated by a single space, without duplicates:
+    <statement source="chapter.question1 chapter.question2"> Statement supported by both answers. </statement>
+    Do not leave any factual information outside statement tags. Use separate tags for statements with different supporting sources, and do not nest statement tags.
+    Keep Markdown list markers and table delimiters outside the tags; wrap the factual text within each list item or table cell. Purely structural headings and labels do not need source tags.
+    Return the tags directly as part of the section content, without escaping them or enclosing the output in a code block.
     
     The output language should be {language}. Keep proper names, official project names, abbreviations, identifiers, filenames, repository names, standards, licences, and technical terms that are conventionally left untranslated in their original form.
 

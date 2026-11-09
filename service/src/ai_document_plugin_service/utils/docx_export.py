@@ -5,6 +5,7 @@ the export if one does appear -- a rule is dropped and an image leaves its alt t
 """
 
 import io
+import re
 from typing import TYPE_CHECKING
 
 import docx
@@ -16,6 +17,7 @@ from markdown_it import MarkdownIt
 from markdown_it.tree import SyntaxTreeNode
 
 COVER_PAGE_END = '<!-- ai-cover-page-end -->'
+_STATEMENT_TAG = re.compile(r"""<statement\s+source\s*=\s*(?:"[^"]*"|'[^']*')\s*>|</statement\s*>""")
 
 if TYPE_CHECKING:
     from docx.document import Document
@@ -177,7 +179,9 @@ def markdown_to_docx(markdown: str, *, title: str | None = None) -> bytes:
     if title:
         document.core_properties.title = title
 
-    _write_blocks(document, SyntaxTreeNode(_PARSER.parse(markdown)).children)
+    # Strip source metadata before parsing so statement-wrapped Markdown retains its formatting.
+    export_markdown = _STATEMENT_TAG.sub('', markdown)
+    _write_blocks(document, SyntaxTreeNode(_PARSER.parse(export_markdown)).children)
 
     buffer = io.BytesIO()
     document.save(buffer)

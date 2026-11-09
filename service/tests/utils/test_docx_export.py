@@ -274,3 +274,38 @@ async def test_cover_page_ends_with_page_break_in_word() -> None:
 def test_no_cover_page_does_not_add_page_break() -> None:
     document = _render('# Main content\n\nBody text')
     assert not document.element.xpath('//w:br[@w:type="page"]')
+
+
+def test_statement_sources_are_omitted_but_text_formatting_and_regular_links_remain() -> None:
+    document = _render(
+        '<statement source="ch.q1 ch.q2">**First sentence.**</statement> '
+        '<statement source="ch.q3">Second sentence with [a link](https://example.org).</statement>',
+    )
+
+    assert len(document.paragraphs) == 1
+    paragraph = document.paragraphs[0]
+    assert paragraph.runs[0].text == 'First sentence.'
+    assert paragraph.runs[0].bold is True
+    assert 'Second sentence with' in paragraph.text
+    assert _link_targets(paragraph) == ['https://example.org']
+    assert _hyperlink_text(paragraph) == ['a link']
+    assert '<statement' not in document.element.xml
+    assert 'ch.q' not in document.element.xml
+
+
+def test_statement_sources_are_omitted_from_cover_lists_and_tables() -> None:
+    document = _render(
+        "# Cover\n\n<statement source='ch.cover'>Project name.</statement>\n\n"
+        '<!-- ai-cover-page-end -->\n\n'
+        '- <statement source="ch.list">List item.</statement>\n\n'
+        '| Value |\n| --- |\n| <statement source="ch.table">**Table text.**</statement> |',
+    )
+
+    assert document.paragraphs[1].text == 'Project name.'
+    assert any(p.text == 'List item.' and _style_name(p) == 'List Bullet' for p in document.paragraphs)
+    cell = document.tables[0].cell(1, 0)
+    assert cell.text == 'Table text.'
+    assert cell.paragraphs[0].runs[0].bold is True
+    assert len(document.element.xpath('//w:br[@w:type="page"]')) == 1
+    assert '<statement' not in document.element.xml
+    assert 'ch.' not in document.element.xml

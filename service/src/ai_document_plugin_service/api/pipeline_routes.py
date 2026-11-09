@@ -71,11 +71,13 @@ async def get_pipeline_status(
         raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
     return status
 
+
 @pipeline_router.patch('/pipelines/status/{run_id}/title')
 async def rename_pipeline_title(
     run_id: UUID, payload: PipelineRenameRequest, pipeline: PipelineServiceDI, auth: AuthenticatedDI
 ) -> PipelineStatusResponse:
     return await pipeline.rename_pipeline(run_id, payload, auth)
+
 
 @pipeline_router.delete('/pipelines/status/{run_id}', status_code=204)
 async def delete_pipeline(run_id: UUID, pipeline: PipelineServiceDI, auth: AuthenticatedDI) -> None:

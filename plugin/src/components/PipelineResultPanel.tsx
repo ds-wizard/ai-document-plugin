@@ -13,6 +13,7 @@ import { MarkdownRenderer } from '@/markdown-utils'
 import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
+    projectUuid: string
     resultMarkdown: string | null
     resultRunId: string | null
     downloadBaseName: string
@@ -20,6 +21,7 @@ type PipelineResultPanelProps = {
 }
 
 export function PipelineResultPanel({
+    projectUuid,
     resultMarkdown,
     resultRunId,
     downloadBaseName,
@@ -156,7 +158,10 @@ export function PipelineResultPanel({
                         />
                     </Stack>
                 ) : (
-                    <MarkdownRenderer markdown={displayedResultMarkdown || ''} />
+                    <MarkdownRenderer
+                        markdown={displayedResultMarkdown || ''}
+                        projectUuid={projectUuid}
+                    />
                 )}
             </Card>
         </Stack>

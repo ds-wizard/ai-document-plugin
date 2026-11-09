@@ -13,11 +13,12 @@ import {
 } from '@/hooks/useGenerationHistory'
 
 type RunDetailPanelProps = {
+    projectUuid: string
     runId: string
     history: UseGenerationHistoryResult
 }
 
-export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
+export function RunDetailPanel({ runId, history, projectUuid }: RunDetailPanelProps) {
     const run = history.getRun(runId)
     const { ensureDetailLoaded, applyStatus } = history
 
@@ -80,6 +81,7 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
         <Stack loose>
             {heading}
             <PipelineResultPanel
+                projectUuid={projectUuid}
                 resultMarkdown={run.resultMarkdown}
                 resultRunId={run.runId}
                 downloadBaseName={run.templateTitle}

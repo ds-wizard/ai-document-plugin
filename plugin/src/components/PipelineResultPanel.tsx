@@ -10,6 +10,7 @@ import { saveEditedPipelineResult } from '@/client'
 import { DownloadDropdown } from '@/components/DownloadDropdown'
 import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
+import { stripStatementSources } from '@/statement-sources'
 import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
@@ -47,7 +48,7 @@ export function PipelineResultPanel({
         }
 
         try {
-            await navigator.clipboard.writeText(displayedResultMarkdown)
+            await navigator.clipboard.writeText(stripStatementSources(displayedResultMarkdown))
             toast.success('Markdown has been copied to the clipboard.')
         } catch {
             toast.error('Failed to copy markdown to the clipboard.')

@@ -1,3 +1,11 @@
+/** Remove source metadata for downloads while preserving the enclosed Markdown. */
+export function stripStatementSources(markdown: string): string {
+    return markdown.replace(
+        /<statement\s+source\s*=\s*(?:"[^"]*"|'[^']*')\s*>|<\/statement\s*>/g,
+        '',
+    )
+}
+
 /** Render statement metadata as links without enabling arbitrary HTML in Markdown. */
 export function prepareStatementSources(markdown: string, projectUuid: string, dswUrl: string) {
     const sourceLinks = new Map<string, string>()
@@ -8,7 +16,17 @@ export function prepareStatementSources(markdown: string, projectUuid: string, d
         /(^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\2[^\S\n]*(?:\n|$))|(`+)[^`]*?\3|<statement\s+source\s*=\s*(?:"([^"]*)"|'([^']*)')\s*>([\s\S]*?)<\/statement\s*>(\s*(?=<statement\s+source\s*=))?/gm
     const renderedMarkdown = markdown.replace(
         tokens,
-        (match, fence, _fenceMarker, code, doubleSource, singleSource, content, separator, offset) => {
+        (
+            match,
+            fence,
+            _fenceMarker,
+            code,
+            doubleSource,
+            singleSource,
+            content,
+            separator,
+            offset,
+        ) => {
             if (fence || code) return match
             const paths = [...new Set<string>((doubleSource ?? singleSource).trim().split(/\s+/))]
             const links = paths.filter(Boolean).map((path) => {

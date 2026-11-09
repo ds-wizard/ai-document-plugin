@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { exportPipelineResultAsDocx } from '@/client'
 import styles from '@/components/DownloadDropdown.module.css'
 import { triggerBlobDownload } from '@/download'
+import { stripStatementSources } from '@/statement-sources'
 
 type DownloadDropdownProps = {
     markdown: string
@@ -14,7 +15,7 @@ type DownloadDropdownProps = {
 }
 
 /**
- * Download menu for a pipeline result, offering the raw markdown or a Word export.
+ * Download menu for a pipeline result, offering Markdown or Word without source metadata.
  *
  * The markdown passed in is the editor's current text, so unsaved edits are downloaded too.
  */
@@ -58,7 +59,9 @@ export function DownloadDropdown({ markdown, runId, baseName }: DownloadDropdown
             return
         }
 
-        const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+        const blob = new Blob([stripStatementSources(markdown)], {
+            type: 'text/markdown;charset=utf-8',
+        })
         triggerBlobDownload(blob, `${fileBaseName}.md`)
         toast.success('Markdown download has started.')
     }

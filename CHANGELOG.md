@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-09
+
+- Updated the UI to the DSW 5.0 design system, following the wizard theme and dark mode (#219)
+- Updated the DSW plugin SDK to 0.12.0 and plugin build dependencies (#219)
+- Added acknowledgements (#204)
+
 ## [0.4.0] - 2026-10-29
 
 - Added explicit output language selection for document generation (#156)

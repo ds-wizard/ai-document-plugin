@@ -6,6 +6,7 @@ import {
     deletePipeline,
     getPipelineHistory,
     getPipelineStatus,
+    renamePipeline,
     runPipeline,
 } from '@/client'
 import { pollRunStatus } from '@/runPoller'
@@ -37,6 +38,8 @@ export type RunRecord = {
 export const getRunVersionLabel = (run: RunRecord): string =>
     run.namedVersion?.trim() || 'Unknown version'
 
+export const getRunTitle = (run: RunRecord): string => run.templateTitle
+
 export const getRunTimeLabel = (run: RunRecord): string => {
     const date = new Date(run.createdAt)
     if (Number.isNaN(date.getTime())) return 'Time unavailable'
@@ -61,6 +64,7 @@ export type UseGenerationHistoryResult = {
     startRun: (templateUuid: string, language: string) => Promise<RunRecord | null>
     ensureDetailLoaded: (runId: string) => void
     applyStatus: (status: PipelineStatusResponse) => RunRecord
+    renameRun: (runId: string, name: string) => Promise<boolean>
 }
 
 const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
@@ -206,6 +210,20 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
 
     const getRun = useCallback((runId: string) => runsRef.current[runId], [])
 
+    const renameRun = useCallback(
+        async (runId: string, name: string): Promise<boolean> => {
+            if (!name.trim()) return false
+            try {
+                applyStatus(await renamePipeline(runId, name.trim()))
+                return true
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Failed to rename the run.')
+                return false
+            }
+        },
+        [applyStatus],
+    )
+
     const startRun = useCallback(
         async (templateUuid: string, language: string): Promise<RunRecord | null> => {
             if (!project) {
@@ -330,5 +348,6 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         startRun,
         ensureDetailLoaded,
         applyStatus,
+        renameRun,
     }
 }

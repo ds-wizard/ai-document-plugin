@@ -21,7 +21,7 @@ assignment:
 
 
 dmp_generation:
-  max_tokens: 2048
+  max_tokens: 16384
   temperature: 0.8
   system_message: |
     You are a data management plan writer. Rewrite the following questions and answers into ONE SECTION with NO subsections of a DMP. 
@@ -48,7 +48,7 @@ cover_page_generation:
     Do not include the top-level section heading or add facts not present in the answers.
 
 dmp_polishing:
-  max_tokens: 16384
+  max_tokens: 32768
   temperature: 0.3
   system_message: |
     You are a data management plan editor. Your task is to polish and reorganize a DMP document. Output a valid Markdown file. 

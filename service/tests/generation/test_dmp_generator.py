@@ -260,13 +260,39 @@ def test_construct_chapter_prompt_returns_none_for_empty() -> None:
 
 def test_construct_chapter_prompt_formats_questions() -> None:
     replies = [
-        {'type': 'question', 'question_title': 'Q1', 'reply': 'A1', 'children': []},
+        {'type': 'question', 'question_path': 'ch.q1', 'question_title': 'Q1', 'reply': 'A1', 'children': []},
     ]
     prompt = _component().construct_chapter_prompt('Data', replies)
     assert prompt is not None
     assert 'Chapter name: Data' in prompt
-    assert 'Q1' in prompt
-    assert 'A1' in prompt
+    assert ' - Question: Q1\n   Question path: ch.q1\n   Answer: A1\n' in prompt
+
+
+def test_construct_chapter_prompt_preserves_nested_questions() -> None:
+    replies = [
+        {
+            'type': 'question',
+            'question_path': 'ch.parent',
+            'question_title': 'Parent',
+            'children': [
+                {
+                    'type': 'question',
+                    'question_path': 'ch.parent.child',
+                    'question_title': 'Child',
+                    'reply': 'Child answer',
+                    'children': [],
+                },
+            ],
+        },
+    ]
+
+    prompt = _component().construct_chapter_prompt('Data', replies)
+
+    assert prompt is not None
+    assert (
+        ' - Question: Parent\n   Question path: ch.parent\n'
+        '\t - Question: Child\n\t   Question path: ch.parent.child\n\t   Answer: Child answer\n'
+    ) in prompt
 
 
 async def test_disabled_cover_page_is_omitted_even_when_source_data_are_available() -> None:
@@ -314,6 +340,13 @@ def test_match_replies_selection_handles_multianswer_groups() -> None:
     assert all(item['type'] == 'wrapper' for item in result)
     flattened = [child['reply'] for wrapper in result for child in wrapper['children']]
     assert sorted(flattened) == ['No', 'Yes']
+    prompt = component.construct_chapter_prompt('Data', result)
+    assert prompt is not None
+    assert prompt.count('SUBQUESTIONS GROUP:') == 2
+    assert prompt.count('Question path:') == 2
+    assert '\t   Question path: ch.listQ.uuidA.itemQ\n\t   Answer: Yes\n' in prompt
+    assert '\t   Question path: ch.listQ.uuidB.itemQ\n\t   Answer: No\n' in prompt
+    assert '*' not in prompt
 
 
 def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -> None:
@@ -347,6 +380,10 @@ def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -
     assert synthetic['question_title'] == 'Neighbor'
     assert synthetic['reply'] == 'No'
     assert synthetic['debug-info']
+    prompt = component.construct_chapter_prompt('Data', result)
+    assert prompt is not None
+    assert '   Question path: ch.listQ.itemQ\n   Answer: Yes\n' in prompt
+    assert '   Question path: ch.listQ.neighborQ\n   Answer: No\n' in prompt
 
 
 def test_filter_reachable_replies_drops_stale_option_branch() -> None:

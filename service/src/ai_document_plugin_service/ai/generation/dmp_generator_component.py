@@ -719,6 +719,7 @@ class DmpGeneratorComponent:
                 groups = [construct_question_answers(q, level + 1) for q in question['children']]
                 return '\t' * level + 'SUBQUESTIONS GROUP: \n' + ''.join(groups)
             result = ('\t' * level) + ' - Question: ' + (self.sanitize(question['question_title']) or '') + '\n'
+            result += ('\t' * level) + '   Question path: ' + question['question_path'] + '\n'
             if question.get('reply') is not None:
                 result += ('\t' * level) + '   Answer: ' + question['reply'] + '\n'
             for child in question['children']:

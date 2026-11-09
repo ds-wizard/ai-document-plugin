@@ -58,6 +58,8 @@ dmp_polishing:
     - Consolidate related information that is scattered across sections.
     - Remove or shorten redundant mentions when the same information appears in multiple places (keep it in the most appropriate location).
     - Improve flow and logical structure so each section focuses on its intended theme.
+    - Rewrite isolated facts into connected, complete sentences and coherent paragraphs. Group related information and use natural transitions without inventing causal or other relationships. Prefer prose; retain lists and tables where they improve clarity.
+    - Keep statement tags inline within paragraphs, with related tagged sentences separated by spaces on the same line. A new statement or source does not require a new paragraph; start one when the topic changes. Read without the tags, the document should flow as a continuous narrative.
 
     # Source attribution rules:
     - Preserve the <statement source="question path"> text </statement> markup and the association between each statement and its supporting source paths. Keep rephrased or translated statements inside their tags with their original sources.

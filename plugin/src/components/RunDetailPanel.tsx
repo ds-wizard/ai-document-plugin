@@ -18,6 +18,7 @@ import {
 import type { PipelineStatusResponse } from '@/types.ts'
 
 type RunDetailPanelProps = {
+    projectUuid: string
     runId: string
     history: UseGenerationHistoryResult
 }
@@ -25,6 +26,7 @@ type RunDetailPanelProps = {
 function RunNameEditor({
     name,
     onRename,
+    projectUuid,
 }: {
     name: string
     onRename: (name: string) => Promise<boolean>

@@ -171,7 +171,11 @@ export default function ProjectTab({
             <div className={styles.main}>
                 <div className={styles.content}>
                     {selectedRunId ? (
-                        <RunDetailPanel runId={selectedRunId} history={history} />
+                        <RunDetailPanel
+                            runId={selectedRunId}
+                            history={history}
+                            projectUuid={project.uuid}
+                        />
                     ) : (
                         <Stack loose>
                             <ProjectTemplatePanel

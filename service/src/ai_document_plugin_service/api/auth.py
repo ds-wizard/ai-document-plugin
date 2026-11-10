@@ -13,7 +13,7 @@ DSW_API_URL_HEADER = 'X-Dsw-Api-Url'
 DSW_USER_VALIDATION_TIMEOUT_SECONDS = 10.0
 DSW_USER_VALIDATION_SUCCESS_STATUS = 200
 DSW_ADMIN_ROLE = 'admin'
-DSW_ADMIN_PERMISSION = 'SettingsManageRolePermission'
+DSW_ADMIN_PERMISSION = 'settings.manage'
 logger = logging.getLogger(__name__)
 
 

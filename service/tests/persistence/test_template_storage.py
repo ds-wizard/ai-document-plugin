@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from sqlalchemy import Row
 
 
-@pytest.mark.parametrize('operation', ['create', 'update', 'save'])
+@pytest.mark.parametrize('operation', ['create', 'update'])
 async def test_template_writes_json_and_reads_typed_content(operation, monkeypatch):
     database = PostgresDB.__new__(PostgresDB)
     schema = create_persistence_schema('test')
@@ -35,10 +35,8 @@ async def test_template_writes_json_and_reads_typed_content(operation, monkeypat
     template_uuid = uuid4()
     if operation == 'create':
         template_uuid = await database.create_template('Template', content, tenant_uuid, None)
-    elif operation == 'update':
-        await database.update_template(template_uuid, tenant_uuid, 'Template', content)
     else:
-        await database.save_template(template_uuid, 'Template', content, tenant_uuid)
+        await database.update_template(template_uuid, tenant_uuid, 'Template', content)
 
     parameters = connection.execute.await_args.args[0].compile().params
     assert parameters['content'] == raw
@@ -57,3 +55,34 @@ async def test_template_writes_json_and_reads_typed_content(operation, monkeypat
         )
     )
     assert record.content == content
+
+
+async def test_list_templates_skips_rows_with_invalid_content(monkeypatch):
+    database = PostgresDB.__new__(PostgresDB)
+    database.schema_name = 'test'
+    database.template_table = create_persistence_schema('test').template_table
+    database._ensure_schema = AsyncMock()
+    tenant_uuid = uuid4()
+
+    def row(title, content):
+        return SimpleNamespace(
+            uuid=uuid4(),
+            title=title,
+            content=content,
+            tenant_uuid=tenant_uuid,
+            user_uuid=None,
+            cover_page_version=None,
+        )
+
+    rows = [row('Invalid', {'sections': [{'content': 'Missing title'}]}), row('Valid', {'sections': []})]
+    connection = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(fetchall=lambda: rows)))
+
+    @asynccontextmanager
+    async def connect():
+        yield connection
+
+    monkeypatch.setattr(database, '_connect', connect)
+
+    records = await database.list_templates(tenant_uuid, uuid4())
+
+    assert [record.title for record in records] == ['Valid']

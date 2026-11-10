@@ -274,7 +274,7 @@ async def test_disabled_cover_page_is_omitted_even_when_source_data_are_availabl
         km=_km_with_phase_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
         project_versions=_project_versions_fixture(),
-        new_assignments=[],
+        assignments=[],
         include_cover_page=False,
     )
 
@@ -621,7 +621,7 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
     result = await component.run_async(
         replies=replies,
         km=km,
-        new_assignments=_serialize_assignments(assignments),
+        assignments=_serialize_assignments(assignments),
     )
     markdown = result['markdown']
     debug_markdown = result['debug_markdown']
@@ -634,9 +634,8 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
     assert 'Source questions' in debug_markdown
 
 
-@pytest.mark.parametrize('cached', [False, True])
 @pytest.mark.parametrize('nested', [False, True])
-async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool, nested: bool) -> None:
+async def test_run_uses_cover_page_assignments_regardless_of_title(nested: bool) -> None:
     stub = StubGenerationLLM(
         section_response=(
             '### Potato project\n\n- Project title: Potato project\n- Project acronym: PP\n- Project number/code: 123'
@@ -681,8 +680,7 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
         replies=replies,
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        new_assignments=None if cached else _serialize_assignments(cover_page_assignments + assignments),
-        db_assignments=_serialize_assignments(cover_page_assignments + assignments) if cached else None,
+        assignments=_serialize_assignments(cover_page_assignments + assignments),
         include_cover_page=True,
     )
 
@@ -711,7 +709,7 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(cached: bool,
     assert len(document.element.xpath('//w:br[@w:type="page"]')) == 1
 
 
-async def test_run_reuses_assignments_without_cover_page() -> None:
+async def test_run_without_cover_page_only_generates_the_document() -> None:
     stub = StubGenerationLLM()
     component = _component(stub, cover_page_generation_prompt='Cover-page-only instruction')
     assignments = _serialize_assignments(
@@ -732,21 +730,15 @@ async def test_run_reuses_assignments_without_cover_page() -> None:
     )
     replies = {'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}}
 
-    first = await component.run_async(
+    result = await component.run_async(
         replies=replies,
         km=_km_fixture(),
-        new_assignments=assignments,
-    )
-    repeated = await component.run_async(
-        replies=replies,
-        km=_km_fixture(),
-        db_assignments=assignments,
+        assignments=assignments,
     )
 
-    assert repeated['markdown'] == first['markdown']
-    assert '# Document section' in repeated['markdown']
-    assert repeated['cover_page'] == first['cover_page'] == ''
-    assert len(stub.section_calls) == 2
+    assert '# Document section' in result['markdown']
+    assert result['cover_page'] == ''
+    assert len(stub.section_calls) == 1
     assert all('Cover-page-only instruction' not in prompt for prompt in stub.section_calls)
 
 
@@ -761,7 +753,7 @@ async def test_run_handles_empty_section() -> None:
     result = await component.run_async(
         replies={},
         km=km,
-        new_assignments=_serialize_assignments(assignments),
+        assignments=_serialize_assignments(assignments),
     )
     markdown = result['markdown']
 
@@ -806,10 +798,7 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        db_assignments=[
-            *cover_page_assignments,
-            SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict(),
-        ],
+        assignments=[*cover_page_assignments, SectionAssignment(id=uuid.uuid4(), title='Research overview').to_dict()],
         include_cover_page=True,
     )
     assert '# Data Management Plan' in result['cover_page']
@@ -827,7 +816,7 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
 async def test_no_cover_page_skips_cover_generation():
     cover_stub = StubGenerationLLM()
     component = DmpGeneratorComponent(StubGenerationLLM(), cover_page_llm=cover_stub, cover_page_field_labels={})
-    await component.run_async(replies={}, km=_km_fixture(), new_assignments=[])
+    await component.run_async(replies={}, km=_km_fixture(), assignments=[])
     assert not cover_stub.section_calls
 
 
@@ -864,7 +853,7 @@ async def test_czech_pipeline_generates_cover_in_english_and_body_in_czech():
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
-        db_assignments=[assignment, assignment],
+        assignments=[assignment, assignment],
         include_cover_page=True,
     )
     assert client.completion.await_count == 2
@@ -911,7 +900,7 @@ async def test_generated_on_uses_browser_timezone(instant, zone, expected):
         km=_km_with_phase_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
         include_cover_page=True,
-        new_assignments=[],
+        assignments=[],
         created_at=datetime.fromisoformat(instant).astimezone(ZoneInfo(zone)),
     )
     assert expected in result['cover_page']

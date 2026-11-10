@@ -16,6 +16,8 @@ class AssignmentQuestionNode(TypedDict, total=False):
 
 
 AssignmentTree = dict[str, AssignmentQuestionNode]
+# Question paths assigned to each leaf section, keyed by section id.
+SectionQuestionPaths = dict[UUID, list[str]]
 
 
 class SerializedSectionAssignment(TypedDict):
@@ -51,6 +53,7 @@ class SectionAssignment:
     title: str
     assignments: AssignmentTree | None = None  # leaf: matched questions
     children: list['SectionAssignment'] | None = None  # non-leaf: nested section assignments
+    question_paths: list[str] | None = None  # leaf: matched question paths the assignments were expanded from
 
     def to_dict(self) -> SerializedSectionAssignment:
         return {

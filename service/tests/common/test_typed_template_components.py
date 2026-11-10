@@ -1,13 +1,11 @@
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
 
 from haystack import Pipeline
 
 from ai_document_plugin_service.ai.assignment.assignment_component import AssignmentComponent
 from ai_document_plugin_service.ai.common.config import load_config
-from ai_document_plugin_service.ai.common.types import AssignmentStats, TemplateContent, TemplateSection
-from ai_document_plugin_service.ai.persistence.assignment_saver_component import AssignmentSaverComponent
+from ai_document_plugin_service.ai.common.types import TemplateContent, TemplateSection
 from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
 
 
@@ -25,33 +23,6 @@ async def test_haystack_assignment_accepts_typed_template():
     result = await pipeline.run_async({'assign': {'data': [], 'template_data': template, 'km': km}})
 
     assert result['assign']['assignments'][0].title == 'Body'
-
-
-async def test_haystack_saver_passes_typed_template_to_storage():
-    saver = AsyncMock()
-    pipeline = Pipeline()
-    pipeline.add_component('save', AssignmentSaverComponent(saver))
-    template = TemplateContent(sections=[TemplateSection(title='Body')])
-
-    await pipeline.run_async(
-        {
-            'save': {
-                'knowledge_model_uuid': uuid4(),
-                'knowledge_model_name': 'Model',
-                'knowledge_model_version': '1',
-                'template_uuid': uuid4(),
-                'template_title': 'Template',
-                'template_data': template,
-                'tenant_uuid': uuid4(),
-                'assignments': [],
-                'stats': AssignmentStats(),
-            }
-        }
-    )
-
-    saved_template = saver.save.await_args.kwargs['template_data']
-    assert isinstance(saved_template, TemplateContent)
-    assert saved_template == template
 
 
 async def test_haystack_polisher_uses_typed_nested_sections():

@@ -2,6 +2,7 @@ import logging
 
 import fastapi
 import fastapi.middleware.cors
+from fastapi.exceptions import RequestValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -45,6 +46,20 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
             },
         )
         return JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
+
+    @app.exception_handler(RequestValidationError)
+    def request_validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # The plugin expects a string detail, as in every other error response.
+        detail = '; '.join(f'{".".join(map(str, error["loc"]))}: {error["msg"]}' for error in exc.errors())
+        logger.warning(
+            'API request failed validation',
+            extra={
+                'http.request.method': request.method,
+                'url.path': request.url.path,
+                'error_message': detail,
+            },
+        )
+        return JSONResponse(status_code=422, content={'detail': detail})
 
     app.add_middleware(
         middleware_class=fastapi.middleware.cors.CORSMiddleware,

@@ -27,7 +27,6 @@ async def test_run_pipeline_passes_typed_template_to_components(monkeypatch):
         await run_pipeline(
             questionnaire_uuid=uuid4(),
             template_uuid=uuid4(),
-            template_title='Template',
             template_data=template,
             tenant_uuid=uuid4(),
             pipeline=Pipeline(),
@@ -37,6 +36,6 @@ async def test_run_pipeline_passes_typed_template_to_components(monkeypatch):
 
     assert runner.await_args is not None
     data = runner.await_args.kwargs['data']
-    for name in ('assignment_component', 'assignment_saver_component', 'dmp_polisher_component'):
+    for name in ('assignment_component', 'dmp_polisher_component'):
         assert data[name]['template_data'] is template
     assert template.model_dump(mode='json', exclude_unset=True) == raw

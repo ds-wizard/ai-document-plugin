@@ -3,23 +3,24 @@ import itertools
 import logging
 import time
 from collections.abc import Callable
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, TypedDict
 from uuid import UUID
 
 from haystack import component
 
 from ai_document_plugin_service.ai.assignment.compatibility_utils import (
-    convert_mappings_to_assignment_tree,
+    convert_mappings_to_assignment_tree_recursive,
 )
 from ai_document_plugin_service.ai.assignment.llm import OpenAILayerMatcher
 from ai_document_plugin_service.ai.assignment.mappers import template_sections_to_records
 from ai_document_plugin_service.ai.assignment.question_tree import (
     build_question_chunks,
 )
+from ai_document_plugin_service.ai.assignment.section_tree import collect_leaf_sections
 from ai_document_plugin_service.ai.assignment.sections.sections_formatter import (
     SectionFormatter,
 )
-from ai_document_plugin_service.ai.assignment.types import SectionAssignment
+from ai_document_plugin_service.ai.assignment.types import SectionAssignment, SectionQuestionPaths, SectionRecord
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.progress import progress_percent
@@ -31,7 +32,15 @@ logger = logging.getLogger(__name__)
 
 class AssignmentComponentResult(TypedDict):
     assignments: list[SectionAssignment]
-    stats: AssignmentStats
+    # None when every section was stored and no LLM call was made.
+    stats: AssignmentStats | None
+    has_new_assignments: bool
+
+
+class _InternalAssignmentResult(NamedTuple):
+    question_paths: SectionQuestionPaths
+    stats: AssignmentStats | None
+    has_new_assignments: bool
 
 
 @component
@@ -62,23 +71,59 @@ class AssignmentComponent:
             record_ids = [section_formatter.record_id_for_sid(sid) for sid in section_ids]
             result_mapping[question_path] = [record_id for record_id in record_ids if record_id is not None]
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
-    async def run_async(
+    async def _assign(
         self,
         data: list[QuestionData],
-        template_data: TemplateContent,
-        km: dict[str, Any],
+        sections: list[SectionRecord],
         on_progress: Callable[[str], None] | None = None,
-    ) -> AssignmentComponentResult:
+        stored_question_paths: SectionQuestionPaths | None = None,
+    ) -> _InternalAssignmentResult:
+        """
+        Runs assignment on all leaf sections:
+
+        For example, sections marked with [x] will get questions assigned:
+        Section A
+          -> Subsection A.1 [x]
+          -> Subsection A.2 [x]
+        Section B
+          -> Subsection B.1
+            -> Sub-subsection B.1.1 [x]
+
+        stored_question_paths has existing assignments in format: Section ID -> [path.to.question1, path.question2, ...]
+        - Section IDs are generated based on their content. This means if a section has changed, its id will also
+            change and its assignments will be recreated.
+
+        Note: Regenerating just one template takes the same amount of time as regenerating all of them. This decision
+        was made to keep consistency between creating and updating.
+        """
         started = time.perf_counter()
         logger.debug('Step 1: Assigning questions to sections...')
 
-        sections = template_sections_to_records(template_data.sections)
+        # Simple type remapping
+        leaf_ids = {leaf.id for leaf in collect_leaf_sections(sections)}
+        # Stored sections that were edited or removed since are dropped here, and so on the next save.
+        stored = {
+            section_id: paths for section_id, paths in (stored_question_paths or {}).items() if section_id in leaf_ids
+        }
+        missing_ids = leaf_ids - stored.keys()
+        if not missing_ids:
+            logger.info(
+                'Skipping assignment step. All sections already have assignment',
+            )
+            return _InternalAssignmentResult(
+                question_paths=stored,
+                stats=None,
+                has_new_assignments=False,
+            )
+
+        # Separate the KM into chunks of given length to avoid overflowing the LLM context and allow parallelization
         question_chunks, question_id_to_path = build_question_chunks(data)
         logger.info(
             'Starting question-to-section assignment',
             extra={
                 'section_count': len(sections),
+                'stored_section_count': len(stored),
+                'missing_section_count': len(missing_ids),
                 'question_chunk_count': len(question_chunks),
                 'question_path_count': len(question_id_to_path),
             },
@@ -120,33 +165,57 @@ class AssignmentComponent:
                 section_formatter=section_formatter,
             )
 
-        assignments = convert_mappings_to_assignment_tree(
-            sections,
-            result_mapping,
-            km,
-        )
+        section_id_to_paths = {section_id: list(paths) for section_id, paths in stored.items()}
+        # clear missing section ids because they will be added in the next step
+        section_id_to_paths.update({section_id: [] for section_id in missing_ids})
+        # Every section is assigned, but only the missing ones are updated so the stored ones do not shift.
+        for path, section_ids in result_mapping.items():
+            for section_id in section_ids:
+                if section_id in missing_ids:
+                    section_id_to_paths[section_id].append(path)
         logger.info(
             'Completed question-to-section assignment',
             extra={
-                'assignment_count': len(assignments),
+                'assignment_count': len(section_id_to_paths),
                 'mapped_question_count': len(result_mapping),
                 'llm_call_count': stats.total_calls,
             },
         )
         stats.set_duration_ms(round((time.perf_counter() - started) * 1000, 3))
 
+        return _InternalAssignmentResult(
+            question_paths=section_id_to_paths,
+            stats=stats,
+            has_new_assignments=True,
+        )
+
+    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats | None, has_new_assignments=bool)
+    async def run_async(
+        self,
+        data: list[QuestionData],
+        template_data: TemplateContent,
+        km: dict[str, Any],
+        on_progress: Callable[[str], None] | None = None,
+        stored_question_paths: SectionQuestionPaths | None = None,
+    ) -> AssignmentComponentResult:
+        """Assign questions to the leaf sections missing from ``stored_question_paths`` and merge in the stored ones."""
+        sections = template_sections_to_records(template_data.sections)
+        assignment_result = await self._assign(data, sections, on_progress, stored_question_paths)
+        assignment_tree = convert_mappings_to_assignment_tree_recursive(sections, assignment_result.question_paths, km)
         return {
-            'assignments': assignments,
-            'stats': stats,
+            'assignments': assignment_tree,
+            'stats': assignment_result.stats,
+            'has_new_assignments': assignment_result.has_new_assignments,
         }
 
-    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats)
+    @component.output_types(assignments=list[SectionAssignment], stats=AssignmentStats | None, has_new_assignments=bool)
     def run(
         self,
         data: list[QuestionData],
         template_data: TemplateContent,
         km: dict[str, Any],
         on_progress: Callable[[str], None] | None = None,
+        stored_question_paths: SectionQuestionPaths | None = None,
     ) -> AssignmentComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
         msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'

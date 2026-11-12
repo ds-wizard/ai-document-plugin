@@ -39,6 +39,8 @@ from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQu
 
 logger = logging.getLogger(__name__)
 
+ACTIVE_PIPELINE_STATUSES = (PipelineStatus.QUEUED, PipelineStatus.RUNNING)
+
 
 def _pipeline_error_from_exception(error: BaseException) -> PipelineErrorResponse:
     # TaskGroup preserves concurrent failures in a group. Show the first failure
@@ -190,7 +192,7 @@ class PipelineService:
         updated = await self.database.update_generation(
             run_id,
             auth.tenant_uuid,
-            expected_statuses=(PipelineStatus.QUEUED, PipelineStatus.RUNNING),
+            expected_statuses=ACTIVE_PIPELINE_STATUSES,
             status=PipelineStatus.CANCELLED,
             progress_message=None,
         )
@@ -230,6 +232,8 @@ class PipelineService:
 
         Raises:
             NotConfiguredError: If the tenant has no LLM settings saved.
+            ConflictError: If this user already has an active run for the project and template.
+            NotFoundError: If the template was deleted before admission.
         """
         if await self.database.get_llm_settings(auth.tenant_uuid) is None:
             raise NotConfiguredError
@@ -242,16 +246,36 @@ class PipelineService:
             },
         )
         project_versions = await DSWClient(auth.token, auth.api_url).get_project_versions(payload.questionnaire_uuid)
-        run_id = await self.database.create_generation(
-            questionnaire_uuid=payload.questionnaire_uuid,
-            template_uuid=payload.template_uuid,
-            title=template.title,
-            language=payload.language,
-            user_uuid=auth.user_uuid,
-            tenant_uuid=auth.tenant_uuid,
-            status=PipelineStatus.QUEUED,
-            named_version=resolve_named_version(project_versions),
-        )
+        async with self.database.transaction():
+            # Reuse the template row lock to serialize admission, even without prior runs.
+            # Keep the lock only for the history check and insert, not pipeline execution.
+            locked_template = await self.database.get_template(
+                payload.template_uuid,
+                auth.tenant_uuid,
+                for_update=True,
+            )
+            if locked_template is None:
+                raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
+            records = await self.database.list_generations(
+                payload.questionnaire_uuid,
+                auth.tenant_uuid,
+                auth.user_uuid,
+            )
+            if any(
+                record.template_uuid == payload.template_uuid and record.status in ACTIVE_PIPELINE_STATUSES
+                for record in records
+            ):
+                raise ConflictError(ConflictError.PIPELINE_ALREADY_ACTIVE_MESSAGE)
+            run_id = await self.database.create_generation(
+                questionnaire_uuid=payload.questionnaire_uuid,
+                template_uuid=payload.template_uuid,
+                title=template.title,
+                language=payload.language,
+                user_uuid=auth.user_uuid,
+                tenant_uuid=auth.tenant_uuid,
+                status=PipelineStatus.QUEUED,
+                named_version=resolve_named_version(project_versions),
+            )
 
         self.pipeline_queue_manager.enqueue(
             run_id,

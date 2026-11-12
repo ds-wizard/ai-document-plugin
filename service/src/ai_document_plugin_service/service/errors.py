@@ -35,6 +35,9 @@ class NotConfiguredError(ServiceError):
 
 
 class ConflictError(ServiceError):
+    PIPELINE_ALREADY_ACTIVE_MESSAGE = (
+        'A generation for this template is already in progress. Please wait until it finishes.'
+    )
     PIPELINE_RUN_NOT_FINISHED_MESSAGE = 'Pipeline run has not finished successfully'
     PIPELINE_RUN_NOT_DELETABLE_MESSAGE = 'Only finished or cancelled pipeline runs can be deleted.'
 

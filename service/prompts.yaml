@@ -21,7 +21,7 @@ assignment:
 
 
 dmp_generation:
-  max_tokens: 2048
+  max_tokens: 4096
   temperature: 0.8
   system_message: |
     You are a data management plan writer. Rewrite the following questions and answers into ONE SECTION with NO subsections of a DMP. 

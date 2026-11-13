@@ -9,32 +9,14 @@
     min-width: 0;
     overflow-y: auto;
     scrollbar-width: thin;
-    margin-top: 1rem;
+    scrollbar-color: var(--ui-border-strong) transparent;
 }
 
-.main::-webkit-scrollbar {
-    width: 6px;
-}
-
-.main::-webkit-scrollbar-thumb {
-    background: var(--ai-doc-color-slate-300);
-    border-radius: 3px;
-}
-
-.root {
+.content {
     width: 100%;
     max-width: 60rem;
     margin: 0 auto;
-    padding: 1.5rem;
-    display: grid;
-    gap: 1.25rem;
-}
-
-.runButton {
-    position: relative;
-    justify-self: start;
-    width: auto;
-    margin-top: 0.25rem;
+    padding: var(--ui-space-6);
 }
 
 .runButton button:disabled {

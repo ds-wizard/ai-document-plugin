@@ -1,13 +1,13 @@
 .field {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    color: var(--ai-doc-color-slate-900);
+    gap: var(--ui-space-2);
+    color: var(--ui-text);
     font: inherit;
 }
 
 .label {
-    color: var(--ai-doc-color-slate-500);
+    color: var(--ui-text-muted);
 }
 
 .root {
@@ -17,27 +17,35 @@
 }
 
 .toggle {
+    position: relative;
     width: auto;
     min-width: 7rem;
     max-width: min(19rem, calc(100vw - 8rem));
-    padding: 0.25rem 1.65rem 0.25rem 0.5rem;
-    border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: 0.25rem;
-    background: transparent;
+    min-height: var(--ui-hit-min);
+    padding: var(--ui-space-1) calc(var(--ui-space-2) + 1.25rem) var(--ui-space-1) var(--ui-space-2);
+    border: 1px solid var(--ui-border-control);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface);
+    color: var(--ui-text);
     display: flex;
     align-items: center;
     justify-content: flex-start;
     font: inherit;
     text-align: left;
+    transition: var(--ui-transition-state);
+}
+
+.toggle:hover:not(:disabled) {
+    background: var(--ui-state-hover);
 }
 
 .toggle:focus-visible {
-    outline: 1px solid var(--ai-doc-color-blue-500);
-    outline-offset: 1px;
+    outline: var(--ui-focus-ring-width) solid var(--ui-focus-ring);
+    outline-offset: var(--ui-focus-ring-offset);
 }
 
 .toggle:disabled {
-    opacity: 0.7;
+    color: var(--ui-text-disabled);
     cursor: not-allowed;
 }
 
@@ -50,66 +58,31 @@
 
 .caret {
     position: absolute;
-    right: 0.55rem;
-    flex-shrink: 0;
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.72rem;
-}
-
-.spinner {
-    position: absolute;
-    right: 0.55rem;
-    width: 0.8rem;
-    height: 0.8rem;
-    border: 2px solid var(--ai-doc-color-slate-300);
-    border-top-color: var(--ai-doc-color-blue-500);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .spinner {
-        animation: none;
-    }
+    right: var(--ui-space-2);
+    color: var(--ui-icon-subtle);
+    font-size: 0.75em;
 }
 
 .menu {
     position: absolute;
-    top: calc(100% + 0.2rem);
+    top: calc(100% + var(--ui-space-1));
     left: 0;
     z-index: 20;
     width: min(22rem, calc(100vw - 3rem));
-    border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: 0.25rem;
-    background: var(--ai-doc-color-white);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    border: 1px solid var(--ui-border-elevated);
+    border-radius: var(--ui-radius-surface);
+    background: var(--ui-elevation-2-surface);
+    box-shadow: var(--ui-elevation-2);
     overflow: hidden;
 }
 
 .searchWrap {
-    padding: 0.5rem;
-    border-bottom: 1px solid var(--ai-doc-color-slate-200);
+    padding: var(--ui-space-2);
+    border-bottom: 1px solid var(--ui-border-subtle);
 }
 
 .searchInput {
     width: 100%;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--ai-doc-color-slate-300);
-    border-radius: 0.25rem;
-    background: transparent;
-    color: var(--ai-doc-color-slate-900);
-    font: inherit;
-}
-
-.searchInput:focus {
-    outline: 1px solid var(--ai-doc-color-blue-500);
-    outline-offset: 1px;
 }
 
 .list {
@@ -119,13 +92,15 @@
 
 .item {
     width: 100%;
-    padding: 0.45rem 0.65rem;
+    padding: var(--ui-space-2) var(--ui-space-3);
     border: 0;
-    border-bottom: 1px solid var(--ai-doc-color-slate-100);
+    border-bottom: 1px solid var(--ui-border-subtle);
     background: transparent;
+    color: var(--ui-text);
     display: grid;
     gap: 0.1rem;
     text-align: left;
+    transition: var(--ui-transition-state);
 }
 
 .item:last-child {
@@ -133,25 +108,30 @@
 }
 
 .item:hover {
-    background: var(--ai-doc-color-slate-100);
+    background: var(--ui-state-hover);
+}
+
+.item:focus-visible {
+    outline: var(--ui-focus-ring-width) solid var(--ui-focus-ring);
+    outline-offset: calc(-1 * var(--ui-focus-ring-width));
 }
 
 .itemActive {
-    background: var(--ai-doc-color-slate-100);
+    background: var(--ui-brand-subtle-selected);
+    color: var(--ui-brand-on-subtle);
 }
 
 .itemPrimary {
-    color: var(--ai-doc-color-slate-900);
-    line-height: 1.35;
+    line-height: var(--ui-leading-tight);
 }
 
 .itemMeta {
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.82rem;
-    line-height: 1.3;
+    color: var(--ui-text-muted);
+    font-size: var(--ui-text-body-sm);
+    line-height: var(--ui-leading-tight);
 }
 
 .emptyState {
-    padding: 0.65rem;
-    color: var(--ai-doc-color-slate-500);
+    padding: var(--ui-space-3);
+    color: var(--ui-text-muted);
 }

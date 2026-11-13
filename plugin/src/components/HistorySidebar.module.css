@@ -1,8 +1,10 @@
 .root {
     /* Three lines: template, named version, and the generation timestamp. */
     --ai-doc-history-item-body: calc(1.5 * 0.9rem + 0.2rem + 2 * 1.5 * 0.75rem);
-    --ai-doc-history-radius: var(--bs-border-radius);
-    --ai-doc-history-line: var(--ai-doc-color-slate-250);
+    --ai-doc-history-radius: var(--ui-radius-control);
+    --ai-doc-history-line: var(--ui-border-subtle);
+    /* The open page's background: the selected item merges into it. */
+    --ai-doc-history-page: var(--ui-surface);
     /* Doubles as the list's inset, so nothing is faded until it actually scrolls. */
     --ai-doc-history-fade: 0.75rem;
 
@@ -14,7 +16,7 @@
     top: 0;
     align-self: flex-start;
     height: 100%;
-    padding: 1.5rem 0 1.5rem 0.75rem;
+    padding: var(--ui-space-6) 0 var(--ui-space-6) var(--ui-space-3);
     /* Anchors the negative z-index of the divider below. */
     isolation: isolate;
 }
@@ -48,38 +50,43 @@
     padding: 0.45rem 0.7rem;
     /* Keep focus/scrollIntoView from parking an item flush against the clip edge. */
     scroll-margin-block: calc(var(--ai-doc-history-radius) + 2px);
-    border: 1px solid var(--ai-doc-color-slate-200);
+    border: 1px solid var(--ui-border-subtle);
     /* Last pixel is left to the divider until the item is selected. */
     border-right-color: transparent;
     border-radius: var(--ai-doc-history-radius) 0 0 var(--ai-doc-history-radius);
-    background: var(--ai-doc-color-slate-50);
+    background: var(--ui-surface-sunken);
     background-clip: padding-box;
-    color: var(--ai-doc-color-slate-800);
+    color: var(--ui-text);
+    font: inherit;
     font-size: 0.9rem;
-    font-weight: 500;
+    font-weight: var(--ui-weight-medium);
     text-align: left;
-    transition:
-        background-color 120ms ease,
-        border-color 120ms ease;
+    transition: var(--ui-transition-state);
+}
+
+.item:focus-visible,
+.newButton:focus-visible {
+    outline: var(--ui-focus-ring-width) solid var(--ui-focus-ring);
+    outline-offset: calc(-1 * var(--ui-focus-ring-width));
 }
 
 .item:hover:not(.itemActive),
 .newButton:hover:not(:disabled) {
-    background: var(--ai-doc-color-slate-100);
-    border-color: var(--ai-doc-color-slate-300);
+    background: var(--ui-state-hover);
+    border-color: var(--ui-border-strong);
     border-right-color: transparent;
 }
 
-/* Selected item reads as the open page: white and merged with the main panel. */
+/* Selected item reads as the open page: the page's background, merged with the main panel. */
 .itemActive,
 .newButton:disabled {
-    background: var(--ai-doc-color-white);
-    /* Border box, so the white runs under the transparent right border and hides the divider. */
+    background: var(--ai-doc-history-page);
+    /* Border box, so the background runs under the transparent right border and hides the divider. */
     background-clip: border-box;
     border-color: var(--ai-doc-history-line);
     border-right-color: transparent;
-    color: var(--ai-doc-color-slate-950);
-    font-weight: 600;
+    color: var(--ui-text);
+    font-weight: var(--ui-weight-semibold);
     z-index: 1;
 }
 
@@ -93,7 +100,7 @@
 /*
  * Concave corners that carry the divider into the selected item's top and
  * bottom edge, so the tab flows into the content instead of butting against it.
- * Each is a white patch over the divider with the arc drawn by a radial
+ * Each is a patch of the page's background over the divider with the arc drawn by a radial
  * gradient centred on the corner the curve turns around.
  */
 .itemActive::before,
@@ -112,10 +119,10 @@
     top: calc(-1px - var(--ai-doc-history-radius));
     background: radial-gradient(
         circle at 0 0,
-        var(--ai-doc-color-white) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-page) calc(var(--ai-doc-history-radius) - 1px),
         var(--ai-doc-history-line) calc(var(--ai-doc-history-radius) - 1px),
         var(--ai-doc-history-line) var(--ai-doc-history-radius),
-        var(--ai-doc-color-white) var(--ai-doc-history-radius)
+        var(--ai-doc-history-page) var(--ai-doc-history-radius)
     );
 }
 
@@ -124,10 +131,10 @@
     bottom: calc(-1px - var(--ai-doc-history-radius));
     background: radial-gradient(
         circle at 0 100%,
-        var(--ai-doc-color-white) calc(var(--ai-doc-history-radius) - 1px),
+        var(--ai-doc-history-page) calc(var(--ai-doc-history-radius) - 1px),
         var(--ai-doc-history-line) calc(var(--ai-doc-history-radius) - 1px),
         var(--ai-doc-history-line) var(--ai-doc-history-radius),
-        var(--ai-doc-color-white) var(--ai-doc-history-radius)
+        var(--ai-doc-history-page) var(--ai-doc-history-radius)
     );
 }
 
@@ -304,13 +311,11 @@
     right: 4px;
     width: 4px;
     border-radius: 2px;
-    background: var(--ai-doc-color-slate-300);
+    background: var(--ui-border-strong);
     opacity: 0;
     z-index: 2;
     touch-action: none;
-    transition:
-        opacity 120ms ease,
-        background-color 120ms ease;
+    transition: var(--ui-transition-state);
 }
 
 /* Only shown while the pointer is over the list itself (or the thumb). */
@@ -322,7 +327,7 @@
 
 .scrollThumb:hover,
 .scrollThumb:active {
-    background: var(--ai-doc-color-slate-400);
+    background: var(--ui-icon-subtle);
 }
 
 .itemBody {
@@ -343,27 +348,26 @@
 .itemVersion,
 .itemTime {
     font-size: 0.75rem;
-    font-weight: 400;
+    font-weight: var(--ui-weight-regular);
     line-height: 1.5;
-    color: var(--ai-doc-color-slate-500);
+    color: var(--ui-text-muted);
 }
 
 .statusIcon {
     flex-shrink: 0;
     font-size: 0.8rem;
-    color: var(--ai-doc-color-slate-500);
+    color: var(--ui-icon-subtle);
 }
 
 .statusIcon.succeeded {
-    color: var(--ai-doc-color-emerald-700);
+    color: var(--ui-success-base);
 }
 
 .statusIcon.failed {
-    color: var(--ai-doc-color-red-700);
+    color: var(--ui-danger-base);
 }
 
 .emptyState {
-    padding: 0.5rem 0.7rem;
-    color: var(--ai-doc-color-slate-500);
-    font-size: 0.85rem;
+    display: block;
+    padding: var(--ui-space-2) 0.7rem;
 }

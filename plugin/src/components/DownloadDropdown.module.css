@@ -3,52 +3,53 @@
 }
 
 .caret {
-    margin-left: 0.5rem;
-    font-size: 0.6rem;
-    vertical-align: middle;
+    font-size: 0.75em;
 }
 
 .menu {
     position: absolute;
-    top: calc(100% + 0.35rem);
+    top: calc(100% + var(--ui-space-1));
     right: 0;
     z-index: 20;
     min-width: 11rem;
     display: grid;
+    padding: var(--ui-space-1) 0;
     overflow: hidden;
-    border: 1px solid var(--ai-doc-color-slate-200);
-    border-radius: var(--bs-border-radius);
-    background: var(--ai-doc-color-white);
-    box-shadow:
-        0 10px 30px rgba(15, 23, 42, 0.08),
-        0 2px 8px rgba(15, 23, 42, 0.05);
+    border: 1px solid var(--ui-border-elevated);
+    border-radius: var(--ui-radius-surface);
+    background: var(--ui-elevation-2-surface);
+    box-shadow: var(--ui-elevation-2);
 }
 
 .item {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: var(--ui-space-2);
     width: 100%;
-    padding: 0.6rem 0.9rem;
+    padding: var(--ui-space-2) var(--ui-space-3);
     border: 0;
     background: transparent;
-    color: var(--ai-doc-color-slate-900);
+    color: var(--ui-text);
+    font: inherit;
     text-align: left;
-    line-height: 1.35;
-    transition: background-color 120ms ease;
+    transition: var(--ui-transition-state);
 }
 
 .item:hover:not(:disabled) {
-    background: var(--ai-doc-color-blue-50);
+    background: var(--ui-state-hover);
+}
+
+.item:focus-visible {
+    outline: var(--ui-focus-ring-width) solid var(--ui-focus-ring);
+    outline-offset: calc(-1 * var(--ui-focus-ring-width));
 }
 
 .item:disabled {
-    opacity: 0.65;
+    color: var(--ui-text-disabled);
     cursor: not-allowed;
 }
 
 .itemIcon {
     width: 1rem;
-    font-size: 0.85rem;
-    color: var(--ai-doc-color-slate-500);
+    color: var(--ui-icon-subtle);
 }

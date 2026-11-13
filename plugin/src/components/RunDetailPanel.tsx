@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
+import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
+import { Badge } from '@ds-wizard/plugin-sdk/ui/Badge'
+import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
+import { Muted } from '@ds-wizard/plugin-sdk/ui/Text'
+import { useEffect } from 'react'
 
-import { FeedbackAlert } from '@/components/FeedbackAlert'
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
-import styles from '@/components/RunDetailPanel.module.css'
 import {
     getRunTimeLabel,
     getRunTitle,
@@ -104,44 +107,37 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
     }, [runId, run?.status, run?.hasDetail, ensureDetailLoaded])
 
     if (!run) {
-        return (
-            <div className={styles.root}>
-                <div className={styles.progress}>
-                    <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-                    Loading generation...
-                </div>
-            </div>
-        )
+        return <AsyncBlock loading loadingLabel="Loading generation..." />
     }
 
     const heading = (
-        <header className={styles.heading}>
+        <Stack>
             <RunNameEditor
                 key={runId}
                 name={getRunTitle(run)}
                 onRename={(name) => history.renameRun(runId, name)}
             />
-            <div className={styles.metadata}>
-                <span className={`badge bg-secondary ${styles.versionBadge}`}>
-                    {getRunVersionLabel(run)}
-                </span>
-                <span>{getRunTimeLabel(run)}</span>
-            </div>
-        </header>
+            <Inline>
+                <Badge>{getRunVersionLabel(run)}</Badge>
+                <Muted>{getRunTimeLabel(run)}</Muted>
+            </Inline>
+        </Stack>
     )
 
     if (run.status === 'queued' || run.status === 'running') {
         return (
-            <div className={styles.root}>
+            <Stack loose>
                 {heading}
-                <div className={styles.progress}>
-                    <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-                    {run.progressMessage ||
+                <AsyncBlock
+                    loading
+                    loadingLabel={
+                        run.progressMessage ||
                         (run.status === 'queued'
                             ? 'Waiting in the queue...'
-                            : 'Generating document...')}
-                </div>
-            </div>
+                            : 'Generating document...')
+                    }
+                />
+            </Stack>
         )
     }
 
@@ -159,29 +155,24 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
 
     if (run.status === 'failed') {
         return (
-            <div className={styles.root}>
+            <Stack loose>
                 {heading}
-                <FeedbackAlert kind="error">
-                    {run.error?.message || 'Pipeline generation failed.'}
-                </FeedbackAlert>
-            </div>
+                <Alert tone="danger">{run.error?.message || 'Pipeline generation failed.'}</Alert>
+            </Stack>
         )
     }
 
     if (!run.hasDetail) {
         return (
-            <div className={styles.root}>
+            <Stack loose>
                 {heading}
-                <div className={styles.progress}>
-                    <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-                    Loading generated document...
-                </div>
-            </div>
+                <AsyncBlock loading loadingLabel="Loading generated document..." />
+            </Stack>
         )
     }
 
     return (
-        <div className={styles.root}>
+        <Stack loose>
             {heading}
             <PipelineResultPanel
                 resultMarkdown={run.resultMarkdown}
@@ -189,6 +180,6 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
                 downloadBaseName={run.templateTitle}
                 onSaved={applyStatus}
             />
-        </div>
+        </Stack>
     )
 }

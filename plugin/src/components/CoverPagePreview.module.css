@@ -1,49 +1,23 @@
-.root {
-    min-width: 0;
-}
-
-.summary {
-    width: fit-content;
-    color: var(--ai-doc-color-blue-700);
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.summary:hover {
-    text-decoration: underline;
-}
-
-.summary:focus-visible {
-    outline: 2px solid var(--ai-doc-color-blue-700);
-    outline-offset: 4px;
-    border-radius: 2px;
-}
-
-.content {
-    display: grid;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
+/*
+ * A sketch of the generated cover page: a page with the metadata table, the history table
+ * and the sections the cover page fills in. It is a picture of a document rather than part
+ * of the wizard's UI, so it keeps its own type sizes; the colors are the wizard's.
+ */
 .embedded {
-    display: grid;
-    gap: 0.5rem;
     min-width: 0;
 }
 
 .embedded .page {
-    padding: 0.75rem;
-    border-radius: 3px;
+    padding: var(--ui-space-3);
 }
 
 .embedded .title {
-    margin-bottom: 0.65rem;
+    margin-bottom: var(--ui-space-2);
     font-size: 1rem;
 }
 
 .embedded .heading {
-    margin: 1rem 0 0.5rem;
+    margin: var(--ui-space-4) 0 var(--ui-space-2);
     font-size: 0.9rem;
 }
 
@@ -62,39 +36,34 @@
     font-size: 0.75rem;
 }
 
-.embedded .attribution {
-    margin-top: 0.5rem;
-}
-
+.embedded .attribution,
 .embedded .fields {
-    margin-top: 0.5rem;
-    line-height: 1.5;
+    margin-top: var(--ui-space-2);
 }
 
-.note,
-.pageBreak {
+.note {
     margin: 0;
-    color: var(--ai-doc-color-slate-600);
-    font-size: 0.875rem;
-    line-height: 1.5;
+    color: var(--ui-text-muted);
+    font-size: var(--ui-text-body-sm);
+    line-height: var(--ui-leading-normal);
 }
 
 .page {
     padding: clamp(1rem, 3vw, 2rem);
-    border: 1px solid var(--ai-doc-color-slate-200);
-    border-radius: 4px;
+    border: 1px solid var(--ui-border-subtle);
+    border-radius: var(--ui-radius-surface);
+    background: var(--ui-surface);
+    color: var(--ui-text);
 }
 
 .title {
-    margin: 0 0 1rem;
+    margin: 0 0 var(--ui-space-4);
     font-size: 1.35rem;
-    color: var(--ai-doc-color-slate-800);
 }
 
 .heading {
-    margin: 1.5rem 0 0.75rem;
+    margin: var(--ui-space-6) 0 var(--ui-space-3);
     font-size: 1.05rem;
-    color: var(--ai-doc-color-slate-800);
 }
 
 .tableWrapper {
@@ -104,44 +73,38 @@
 .table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
-    line-height: 1.5;
+    font-size: var(--ui-text-body-sm);
+    line-height: var(--ui-leading-normal);
 }
 
 .table th,
 .table td {
-    padding: 0.5rem 0.65rem;
-    border: 1px solid var(--ai-doc-color-slate-200);
+    padding: var(--ui-space-2) var(--ui-space-3);
+    border: 1px solid var(--ui-border-subtle);
     text-align: left;
     vertical-align: top;
 }
 
 .table th {
-    font-weight: 600;
-    color: var(--ai-doc-color-slate-700);
+    font-weight: var(--ui-weight-semibold);
 }
 
 .placeholder,
 .attribution {
-    color: var(--ai-doc-color-slate-500);
+    color: var(--ui-text-muted);
     font-style: italic;
 }
 
 .attribution {
+    margin: var(--ui-space-3) 0 0;
     font-size: 0.8rem;
-    margin: 0.75rem 0 0;
-    line-height: 1.5;
+    line-height: var(--ui-leading-normal);
 }
 
 .fields {
-    margin: 0.75rem 0 0;
+    margin: var(--ui-space-3) 0 0;
     padding-left: 1.25rem;
-    color: var(--ai-doc-color-slate-700);
-    font-size: 0.875rem;
-    line-height: 1.7;
-}
-
-.pageBreak {
-    padding-top: 0.75rem;
-    border-top: 1px dashed var(--ai-doc-color-slate-300);
+    color: var(--ui-text-subtle);
+    font-size: var(--ui-text-body-sm);
+    line-height: var(--ui-leading-relaxed);
 }

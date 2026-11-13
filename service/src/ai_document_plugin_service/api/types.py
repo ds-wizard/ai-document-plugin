@@ -263,6 +263,7 @@ class PipelineErrorResponse(ApiModel):
 
 class PipelineSummaryResponse(ApiModel):
     run_id: UUID
+    template_uuid: UUID
     status: PipelineStatus
     template_title: str
     error: PipelineErrorResponse | None = None

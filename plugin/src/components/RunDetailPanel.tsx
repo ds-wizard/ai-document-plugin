@@ -12,8 +12,10 @@ import {
     getRunTimeLabel,
     getRunTitle,
     getRunVersionLabel,
+    RunRecord,
     type UseGenerationHistoryResult,
 } from '@/hooks/useGenerationHistory'
+import type { PipelineStatusResponse } from '@/types.ts'
 
 type RunDetailPanelProps = {
     runId: string
@@ -92,6 +94,47 @@ function RunNameEditor({
     )
 }
 
+function RunDetailPanelBody({
+    run,
+    applyStatus,
+}: {
+    run: RunRecord
+    applyStatus: (status: PipelineStatusResponse) => void
+}) {
+    if (run.status === 'queued' || run.status === 'running') {
+        return (
+            <AsyncBlock
+                loading
+                loadingLabel={
+                    run.progressMessage ||
+                    (run.status === 'queued' ? 'Waiting in the queue...' : 'Generating document...')
+                }
+            />
+        )
+    }
+
+    if (run.status === 'cancelled') {
+        return <Alert tone="info">Pipeline cancelled.</Alert>
+    }
+
+    if (run.status === 'failed') {
+        return <Alert tone="danger">{run.error?.message || 'Pipeline generation failed.'}</Alert>
+    }
+
+    if (!run.hasDetail) {
+        return <AsyncBlock loading loadingLabel="Loading generated document..." />
+    }
+
+    return (
+        <PipelineResultPanel
+            resultMarkdown={run.resultMarkdown}
+            resultRunId={run.runId}
+            downloadBaseName={run.templateTitle}
+            onSaved={applyStatus}
+        />
+    )
+}
+
 export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
     const run = history.getRun(runId)
     const { ensureDetailLoaded, applyStatus } = history
@@ -106,73 +149,20 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
         return <AsyncBlock loading loadingLabel="Loading generation..." />
     }
 
-    const heading = (
-        <Stack>
-            <RunNameEditor
-                key={runId}
-                name={getRunTitle(run)}
-                onRename={(name) => history.renameRun(runId, name)}
-            />
-            <Inline>
-                <Badge>{getRunVersionLabel(run)}</Badge>
-                <Muted>{getRunTimeLabel(run)}</Muted>
-            </Inline>
-        </Stack>
-    )
-
-    if (run.status === 'queued' || run.status === 'running') {
-        return (
-            <Stack loose>
-                {heading}
-                <AsyncBlock
-                    loading
-                    loadingLabel={
-                        run.progressMessage ||
-                        (run.status === 'queued'
-                            ? 'Waiting in the queue...'
-                            : 'Generating document...')
-                    }
-                />
-            </Stack>
-        )
-    }
-
-    if (run.status === 'cancelled') {
-        return (
-            <Stack loose>
-                {heading}
-                <Alert tone="info">Pipeline cancelled.</Alert>
-            </Stack>
-        )
-    }
-
-    if (run.status === 'failed') {
-        return (
-            <Stack loose>
-                {heading}
-                <Alert tone="danger">{run.error?.message || 'Pipeline generation failed.'}</Alert>
-            </Stack>
-        )
-    }
-
-    if (!run.hasDetail) {
-        return (
-            <Stack loose>
-                {heading}
-                <AsyncBlock loading loadingLabel="Loading generated document..." />
-            </Stack>
-        )
-    }
-
     return (
         <Stack loose>
-            {heading}
-            <PipelineResultPanel
-                resultMarkdown={run.resultMarkdown}
-                resultRunId={run.runId}
-                downloadBaseName={run.templateTitle}
-                onSaved={applyStatus}
-            />
+            <Stack>
+                <RunNameEditor
+                    key={runId}
+                    name={getRunTitle(run)}
+                    onRename={(name) => history.renameRun(runId, name)}
+                />
+                <Inline>
+                    <Badge>{getRunVersionLabel(run)}</Badge>
+                    <Muted>{getRunTimeLabel(run)}</Muted>
+                </Inline>
+            </Stack>
+            <RunDetailPanelBody run={run} applyStatus={applyStatus} />
         </Stack>
     )
 }

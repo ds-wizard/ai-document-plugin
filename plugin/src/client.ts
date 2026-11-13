@@ -136,10 +136,8 @@ export const getTemplates = async (): Promise<TemplateOption[]> => {
     return templates
 }
 
-export const getCoverPagePreview = async (
-    language: string,
-): Promise<CoverPagePreviewDefinition> => {
-    const url = `${getApiBaseUrl()}/cover-page/preview?language=${encodeURIComponent(language)}`
+export const getCoverPagePreview = async (): Promise<CoverPagePreviewDefinition> => {
+    const url = `${getApiBaseUrl()}/cover-page/preview`
     const response = await apiFetch(url)
     const definition = await readApiResponse<CoverPagePreviewDefinition | { detail?: string }>(
         response,

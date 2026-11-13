@@ -18,7 +18,6 @@ import type { ApiTemplateContent, TemplateDetail, TemplateOption, TemplateScope 
 export type TemplateFormTarget = TemplateDetail | 'new'
 
 type TemplateFormDialogProps = {
-    language?: string
     scope: TemplateScope
     target: TemplateFormTarget
     onSaved: (template: TemplateOption) => void
@@ -53,7 +52,6 @@ export function TemplateFormDialog({
     target,
     onSaved,
     onClose,
-    language = 'en',
 }: TemplateFormDialogProps) {
     const editedTemplate = target === 'new' ? null : target
     const [hasCoverPage, setHasCoverPage] = useState(editedTemplate?.hasCoverPage ?? false)
@@ -162,7 +160,7 @@ export function TemplateFormDialog({
                         onChange={setHasCoverPage}
                         disabled={isSaving}
                     />
-                    <CoverPagePreview key={language} language={language} />
+                    <CoverPagePreview />
                 </Stack>
 
                 <Separator />

@@ -9,17 +9,16 @@ import type { CoverPagePreviewDefinition } from '@/types'
 
 type CoverPagePreviewProps = {
     embedded?: boolean
-    language: string
 }
 
-export function CoverPagePreview({ embedded = false, language }: CoverPagePreviewProps) {
+export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
     const [definition, setDefinition] = useState<CoverPagePreviewDefinition | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         let cancelled = false
 
-        void getCoverPagePreview(language)
+        void getCoverPagePreview()
             .then((loadedDefinition) => {
                 if (!cancelled) {
                     setDefinition(loadedDefinition)
@@ -34,7 +33,7 @@ export function CoverPagePreview({ embedded = false, language }: CoverPagePrevie
         return () => {
             cancelled = true
         }
-    }, [language])
+    }, [])
 
     const previewContent = (
         <AsyncBlock

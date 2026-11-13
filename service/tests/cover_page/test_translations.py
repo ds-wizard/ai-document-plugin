@@ -31,16 +31,21 @@ def client(config):
     return TestClient(app)
 
 
-def test_languages_and_localized_preview(client):
+def test_languages(client):
     response = client.get('/languages')
     assert response.status_code == 200
     assert {item['code']: item['name'] for item in response.json()} == {'en': 'English', 'cs': 'Czech'}
-    for language, heading in [('en', 'Data Management Plan'), ('cs', 'Plán správy dat')]:
-        preview = client.get('/cover-page/preview', params={'language': language})
-        assert preview.status_code == 200
-        assert preview.json()['metadata']['title']['text'] == heading
-        assert preview.json()['metadata']['fields'][0]['preview'] == 'Your project name'
-    assert client.get('/cover-page/preview?language=de').status_code == 422
+
+
+@pytest.mark.parametrize(('language', 'heading'), [('en', 'Data Management Plan'), ('cs', 'Plán správy dat')])
+def test_translates_cover_page(config, language, heading):
+    assert translate_cover_page(config.cover_definition, language).metadata.title.text == heading
+
+
+def test_preview_is_untranslated(client, config):
+    preview = client.get('/cover-page/preview')
+    assert preview.status_code == 200
+    assert preview.json()['metadata']['title']['text'] == config.cover_definition.metadata.title.text
 
 
 @pytest.mark.parametrize('language', ['de', 'en-US', 'ces', '../en', ''])
@@ -55,13 +60,12 @@ def test_generation_accepts_supported_language(language):
     assert request.language == language
 
 
-def test_missing_translation_fails_without_fallback(config, client, monkeypatch):
+def test_missing_translation_fails_without_fallback(config, monkeypatch):
     translation = languages.get_translation('cs').model_copy(deep=True)
     del translation.cover_page['metadata.title.text']
     monkeypatch.setattr(languages, 'get_translations', lambda: {'cs': translation})
     with pytest.raises(ValueError, match=r'Missing translation for cs: metadata\.title\.text'):
         translate_cover_page(config.cover_definition, 'cs')
-    assert client.get('/cover-page/preview?language=cs').status_code == 422
 
 
 def test_missing_translation_fails_on_config_load(monkeypatch):

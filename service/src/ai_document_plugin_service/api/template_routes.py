@@ -11,7 +11,6 @@ from ai_document_plugin_service.api.types import (
     TemplateListItem,
     TemplateUpdateRequest,
 )
-from ai_document_plugin_service.cover_page.translations import translate_cover_page
 from ai_document_plugin_service.di import (
     AuthenticatedDI,
     ConfigDI,
@@ -25,12 +24,8 @@ templates_router = api_router()
 
 
 @templates_router.get('/cover-page/preview')
-def get_cover_page_preview(config: ConfigDI, language: str = 'en') -> CoverPagePreviewDefinition:
-    try:
-        definition = translate_cover_page(config.cover_definition, language)
-    except ValueError as error:
-        raise fastapi.HTTPException(status_code=422, detail=str(error)) from error
-    return CoverPagePreviewDefinition.from_definition(definition)
+def get_cover_page_preview(config: ConfigDI) -> CoverPagePreviewDefinition:
+    return CoverPagePreviewDefinition.from_definition(config.cover_definition)
 
 
 @templates_router.get('/templates')

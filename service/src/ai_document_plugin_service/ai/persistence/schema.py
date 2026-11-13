@@ -153,14 +153,8 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         # LLM usage per pipeline step. NULL when the step did not run (assignment is skipped
         # when cached assignments are reused) or the run has no stats (failed or old runs).
         Column('assignment_llm_calls', Integer, nullable=True),
-        Column('assignment_input_tokens', Integer, nullable=True),
-        Column('assignment_output_tokens', Integer, nullable=True),
         Column('generation_llm_calls', Integer, nullable=True),
-        Column('generation_input_tokens', Integer, nullable=True),
-        Column('generation_output_tokens', Integer, nullable=True),
         Column('polishing_llm_calls', Integer, nullable=True),
-        Column('polishing_input_tokens', Integer, nullable=True),
-        Column('polishing_output_tokens', Integer, nullable=True),
         Column('elapsed_seconds', Float, nullable=True),
         Column(
             'created_at',

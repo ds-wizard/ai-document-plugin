@@ -95,14 +95,8 @@ class GenerationStats(TypedDict, total=False):
     dmp_pre_polished: str | None
     dmp_polished: str | None
     assignment_llm_calls: int | None
-    assignment_input_tokens: int | None
-    assignment_output_tokens: int | None
     generation_llm_calls: int | None
-    generation_input_tokens: int | None
-    generation_output_tokens: int | None
     polishing_llm_calls: int | None
-    polishing_input_tokens: int | None
-    polishing_output_tokens: int | None
     elapsed_seconds: float | None
 
 

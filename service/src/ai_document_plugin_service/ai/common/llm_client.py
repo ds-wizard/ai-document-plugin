@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from openai import APIError, AsyncOpenAI
 from openai.types.chat import ChatCompletion
@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common import AssignmentStats
 
 logger = logging.getLogger(__name__)
+
+type LLMStage = Literal['assignment', 'generation', 'polishing']
 
 MAX_RETRIES = 3
 RETRY_DELAY_S = 2.0
@@ -137,6 +139,7 @@ class LLMClient:
     async def completion(
         self,
         *args: Any,  # ruff: ignore[any-type]
+        stage: LLMStage,
         stats: 'AssignmentStats | None' = None,
         **kwargs: Any,  # ruff: ignore[any-type]
     ) -> ChatCompletion:
@@ -147,17 +150,18 @@ class LLMClient:
         """
         for _ in range(MAX_RETRIES - 1):
             try:
-                return await self._completion(*args, stats=stats, **kwargs)
+                return await self._completion(*args, stage=stage, stats=stats, **kwargs)
             except LLMError as error:
                 if not error.retryable:
                     raise
                 logger.warning('Error calling LLM, retrying: %s', error.__cause__ or error)
                 await asyncio.sleep(RETRY_DELAY_S)
-        return await self._completion(*args, stats=stats, **kwargs)
+        return await self._completion(*args, stage=stage, stats=stats, **kwargs)
 
     async def _completion(
         self,
         *args: Any,  # ruff: ignore[any-type]
+        stage: LLMStage,
         stats: 'AssignmentStats | None' = None,
         **kwargs: Any,  # ruff: ignore[any-type]
     ) -> ChatCompletion:
@@ -191,6 +195,7 @@ class LLMClient:
         log_llm_event(
             {
                 'state': 'waiting_for_semaphore',
+                'stage': stage,
                 'req_id': req_id,
                 'tenant_uuid': str(self.tenant_uuid),
                 'model': self.model,
@@ -204,6 +209,7 @@ class LLMClient:
             log_llm_event(
                 {
                     'state': 'waiting_for_llm_response',
+                    'stage': stage,
                     'req_id': req_id,
                     'tenant_uuid': str(self.tenant_uuid),
                     'model': self.model,
@@ -222,6 +228,7 @@ class LLMClient:
                 _add_timing(stats, wait_s, duration_s)
                 self._log_llm_completion(
                     req_id=req_id,
+                    stage=stage,
                     status='error',
                     wait_s=wait_s,
                     duration_s=duration_s,
@@ -236,6 +243,7 @@ class LLMClient:
             _add_timing(stats, wait_s, duration_s)
             self._log_llm_completion(
                 req_id=req_id,
+                stage=stage,
                 status='success',
                 wait_s=wait_s,
                 duration_s=duration_s,
@@ -256,6 +264,7 @@ class LLMClient:
         self,
         *,
         req_id: str,
+        stage: LLMStage,
         status: str,
         wait_s: float,
         duration_s: float,
@@ -265,6 +274,7 @@ class LLMClient:
     ) -> None:
         payload = {
             'state': 'completed' if status == 'success' else 'failed',
+            'stage': stage,
             'status': status,
             'req_id': req_id,
             'tenant_uuid': str(self.tenant_uuid),

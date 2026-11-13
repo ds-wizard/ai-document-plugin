@@ -1,0 +1,22 @@
+{
+  "code": "cs",
+  "name": "Czech",
+  "nativeName": "Čeština",
+  "iso6392": "ces/cze",
+  "family": "Indo-European",
+  "coverPage": {
+    "metadata.title.text": "Plán správy dat",
+    "metadata.columns.metadata.text": "Metadata",
+    "metadata.columns.details.text": "Podrobnosti",
+    "metadata.fields.project_name.label": "Název projektu",
+    "metadata.fields.based_on.label": "Založeno na",
+    "metadata.fields.project_phase.label": "Fáze projektu",
+    "metadata.fields.created_by.label": "Vytvořili",
+    "metadata.fields.generated_on.label": "Datum vygenerování",
+    "metadata.attribution": "Plán správy dat vytvořen v Data Stewardship Wizard «ds-wizard.org» pomocí pluginu pro generování dokumentů s využitím AI",
+    "history.title.text": "Historie změn",
+    "history.columns.version.text": "Verze",
+    "history.columns.date.text": "Datum",
+    "history.columns.changes.text": "Změny"
+  }
+}

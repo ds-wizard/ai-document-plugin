@@ -54,9 +54,13 @@ Metadata is rendered directly from resolver results, without AI generation, in t
 | `metadata.fields[].preview` | Placeholder shown in the template preview, not a default value for generated documents. |
 | `metadata.attribution` | Text placed after the metadata table. Use an empty string if no attribution text is wanted. |
 
-The title, column headings, labels, and attribution are taken from the YAML as written; they are not automatically
-translated to the selected document language. Missing metadata values produce empty cells, not the preview text.
+The title, column headings, labels, and attribution are replaced by the selected translation.
 
+### Translations
+
+`src/ai_document_plugin_service/translations/` contains one JSON file per supported language.
+
+To add a new language, simply add a new file. 
 ### Supported resolvers
 
 A `resolver` is the name of a function supported by the service, **not an arbitrary JSON path**. Adding a new name
@@ -103,11 +107,11 @@ metadata and history tables, before the main document body.
 | Field | Meaning |
 | --- | --- |
 | `sections[].id` | Identifier of the section. |
-| `sections[].title` | Section title used by the generation pipeline and shown in the preview. |
+| `sections[].title` | Section title used by the generation pipeline and shown in the preview. It is not translated, like the titles of template sections. |
 | `sections[].content` | Instructions for assigning relevant questions and generating the section from their answers. |
 | `sections[].preview` | Explanatory text shown in the preview; it does not supply document content or generation instructions. |
 | `sections[].fields[].id` | Identifier used to collect the field's label for generation. |
-| `sections[].fields[].label` | Field label shown in the preview and supplied to the AI as a label to preserve. |
+| `sections[].fields[].label` | Field label shown in the preview and supplied to the AI, which translates it into the selected language. |
 
 Section fields do not have resolvers and do not map directly to questionnaire question IDs. Their labels guide
 generation; they do not enforce a fixed output schema or guarantee that every field appears. Put requirements about

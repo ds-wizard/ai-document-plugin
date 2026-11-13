@@ -47,7 +47,12 @@ const parseTemplateContent = (json: string): ApiTemplateContent => {
  *
  * Mount it to open it: the form starts from `target` each time, so nothing has to be reset.
  */
-export function TemplateFormDialog({ scope, target, onSaved, onClose }: TemplateFormDialogProps) {
+export function TemplateFormDialog({
+    scope,
+    target,
+    onSaved,
+    onClose,
+}: TemplateFormDialogProps) {
     const editedTemplate = target === 'new' ? null : target
     const [hasCoverPage, setHasCoverPage] = useState(editedTemplate?.hasCoverPage ?? false)
     const [title, setTitle] = useState(editedTemplate?.title ?? '')

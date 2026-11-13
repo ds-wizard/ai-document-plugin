@@ -80,8 +80,7 @@ export default function ProjectTab({
 
         if (languageOptions.length === 0) return
 
-        const fallbackLanguage =
-            getLanguageOption(languageOptions, DEFAULT_LANGUAGE)?.code ?? languageOptions[0].code
+        const fallbackLanguage = getLanguageOption(languageOptions, DEFAULT_LANGUAGE)?.code ?? ''
 
         if (!projectUuid) {
             setLanguage(fallbackLanguage)

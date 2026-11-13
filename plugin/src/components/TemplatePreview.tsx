@@ -116,7 +116,9 @@ export function TemplatePreview({
                             </Inline>
                         ) : null}
                     </Inline>
-                    {hasCoverPage ? <CoverPagePreview embedded /> : null}
+                    {hasCoverPage ? (
+                        <CoverPagePreview embedded />
+                    ) : null}
                     <div className={styles.scrollList}>
                         <AsyncBlock
                             loading={isLoading}

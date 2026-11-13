@@ -49,6 +49,7 @@ class SectionPolishingLLM:
         ]
 
         response = await self.client.completion(
+            stage='polishing',
             stats=stats,
             messages=messages,
             temperature=self.config.dmp_polishing.temperature,

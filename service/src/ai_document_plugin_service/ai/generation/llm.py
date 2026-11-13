@@ -64,6 +64,7 @@ class SectionGenerationLLM(GenerationLLM):
         _ = previously_generated
         messages = self._section_from_qa_messages(prompt)
         response = await self.client.completion(
+            stage='generation',
             stats=stats,
             messages=messages,
             temperature=self.config.dmp_generation.temperature,

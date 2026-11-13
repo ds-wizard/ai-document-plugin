@@ -51,7 +51,7 @@ class AssignmentSaverComponent:
         *,
         has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
-        """Save assignments to storage, optionally including token usage stats.
+        """Save assignments to storage, optionally including call counts and timing stats.
 
         Skips the write when ``has_new_assignments`` is false: everything came from storage unchanged.
         """
@@ -177,8 +177,6 @@ def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
     return {
         'stats': {
             'total_calls': stats.total_calls,
-            'total_input_tokens': stats.total_input_tokens,
-            'total_output_tokens': stats.total_output_tokens,
             'total_llm_wait_ms': stats.total_llm_wait_ms,
             'total_llm_response_ms': stats.total_llm_response_ms,
             'total_duration_ms': stats.total_duration_ms,

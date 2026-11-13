@@ -114,14 +114,8 @@ def _succeeded_stats(output: PipelineOutput) -> GenerationStats:
         'dmp_pre_polished': output.dmp_pre_polished,
         'dmp_polished': output.markdown,
         'assignment_llm_calls': assignment.llm_calls if assignment else None,
-        'assignment_input_tokens': assignment.input_tokens if assignment else None,
-        'assignment_output_tokens': assignment.output_tokens if assignment else None,
         'generation_llm_calls': generation.llm_calls if generation else None,
-        'generation_input_tokens': generation.input_tokens if generation else None,
-        'generation_output_tokens': generation.output_tokens if generation else None,
         'polishing_llm_calls': polishing.llm_calls if polishing else None,
-        'polishing_input_tokens': polishing.input_tokens if polishing else None,
-        'polishing_output_tokens': polishing.output_tokens if polishing else None,
         'elapsed_seconds': stats.elapsed_seconds,
     }
 

@@ -99,6 +99,7 @@ export function ProjectTemplatePanel({
 
             {detail || isDetailLoading ? (
                 <TemplatePreview
+                    language={language}
                     content={detail?.content}
                     isLoading={isDetailLoading}
                     hasCoverPage={detail?.hasCoverPage}
@@ -111,6 +112,7 @@ export function ProjectTemplatePanel({
 
             {formTarget ? (
                 <TemplateFormDialog
+                    language={language}
                     scope="personal"
                     target={formTarget}
                     onSaved={handleSaved}

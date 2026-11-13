@@ -10,6 +10,7 @@ import styles from '@/components/TemplatePreview.module.css'
 import type { ApiTemplateContent, ApiTemplateSection } from '@/types'
 
 type TemplatePreviewProps = {
+    language?: string
     content?: ApiTemplateContent
     isLoading: boolean
     hasCoverPage?: boolean
@@ -59,6 +60,7 @@ export function TemplatePreview({
     content,
     isLoading,
     hasCoverPage = false,
+    language = 'en',
     canManage,
     onEdit,
     onExport,
@@ -116,7 +118,9 @@ export function TemplatePreview({
                             </Inline>
                         ) : null}
                     </Inline>
-                    {hasCoverPage ? <CoverPagePreview embedded /> : null}
+                    {hasCoverPage ? (
+                        <CoverPagePreview key={language} embedded language={language} />
+                    ) : null}
                     <div className={styles.scrollList}>
                         <AsyncBlock
                             loading={isLoading}

@@ -129,17 +129,29 @@ export default function ProjectTab({
         }
     }
 
-    // Why the pipeline cannot be run yet; starting it shows on the button as loading instead.
-    const runUnavailableReason =
-        templates.isLoading || languagesLoading
-            ? 'Templates and languages are still loading.'
-            : languageOptions.length === 0
-              ? 'No languages are available.'
-              : !selectedUuid
-                ? 'Select a template first.'
-                : !getLanguageOption(languageOptions, language)
-                  ? 'Select a language first.'
-                  : null
+    function getRunUnavailableReason(): string | null {
+        if (templates.isLoading || languagesLoading) {
+            return 'Templates and languages are still loading.'
+        }
+        if (history.isLoading) {
+            return 'Generation history is still loading.'
+        }
+        if (languageOptions.length === 0) {
+            return 'No languages are available.'
+        }
+        if (!selectedUuid) {
+            return 'Select a template first.'
+        }
+        if (hasActiveRun) {
+            return 'A generation for this template is already in progress. Please wait until it finishes.'
+        }
+        if (!getLanguageOption(languageOptions, language)) {
+            return 'Select a language first.'
+        }
+        return null
+    }
+
+    const runUnavailableReason = getRunUnavailableReason()
 
     return (
         // Edge to edge: the history sidebar runs along the tab's edge, the main panel pads itself.
@@ -150,11 +162,11 @@ export default function ProjectTab({
                 onSelectNew={() => setSelectedRunId(null)}
                 onSelectRun={setSelectedRunId}
                 onDeleteRun={async (runId) => {
-                        if (await history.deleteRun(runId)) {
-                            // Preserve any other tab the user selected while deletion was pending.
-                            setSelectedRunId((current) => (current === runId ? null : current))
-                        }
-                    }}
+                    if (await history.deleteRun(runId)) {
+                        // Preserve any other tab the user selected while deletion was pending.
+                        setSelectedRunId((current) => (current === runId ? null : current))
+                    }
+                }}
             />
 
             <div className={styles.main}>
@@ -191,16 +203,6 @@ export default function ProjectTab({
                                 >
                                     {history.isStarting ? 'Starting pipeline...' : 'Run pipeline'}
                                 </Button>
-                                {hasActiveRun && (
-                                    <span
-                                        id="run-pipeline-tooltip"
-                                        role="tooltip"
-                                        className={styles.runTooltip}
-                                    >
-                                        A generation for this template is already in progress.
-                                        Please wait until it finishes.
-                                    </span>
-                                )}
                             </Inline>
                         </Stack>
                     )}

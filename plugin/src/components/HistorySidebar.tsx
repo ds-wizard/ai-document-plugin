@@ -135,7 +135,6 @@ export function HistorySidebar({
                         <button
                             ref={selectedRunId === item.runId ? activeItemRef : null}
                             type="button"
-                            role="listitem"
                             onClick={() => onSelectRun(item.runId)}
                             className={`${styles.item} ${selectedRunId === item.runId ? styles.itemActive : ''} ${item.status !== 'queued' && item.status !== 'running' ? styles.itemWithClose : ''}`}
                         >
@@ -150,7 +149,7 @@ export function HistorySidebar({
                             </span>
                             <span className={styles.itemBody}>
                                 <span className={styles.itemTitle} title={getRunTitle(item)}>
-                                    {item.templateTitle}
+                                    {getRunTitle(item)}
                                 </span>
                                 <span
                                     className={styles.itemVersion}

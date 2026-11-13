@@ -1,11 +1,13 @@
 import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
 import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
 import { Badge } from '@ds-wizard/plugin-sdk/ui/Badge'
+import { Button, IconButton, SubmitButton } from '@ds-wizard/plugin-sdk/ui/Button'
 import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
-import { Muted } from '@ds-wizard/plugin-sdk/ui/Text'
-import { useEffect } from 'react'
+import { Muted, Title } from '@ds-wizard/plugin-sdk/ui/Text'
+import { useEffect, useState } from 'react'
 
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
+import styles from '@/components/RunDetailPanel.module.css'
 import {
     getRunTimeLabel,
     getRunTitle,
@@ -51,47 +53,41 @@ function RunNameEditor({
                 }}
             >
                 <input
-                    className={`form-control ${styles.nameInput}`}
+                    className={`ui-input ${styles.nameInput}`}
                     aria-label="Run name"
                     value={draft}
                     disabled={isSaving}
                     onChange={(event) => setDraft(event.target.value)}
                     autoFocus
                 />
-                <button
-                    className="btn btn-primary btn-sm"
-                    type="submit"
+                <SubmitButton
+                    variant="primary"
+                    size="small"
+                    loading={isSaving}
                     disabled={!draft.trim() || isSaving}
                 >
                     {isSaving ? 'Saving...' : 'Apply'}
-                </button>
-                <button
-                    className="btn btn-outline-secondary btn-sm"
-                    type="button"
-                    disabled={isSaving}
-                    onClick={() => setIsEditing(false)}
-                >
+                </SubmitButton>
+                <Button size="small" disabled={isSaving} onClick={() => setIsEditing(false)}>
                     Cancel
-                </button>
+                </Button>
             </form>
         )
     }
 
     return (
         <div className={styles.titleRow}>
-            <h4>{name}</h4>
-            <button
-                className={styles.renameButton}
-                type="button"
-                aria-label="Rename run"
-                title="Rename run"
+            <Title className={styles.name}>{name}</Title>
+            <IconButton
+                icon="fa-pen"
+                label="Rename run"
+                quiet
+                tooltip
                 onClick={() => {
                     setDraft(name)
                     setIsEditing(true)
                 }}
-            >
-                <i className="fas fa-pencil-alt" aria-hidden="true" />
-            </button>
+            />
         </div>
     )
 }
@@ -143,13 +139,10 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
 
     if (run.status === 'cancelled') {
         return (
-            <div className={styles.root}>
+            <Stack loose>
                 {heading}
-                <div className={styles.progress}>
-                    <i className="fas fa-ban" aria-hidden="true" />
-                    Pipeline cancelled.
-                </div>
-            </div>
+                <Alert tone="info">Pipeline cancelled.</Alert>
+            </Stack>
         )
     }
 

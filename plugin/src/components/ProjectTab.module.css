@@ -18,19 +18,3 @@
     margin: 0 auto;
     padding: var(--ui-space-6);
 }
-
-.runButton button:disabled {
-    pointer-events: none;
-}
-
-.runTooltip {
-    composes: stopTooltip from './HistorySidebar.module.css';
-    width: 16rem;
-    max-width: 60vw;
-    white-space: normal;
-    z-index: 1;
-}
-
-.runButton:is(:hover, :focus-visible) .runTooltip {
-    visibility: visible;
-}

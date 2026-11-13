@@ -1,0 +1,16 @@
+.titleRow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--ui-space-2);
+}
+
+.name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.nameInput {
+    flex: 1 1 12rem;
+    min-width: 0;
+}

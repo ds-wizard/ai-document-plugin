@@ -209,8 +209,8 @@
     right: 0.5rem;
     width: 1.5rem;
     height: 1.5rem;
-    border-radius: var(--bs-border-radius);
-    color: var(--ai-doc-color-slate-500);
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-icon-subtle);
     font-size: 0.75rem;
 }
 
@@ -221,19 +221,19 @@
     width: 2rem;
     height: 2rem;
     border-radius: 50%;
-    color: var(--bs-primary);
+    color: var(--ui-brand);
 }
 
 :is(.closeButton, .stopButton):is(:hover, :focus-visible) {
-    background: var(--ai-doc-color-slate-100);
+    background: var(--ui-state-hover);
 }
 
 .closeButton:is(:hover, :focus-visible) {
-    color: var(--ai-doc-color-slate-950);
+    color: var(--ui-text);
 }
 
 .stopButton:is(:hover, :focus-visible) {
-    color: var(--ai-doc-color-red-700);
+    color: var(--ui-danger-base);
 }
 
 :is(.closeButton, .stopButton):focus-visible {
@@ -282,9 +282,9 @@
     top: 50%;
     transform: translateY(-50%);
     padding: 0.3rem 0.5rem;
-    border-radius: var(--bs-border-radius);
-    background: var(--ai-doc-color-slate-950);
-    color: var(--ai-doc-color-white);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-text);
+    color: var(--ui-surface);
     font-size: 0.75rem;
     font-weight: 400;
     white-space: nowrap;

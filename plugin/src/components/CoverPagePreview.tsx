@@ -1,7 +1,6 @@
 import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
 import { FormCollapsible } from '@ds-wizard/plugin-sdk/ui/Form'
 import { Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
-import { BodySmall } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useState } from 'react'
 
 import { getCoverPagePreview } from '@/client'
@@ -10,16 +9,17 @@ import type { CoverPagePreviewDefinition } from '@/types'
 
 type CoverPagePreviewProps = {
     embedded?: boolean
+    language: string
 }
 
-export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
+export function CoverPagePreview({ embedded = false, language }: CoverPagePreviewProps) {
     const [definition, setDefinition] = useState<CoverPagePreviewDefinition | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         let cancelled = false
 
-        void getCoverPagePreview()
+        void getCoverPagePreview(language)
             .then((loadedDefinition) => {
                 if (!cancelled) {
                     setDefinition(loadedDefinition)
@@ -34,7 +34,7 @@ export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
         return () => {
             cancelled = true
         }
-    }, [])
+    }, [language])
 
     const previewContent = (
         <AsyncBlock
@@ -44,8 +44,6 @@ export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
         >
             {definition && (
                 <Stack>
-                    {!embedded && <BodySmall>The cover page is always in English.</BodySmall>}
-
                     <section aria-label="Cover page structure" className={styles.page}>
                         <h3 className={styles.title}>{definition.metadata.title.text}</h3>
                         <div className={styles.tableWrapper}>

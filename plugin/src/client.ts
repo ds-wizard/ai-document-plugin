@@ -2,6 +2,7 @@ import { getApiUrlAndToken } from '@ds-wizard/plugin-sdk/requests'
 
 import type { LanguageDefinition } from '@/data/languages'
 import type {
+    ApiTemplateContent,
     CoverPagePreviewDefinition,
     LlmSettings,
     LlmSettingsUpdate,
@@ -191,6 +192,53 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
     return data
 }
 
+export const deletePipeline = async (runId: string): Promise<void> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${encodeURIComponent(runId)}`
+    const response = await apiFetch(url, { method: 'DELETE' })
+    if (!response.ok) {
+        const data = await readApiResponse<{ detail?: string }>(response, url).catch(() => ({}))
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to delete the pipeline run.',
+        )
+    }
+}
+
+export const cancelPipeline = async (runId: string): Promise<PipelineStatusResponse> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/cancel`
+    const response = await apiFetch(url, { method: 'POST' })
+    const data = await readApiResponse<PipelineStatusResponse | { detail?: string }>(response, url)
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail ? data.detail : 'Failed to cancel pipeline.',
+        )
+    }
+    if (!isPipelineStatusResponse(data)) {
+        throw new Error('Invalid pipeline status returned.')
+    }
+    return data
+}
+
+export const renamePipeline = async (
+    runId: string,
+    title: string,
+): Promise<PipelineStatusResponse> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${runId}/title`
+    const response = await apiFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+    })
+    const data = await readApiResponse<PipelineStatusResponse | { detail?: unknown }>(response, url)
+    if (!response.ok) {
+        const detail = 'detail' in data ? data.detail : undefined
+        throw new Error(typeof detail === 'string' ? detail : 'Failed to rename the run.')
+    }
+    if (!isPipelineStatusResponse(data)) {
+        throw new Error('Invalid pipeline status returned.')
+    }
+    return data
+}
+
 export const getPipelineHistory = async (
     questionnaireUuid: string,
 ): Promise<PipelineSummaryItem[]> => {
@@ -298,7 +346,7 @@ export const updateLlmSettings = async (settings: LlmSettingsUpdate): Promise<Ll
 type CreateTemplateParams = {
     hasCoverPage: boolean
     title: string
-    content: unknown
+    content: ApiTemplateContent
     scope: TemplateScope
 }
 
@@ -341,7 +389,7 @@ type UpdateTemplateParams = {
     hasCoverPage: boolean
     uuid: string
     title: string
-    content: unknown
+    content: ApiTemplateContent
 }
 
 export const updateTemplate = async ({

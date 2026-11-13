@@ -2,8 +2,10 @@ import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
 import { CheckboxField, TextField } from '@ds-wizard/plugin-sdk/ui/Field'
 import { FileUpload } from '@ds-wizard/plugin-sdk/ui/FileUpload'
 import { Inline, Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
-import { Label } from '@ds-wizard/plugin-sdk/ui/Text'
-import { useState } from 'react'
+import { Separator } from '@ds-wizard/plugin-sdk/ui/Separator'
+import { Muted, Subtitle } from '@ds-wizard/plugin-sdk/ui/Text'
+import { token } from '@ds-wizard/plugin-sdk/ui/tokens'
+import { type CSSProperties, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createTemplate, updateTemplate } from '@/client'
@@ -127,17 +129,28 @@ export function TemplateFormDialog({ scope, target, onSaved, onClose }: Template
                 </>
             }
         >
-            <Stack loose>
-                <TextField
-                    label="Template title"
-                    value={title}
-                    onChange={setTitle}
-                    placeholder="My custom DMP template"
-                />
+            <Stack style={{ '--ui-stack-gap': token('--ui-space-3') } as CSSProperties}>
+                <Stack>
+                    <Subtitle>Template details</Subtitle>
+                    <TextField
+                        label="Template title"
+                        value={title}
+                        onChange={setTitle}
+                        placeholder="My custom DMP template"
+                    />
+                </Stack>
+
+                <Separator />
 
                 <Stack>
+                    <Stack style={{ gap: token('--ui-space-1') }}>
+                        <Subtitle>Cover page</Subtitle>
+                        <Muted>
+                            Add DMP metadata and project information before your sections.
+                        </Muted>
+                    </Stack>
                     <CheckboxField
-                        label="Include a cover page with DMP metadata and project information"
+                        label="Include a cover page"
                         checked={hasCoverPage}
                         onChange={setHasCoverPage}
                         disabled={isSaving}
@@ -145,8 +158,15 @@ export function TemplateFormDialog({ scope, target, onSaved, onClose }: Template
                     <CoverPagePreview />
                 </Stack>
 
+                <Separator />
+
                 <Stack>
-                    <Label>Template structure</Label>
+                    <Stack style={{ gap: token('--ui-space-1') }}>
+                        <Subtitle>Template structure</Subtitle>
+                        <Muted>
+                            Build your document’s sections or import an existing template.
+                        </Muted>
+                    </Stack>
                     <div role="group" aria-label="Template structure">
                         <Inline>
                             {INPUT_MODES.map(({ mode, label }) => (

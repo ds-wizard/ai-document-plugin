@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getPipelineHistory, getPipelineStatus, runPipeline } from '@/client'
+import {
+    cancelPipeline,
+    deletePipeline,
+    getPipelineHistory,
+    getPipelineStatus,
+    renamePipeline,
+    runPipeline,
+} from '@/client'
 import { pollRunStatus } from '@/runPoller'
 import type { PipelineErrorResponse, PipelineStatusResponse, PipelineSummaryItem } from '@/types'
 
@@ -16,6 +23,7 @@ export type RunStatusValue = PipelineStatusResponse['status']
 
 export type RunRecord = {
     runId: string
+    templateUuid: string
     status: RunStatusValue
     templateTitle: string
     error: PipelineErrorResponse | null
@@ -31,6 +39,8 @@ export type RunRecord = {
 export const getRunVersionLabel = (run: RunRecord): string =>
     run.namedVersion?.trim() || 'Unknown version'
 
+export const getRunTitle = (run: RunRecord): string => run.templateTitle
+
 export const getRunTimeLabel = (run: RunRecord): string => {
     const date = new Date(run.createdAt)
     if (Number.isNaN(date.getTime())) return 'Time unavailable'
@@ -45,16 +55,23 @@ export type UseGenerationHistoryResult = {
     items: RunRecord[]
     isLoading: boolean
     isStarting: boolean
+    hasActiveRun: (templateUuid: string) => boolean
+    deletingRunIds: ReadonlySet<string>
+    deleteRun: (runId: string) => Promise<boolean>
+    cancellingRunIds: ReadonlySet<string>
+    cancelRun: (runId: string) => Promise<void>
     // returns a reference to a generation run.
     // This helps with handling live updates from the pollers without need to do subscribe logic
     getRun: (runId: string) => RunRecord | undefined
     startRun: (templateUuid: string, language: string) => Promise<RunRecord | null>
     ensureDetailLoaded: (runId: string) => void
     applyStatus: (status: PipelineStatusResponse) => RunRecord
+    renameRun: (runId: string, name: string) => Promise<boolean>
 }
 
 const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
     runId: item.runId,
+    templateUuid: item.templateUuid,
     status: item.status,
     templateTitle: item.templateTitle,
     error: item.error,
@@ -66,7 +83,8 @@ const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
     hasDetail: false,
 })
 
-const isSettled = (status: RunStatusValue): boolean => status === 'succeeded' || status === 'failed'
+const isSettled = (status: RunStatusValue): boolean =>
+    status === 'succeeded' || status === 'failed' || status === 'cancelled'
 
 /**
  * Owns every run belonging to the project: the initial history load, starting new
@@ -79,6 +97,14 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     const [runs, setRuns] = useState<Record<string, RunRecord>>({})
     const [isLoading, setIsLoading] = useState(false)
     const [isStarting, setIsStarting] = useState(false)
+    // State redraws the pending Stop buttons; the ref blocks duplicate requests
+    // immediately, including clicks before React has rendered the new state.
+    const [cancellingRunIds, setCancellingRunIds] = useState<Set<string>>(new Set())
+    const cancellingRef = useRef(new Set<string>())
+    const [deletingRunIds, setDeletingRunIds] = useState<Set<string>>(new Set())
+    const deletingRef = useRef(new Set<string>())
+    // Ignore requests started before a successful deletion (history, detail, or polling).
+    const deletedRunIdsRef = useRef(new Set<string>())
 
     // Mirrors `runs` synchronously so callbacks (applyStatus, getRun, startRun) can
     // read/merge the latest state without waiting on React's async setState.
@@ -86,6 +112,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
     const pollersRef = useRef<Map<string, () => void>>(new Map())
 
     const setRunRecord = useCallback((record: RunRecord) => {
+        if (deletedRunIdsRef.current.has(record.runId)) return
         runsRef.current = { ...runsRef.current, [record.runId]: record }
         setRuns(runsRef.current)
     }, [])
@@ -94,6 +121,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         (status: PipelineStatusResponse): RunRecord => {
             const record: RunRecord = {
                 runId: status.runId,
+                templateUuid: status.templateUuid,
                 status: status.status,
                 templateTitle: status.templateTitle,
                 error: status.error,
@@ -152,6 +180,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
 
                 const nextRuns: Record<string, RunRecord> = {}
                 for (const item of items) {
+                    if (deletedRunIdsRef.current.has(item.runId)) continue
                     nextRuns[item.runId] = summaryToRunRecord(item)
                 }
                 runsRef.current = nextRuns
@@ -185,6 +214,28 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
 
     const getRun = useCallback((runId: string) => runsRef.current[runId], [])
 
+    const renameRun = useCallback(
+        async (runId: string, name: string): Promise<boolean> => {
+            if (!name.trim()) return false
+            try {
+                applyStatus(await renamePipeline(runId, name.trim()))
+                return true
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Failed to rename the run.')
+                return false
+            }
+        },
+        [applyStatus],
+    )
+
+    const hasActiveRun = useCallback(
+        (templateUuid: string) =>
+            Object.values(runsRef.current).some(
+                (run) => run.templateUuid === templateUuid && !isSettled(run.status),
+            ),
+        [],
+    )
+
     const startRun = useCallback(
         async (templateUuid: string, language: string): Promise<RunRecord | null> => {
             if (!project) {
@@ -196,6 +247,8 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 toast.error('Select a DMP template.')
                 return null
             }
+
+            if (hasActiveRun(templateUuid)) return null
 
             setIsStarting(true)
 
@@ -217,8 +270,62 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 setIsStarting(false)
             }
         },
-        [project, applyStatus, beginPolling],
+        [project, applyStatus, beginPolling, hasActiveRun],
     )
+
+    const cancelRun = useCallback(
+        async (runId: string): Promise<void> => {
+            if (cancellingRef.current.has(runId)) return
+            cancellingRef.current.add(runId)
+            setCancellingRunIds(new Set(cancellingRef.current))
+            const originalRun = runsRef.current[runId]
+            try {
+                // Keep the current status/poller until the server confirms the outcome.
+                // The run may finish successfully while cancellation is being requested.
+                const status = await cancelPipeline(runId)
+                // Do not add the run back if it has left the current project's history.
+                if (!originalRun || !runsRef.current[runId]) return
+                // stop() also ignores an in-flight poll response, so stale "running"
+                // data cannot overwrite the cancellation response we apply below.
+                pollersRef.current.get(runId)?.()
+                pollersRef.current.delete(runId)
+                applyStatus(status)
+                if (!isSettled(status.status)) beginPolling(runId)
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Failed to cancel pipeline.')
+            } finally {
+                cancellingRef.current.delete(runId)
+                setCancellingRunIds(new Set(cancellingRef.current))
+            }
+        },
+        [applyStatus, beginPolling],
+    )
+
+    const deleteRun = useCallback(async (runId: string): Promise<boolean> => {
+        const run = runsRef.current[runId]
+        if (!run || !isSettled(run.status) || deletingRef.current.has(runId)) return false
+        deletingRef.current.add(runId)
+        setDeletingRunIds(new Set(deletingRef.current))
+        try {
+            await deletePipeline(runId)
+            deletedRunIdsRef.current.add(runId)
+            pollersRef.current.get(runId)?.()
+            pollersRef.current.delete(runId)
+            const nextRuns = { ...runsRef.current }
+            delete nextRuns[runId]
+            runsRef.current = nextRuns
+            setRuns(nextRuns)
+            return true
+        } catch (error) {
+            toast.error(
+                error instanceof Error ? error.message : 'Failed to delete the pipeline run.',
+            )
+            return false
+        } finally {
+            deletingRef.current.delete(runId)
+            setDeletingRunIds(new Set(deletingRef.current))
+        }
+    }, [])
 
     const ensureDetailLoaded = useCallback(
         (runId: string) => {
@@ -231,6 +338,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                     const status = await getPipelineStatus(runId)
                     applyStatus(status)
                 } catch (error) {
+                    if (deletedRunIdsRef.current.has(runId)) return
                     toast.error(
                         error instanceof Error
                             ? error.message
@@ -246,9 +354,15 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
         items: Object.values(runs).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         isLoading,
         isStarting,
+        hasActiveRun,
+        deletingRunIds,
+        deleteRun,
+        cancellingRunIds,
+        cancelRun,
         getRun,
         startRun,
         ensureDetailLoaded,
         applyStatus,
+        renameRun,
     }
 }

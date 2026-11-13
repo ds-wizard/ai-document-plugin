@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Any
 from haystack.core.errors import PipelineRuntimeError
 
 if TYPE_CHECKING:
-    from haystack import AsyncPipeline
+    from haystack import Pipeline
 
 
 async def run_haystack_pipeline(
-    pipeline: AsyncPipeline,
+    pipeline: Pipeline,
     data: dict[str, Any],
     include_outputs_from: set[str] | None = None,
 ) -> dict[str, Any]:

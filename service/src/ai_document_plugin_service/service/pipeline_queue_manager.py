@@ -31,6 +31,8 @@ class PipelineQueueManager:
     def __init__(self, max_concurrent_jobs: int) -> None:
         self._max_concurrent_jobs = max_concurrent_jobs
         self._order: list[UUID] = []
+        # Thread-safe handles bridge API requests to jobs on the background event loop.
+        self._futures: dict[UUID, Future[None]] = {}
         self._order_lock = threading.Lock()
         self._semaphore = asyncio.Semaphore(max_concurrent_jobs)
         self._loop = asyncio.new_event_loop()
@@ -55,8 +57,25 @@ class PipelineQueueManager:
             queue_size = len(self._order)
         logger.info('Enqueued pipeline job', extra={'run_id': run_id, 'queue_size': queue_size})
 
-        future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job, trace_id), self._loop)
-        future.add_done_callback(lambda done_future: self._log_job_failure(done_future, trace_id))
+        with self._order_lock:
+            future = asyncio.run_coroutine_threadsafe(self._run_job(run_id, job, trace_id), self._loop)
+            self._futures[run_id] = future
+        future.add_done_callback(lambda done_future: self._job_done(run_id, done_future, trace_id))
+
+    def cancel(self, run_id: UUID) -> None:
+        with self._order_lock:
+            future = self._futures.get(run_id)
+        if future is not None:
+            # Cancellation schedules CancelledError in the coroutine; cleanup still
+            # needs to run. Call outside the lock because done callbacks also take it.
+            future.cancel()
+
+    def _job_done(self, run_id: UUID, future: Future[None], trace_id: UUID | None) -> None:
+        with self._order_lock:
+            self._futures.pop(run_id, None)
+        self.remove(run_id)
+        # This callback also handles cancellation before _run_job enters its try/finally.
+        self._log_job_failure(future, trace_id)
 
     def progress_message(self, run_id: UUID) -> str | None:
         jobs_waiting_ahead = self._jobs_waiting_ahead(run_id)
@@ -92,6 +111,8 @@ class PipelineQueueManager:
     def _log_job_failure(future: Future[None], trace_id: UUID | None) -> None:
         # Jobs are expected to handle their own errors; this guards against an
         # unhandled exception being silently swallowed by the background loop.
+        if future.cancelled():
+            return
         with trace_context(trace_id):
             error = future.exception()
             if error is not None:

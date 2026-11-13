@@ -8,6 +8,7 @@ from uuid import UUID
 import yaml
 from cryptography.fernet import Fernet
 
+from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 from ai_document_plugin_service.cover_page.cover_page_resolvers import validate_cover_data_resolvers
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class Config:
     dmp_generation: SystemPrompt
     cover_page_generation: str
     dmp_polishing: SystemAndUserPrompt
-    cover_definition: dict[str, Any]
+    cover_definition: CoverPageDefinition
     max_parallel_executions: int
 
 
@@ -251,6 +252,7 @@ def load_config(config_path: str | None = None) -> Config:
         msg = 'Invalid cover definition format: expected a top-level mapping'
         raise TypeError(msg)
 
+    cover_definition = CoverPageDefinition.model_validate(cover_definition)
     validate_cover_data_resolvers(cover_definition)
 
     return Config(

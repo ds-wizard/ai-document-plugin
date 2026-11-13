@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from haystack import AsyncPipeline, component
+from haystack import Pipeline, component
 from haystack.core.component import Component
 
 from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
@@ -14,7 +14,7 @@ class _ComponentError(Exception):
 @component
 class _Echo:
     @component.output_types(value=str)
-    async def run_async(self, value: str) -> dict[str, Any]:  # ruff: ignore[no-self-use]
+    async def run_async(self, value: str) -> dict[str, Any]:
         return {'value': value}
 
     @component.output_types(value=str)
@@ -25,7 +25,7 @@ class _Echo:
 @component
 class _Failing:
     @component.output_types(value=str)
-    async def run_async(self, value: str) -> dict[str, Any]:  # ruff: ignore[no-self-use]
+    async def run_async(self, value: str) -> dict[str, Any]:
         raise _ComponentError(value)
 
     @component.output_types(value=str)
@@ -33,8 +33,8 @@ class _Failing:
         raise NotImplementedError
 
 
-def _pipeline(instance: Component) -> AsyncPipeline:
-    pipeline = AsyncPipeline()
+def _pipeline(instance: Component) -> Pipeline:
+    pipeline = Pipeline()
     pipeline.add_component('step', instance)
     return pipeline
 

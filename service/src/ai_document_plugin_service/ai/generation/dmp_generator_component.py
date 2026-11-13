@@ -69,8 +69,7 @@ class DmpGeneratorComponent:
         *,
         include_cover_page: bool = False,
         created_at: datetime | None = None,
-        new_assignments: list[SerializedSectionAssignment] | None = None,
-        db_assignments: list[SerializedSectionAssignment] | None = None,
+        assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         created_at = created_at or datetime.now(tz=UTC)
@@ -81,9 +80,9 @@ class DmpGeneratorComponent:
         debug_markdown includes source-question tables for debugging.
         """
         logger.debug('Step 2: Generating DMP markdown...')
-        document_assignments = db_assignments if db_assignments is not None else new_assignments or []
+        document_assignments = assignments or []
         cover_page_section_count = (
-            len(self.cover_page_renderer.definition['sections'])
+            len(self.cover_page_renderer.definition.sections)
             if include_cover_page and self.cover_page_renderer is not None
             else 0
         )
@@ -137,30 +136,7 @@ class DmpGeneratorComponent:
         for cover_page_section in cover_page_sections:
             self._collect_leaf_sections(cover_page_section, leaf_sections)
 
-        total_sections = len(leaf_sections)
-        logger.info(
-            'Prepared leaf sections for DMP generation',
-            extra={'leaf_section_count': total_sections, 'max_workers': max_workers},
-        )
-        section_semaphore = asyncio.Semaphore(max_workers)
-        tasks = [
-            asyncio.create_task(self._execute_leaf_section(section, section_semaphore)) for section in leaf_sections
-        ]
-        for i, task in enumerate(asyncio.as_completed(tasks), start=1):
-            await task
-            logger.info(
-                'Generating sections progress',
-                extra={
-                    'completed_sections': i,
-                    'total_sections': total_sections,
-                    'progress_percent': progress_percent(i, total_sections),
-                    'max_workers': max_workers,
-                },
-            )
-            if on_progress is not None:
-                on_progress(
-                    f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
-                )
+        await self._generate_sections(leaf_sections, max_workers, on_progress)
 
         parts = [self._render_scheduled_section(scheduled) for scheduled in scheduled_sections]
         markdown = '\n\n'.join([s for s, _ in parts])
@@ -195,7 +171,7 @@ class DmpGeneratorComponent:
         logger.info(
             'Completed DMP generation',
             extra={
-                'leaf_section_count': total_sections,
+                'leaf_section_count': len(leaf_sections),
                 'markdown_length': len(markdown),
                 'debug_markdown_length': len(debug_markdown),
                 'llm_call_count': stats.total_calls,
@@ -209,6 +185,43 @@ class DmpGeneratorComponent:
             'stats': stats,
         }
 
+    async def _generate_sections(
+        self, leaf_sections: list[_ScheduledSection], max_workers: int, on_progress: Callable[[str], None] | None
+    ) -> None:
+        total_sections = len(leaf_sections)
+        logger.info(
+            'Prepared leaf sections for DMP generation',
+            extra={'leaf_section_count': total_sections, 'max_workers': max_workers},
+        )
+        section_semaphore = asyncio.Semaphore(max_workers)
+        try:
+            # The group owns section jobs; as_completed only reports their progress.
+            async with asyncio.TaskGroup() as group:
+                tasks = [
+                    group.create_task(self._execute_leaf_section(section, section_semaphore))
+                    for section in leaf_sections
+                ]
+                for i, task in enumerate(asyncio.as_completed(tasks), start=1):
+                    await task
+                    logger.info(
+                        'Generating sections progress',
+                        extra={
+                            'completed_sections': i,
+                            'total_sections': total_sections,
+                            'progress_percent': progress_percent(i, total_sections),
+                            'max_workers': max_workers,
+                        },
+                    )
+                    if on_progress is not None:
+                        on_progress(
+                            f'Writing DMP sections ({progress_percent(i, total_sections)}%)',
+                        )
+        finally:
+            # Sections waiting for a slot may never have awaited their prepared coroutine.
+            for section in leaf_sections:
+                if section.leaf_coro is not None:
+                    section.leaf_coro.close()
+
     @component.output_types(markdown=str, debug_markdown=str, cover_page=str, stats=AssignmentStats)
     def run(
         self,
@@ -219,12 +232,11 @@ class DmpGeneratorComponent:
         *,
         include_cover_page: bool = False,
         created_at: datetime | None = None,
-        new_assignments: list[SerializedSectionAssignment] | None = None,
-        db_assignments: list[SerializedSectionAssignment] | None = None,
+        assignments: list[SerializedSectionAssignment] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
-        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'
         raise NotImplementedError(
             msg,
         )

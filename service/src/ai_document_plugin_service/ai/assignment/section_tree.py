@@ -3,18 +3,8 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from ai_document_plugin_service.ai.assignment.types import (
-    SectionNode,
     SectionRecord,
 )
-
-
-def build_section_records(template_data: dict[str, Any]) -> list[SectionRecord]:
-    """Build section records from loaded template JSON data.
-
-    Each record receives a synthetic UUID id. Ids are unique across the whole tree and
-    decoupled from the section title, so duplicate titles never collide downstream.
-    """
-    return _build_records_recursively(template_data['sections'])
 
 
 def collect_leaf_sections(
@@ -51,23 +41,6 @@ def render_section_tree_as_xml(
     xml_parts.extend(_xml_node_to_string(child) for child in root_children)
     xml_parts.append('</sections>')
     return '\n'.join(xml_parts)
-
-
-def _build_records_recursively(
-    sections: list[dict[str, Any]],
-) -> list[SectionRecord]:
-    records: list[SectionRecord] = []
-    for section_dict in sections:
-        node = SectionNode(section_dict)
-        records.append(
-            SectionRecord(
-                id=uuid.uuid4(),
-                title=node.title,
-                section=node,
-                children=_build_records_recursively(node.subsections) if node.subsections else None,
-            ),
-        )
-    return records
 
 
 def section_index_to_letter_id(index: int) -> str:

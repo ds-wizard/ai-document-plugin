@@ -25,5 +25,5 @@ class CoverPageComponent:
 
     @component.output_types(markdown=str)
     def run(self, markdown: str, cover_page: str = '') -> CoverPageComponentResult:
-        msg = f'{type(self).__name__} is async-only; use run_async() / AsyncPipeline.run_async()'
+        msg = f'{type(self).__name__} is async-only; use run_async() / Pipeline.run_async()'
         raise NotImplementedError(msg)

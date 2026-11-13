@@ -2,14 +2,19 @@ import logging
 
 import fastapi
 import fastapi.middleware.cors
+from fastapi.exceptions import RequestValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from ai_document_plugin_service.ai.common import configure_logging
 from ai_document_plugin_service.ai.common.config import load_config, resolve_config_path
 from ai_document_plugin_service.ai.persistence.migrations import run_startup_migrations
+from ai_document_plugin_service.api.language_routes import languages_router
+from ai_document_plugin_service.api.pipeline_routes import pipeline_router
 from ai_document_plugin_service.api.request_logging import log_http_request_response
-from ai_document_plugin_service.api.routes import protected_router, public_router
+from ai_document_plugin_service.api.routes import unprotected_healthcheck_router
+from ai_document_plugin_service.api.settings_routes import settings_router
+from ai_document_plugin_service.api.template_routes import templates_router
 from ai_document_plugin_service.di import setup_app_state
 from ai_document_plugin_service.service.errors import ServiceError
 
@@ -42,6 +47,20 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
         )
         return JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
 
+    @app.exception_handler(RequestValidationError)
+    def request_validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # The plugin expects a string detail, as in every other error response.
+        detail = '; '.join(f'{".".join(map(str, error["loc"]))}: {error["msg"]}' for error in exc.errors())
+        logger.warning(
+            'API request failed validation',
+            extra={
+                'http.request.method': request.method,
+                'url.path': request.url.path,
+                'error_message': detail,
+            },
+        )
+        return JSONResponse(status_code=422, content={'detail': detail})
+
     app.add_middleware(
         middleware_class=fastapi.middleware.cors.CORSMiddleware,
         allow_origins=['*'],
@@ -49,8 +68,14 @@ def create_app(*, run_migrations: bool = True) -> fastapi.FastAPI:
         allow_methods=['*'],
         allow_headers=['*'],
     )
-    app.include_router(public_router)
-    app.include_router(protected_router)
+    for router in (
+        unprotected_healthcheck_router,
+        languages_router,
+        pipeline_router,
+        settings_router,
+        templates_router,
+    ):
+        app.include_router(router)
     return app
 
 

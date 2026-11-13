@@ -10,7 +10,7 @@ type PollRunStatusCallbacks = {
 }
 
 /**
- * Polls a single run's status until it settles (succeeded/failed), then stops on its
+ * Polls a single run's status until it settles (succeeded/failed/cancelled), then stops on its
  * own. Framework-free: no React, no knowledge of any store — just one run, one loop.
  * Returns a `stop()` that cancels any pending fetch/timeout immediately.
  */
@@ -31,7 +31,11 @@ export function pollRunStatus(
 
             onUpdate(status)
 
-            if (status.status === 'succeeded' || status.status === 'failed') {
+            if (
+                status.status === 'succeeded' ||
+                status.status === 'failed' ||
+                status.status === 'cancelled'
+            ) {
                 onSettle?.(status)
                 return
             }

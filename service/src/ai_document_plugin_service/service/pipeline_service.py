@@ -26,6 +26,7 @@ from ai_document_plugin_service.api.auth import AuthenticatedUser
 from ai_document_plugin_service.api.types import (
     ErrorType,
     PipelineErrorResponse,
+    PipelineRenameRequest,
     PipelineRunRequest,
     PipelineSaveRequest,
     PipelineStatus,
@@ -38,8 +39,15 @@ from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQu
 
 logger = logging.getLogger(__name__)
 
+ACTIVE_PIPELINE_STATUSES = (PipelineStatus.QUEUED, PipelineStatus.RUNNING)
+
 
 def _pipeline_error_from_exception(error: BaseException) -> PipelineErrorResponse:
+    # TaskGroup preserves concurrent failures in a group. Show the first failure
+    # in the single-error API response; the full group is still logged by the caller.
+    if isinstance(error, BaseExceptionGroup):
+        return _pipeline_error_from_exception(error.exceptions[0])
+
     # Handle llm errors
     if isinstance(error, LLMError):
         return PipelineErrorResponse(type=error.error_type, message=error.message)
@@ -77,6 +85,7 @@ def _generation_record_to_status_response(record: GenerationRecord) -> PipelineS
 def _generation_record_to_summary_response(record: GenerationRecord) -> PipelineSummaryResponse:
     return PipelineSummaryResponse(
         run_id=record.run_id,
+        template_uuid=record.template_uuid,
         status=PipelineStatus(record.status),
         template_title=record.title,
         error=_generation_error(record),
@@ -171,6 +180,42 @@ class PipelineService:
 
         return status.model_copy(update={'progress_message': progress_message})
 
+    async def cancel_pipeline(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse:
+        # Check ownership before changing persistent state or interrupting the job.
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
+        # expected_statuses filters the existing status column in the same SQL UPDATE.
+        # Persist cancellation first so concurrent progress/completion writes are rejected,
+        # even while coroutine cancellation is still being delivered.
+        updated = await self.database.update_generation(
+            run_id,
+            auth.tenant_uuid,
+            expected_statuses=ACTIVE_PIPELINE_STATUSES,
+            status=PipelineStatus.CANCELLED,
+            progress_message=None,
+        )
+        if updated is not None:
+            self.pipeline_queue_manager.cancel(run_id)
+            return _generation_record_to_status_response(updated)
+
+        # Completion may have won the race. Return the actual terminal state.
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        return _generation_record_to_status_response(record)
+
+    async def delete_pipeline(self, run_id: UUID, auth: AuthenticatedUser) -> None:
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        if record.status not in {PipelineStatus.SUCCEEDED, PipelineStatus.FAILED, PipelineStatus.CANCELLED}:
+            raise ConflictError(ConflictError.PIPELINE_RUN_NOT_DELETABLE_MESSAGE)
+        deleted = await self.database.delete_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if not deleted:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
     async def list_history(self, questionnaire_uuid: UUID, auth: AuthenticatedUser) -> list[PipelineSummaryResponse]:
         records = await self.database.list_generations(questionnaire_uuid, auth.tenant_uuid, auth.user_uuid)
         return [_generation_record_to_summary_response(record) for record in records]
@@ -187,6 +232,8 @@ class PipelineService:
 
         Raises:
             NotConfiguredError: If the tenant has no LLM settings saved.
+            ConflictError: If this user already has an active run for the project and template.
+            NotFoundError: If the template was deleted before admission.
         """
         if await self.database.get_llm_settings(auth.tenant_uuid) is None:
             raise NotConfiguredError
@@ -199,16 +246,36 @@ class PipelineService:
             },
         )
         project_versions = await DSWClient(auth.token, auth.api_url).get_project_versions(payload.questionnaire_uuid)
-        run_id = await self.database.create_generation(
-            questionnaire_uuid=payload.questionnaire_uuid,
-            template_uuid=payload.template_uuid,
-            title=template.title,
-            language=payload.language,
-            user_uuid=auth.user_uuid,
-            tenant_uuid=auth.tenant_uuid,
-            status=PipelineStatus.QUEUED,
-            named_version=resolve_named_version(project_versions),
-        )
+        async with self.database.transaction():
+            # Reuse the template row lock to serialize admission, even without prior runs.
+            # Keep the lock only for the history check and insert, not pipeline execution.
+            locked_template = await self.database.get_template(
+                payload.template_uuid,
+                auth.tenant_uuid,
+                for_update=True,
+            )
+            if locked_template is None:
+                raise NotFoundError(NotFoundError.TEMPLATE_MESSAGE)
+            records = await self.database.list_generations(
+                payload.questionnaire_uuid,
+                auth.tenant_uuid,
+                auth.user_uuid,
+            )
+            if any(
+                record.template_uuid == payload.template_uuid and record.status in ACTIVE_PIPELINE_STATUSES
+                for record in records
+            ):
+                raise ConflictError(ConflictError.PIPELINE_ALREADY_ACTIVE_MESSAGE)
+            run_id = await self.database.create_generation(
+                questionnaire_uuid=payload.questionnaire_uuid,
+                template_uuid=payload.template_uuid,
+                title=template.title,
+                language=payload.language,
+                user_uuid=auth.user_uuid,
+                tenant_uuid=auth.tenant_uuid,
+                status=PipelineStatus.QUEUED,
+                named_version=resolve_named_version(project_versions),
+            )
 
         self.pipeline_queue_manager.enqueue(
             run_id,
@@ -226,6 +293,18 @@ class PipelineService:
             trace_id=trace_id,
         )
         return run_id
+
+    async def rename_pipeline(
+        self, run_id: UUID, payload: PipelineRenameRequest, auth: AuthenticatedUser
+    ) -> PipelineStatusResponse:
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+
+        updated_record = await self.database.update_generation(run_id, auth.tenant_uuid, title=payload.title)
+        if updated_record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        return _generation_record_to_status_response(updated_record)
 
     async def update_pipeline_result(
         self, run_id: UUID, save_request: PipelineSaveRequest, auth: AuthenticatedUser
@@ -272,20 +351,24 @@ class PipelineService:
                 auth=auth,
                 config=config,
             )
+        # asyncio.CancelledError inherits BaseException and deliberately bypasses this
+        # failure handler: user cancellation must never be persisted as FAILED.
         except Exception as error:
             logger.exception('Pipeline run failed', extra={'run_id': run_id, 'tenant_uuid': str(auth.tenant_uuid)})
             pipeline_error = _pipeline_error_from_exception(error)
             try:
                 async with self.database.transaction():
-                    await self.database.update_generation(
+                    record = await self.database.update_generation(
                         run_id,
                         auth.tenant_uuid,
+                        expected_statuses=(PipelineStatus.QUEUED, PipelineStatus.RUNNING),
                         status=PipelineStatus.FAILED,
                         error_type=pipeline_error.type,
                         error_message=pipeline_error.message,
                         progress_message=None,
                     )
-                    await self.database.create_generation_stats(run_id, get_trace_uuid())
+                    if record is not None:
+                        await self.database.create_generation_stats(run_id, get_trace_uuid())
             except Exception:
                 logger.exception(
                     'Failed to persist pipeline failure status',
@@ -308,14 +391,16 @@ class PipelineService:
         template = await self.database.get_template(template_uuid, auth.tenant_uuid)
         if template is None:
             async with self.database.transaction():
-                await self.database.update_generation(
+                record = await self.database.update_generation(
                     run_id,
                     auth.tenant_uuid,
+                    expected_statuses=(PipelineStatus.QUEUED, PipelineStatus.RUNNING),
                     status=PipelineStatus.FAILED,
                     error_type=ErrorType.TEMPLATE_NOT_FOUND,
                     error_message=ErrorType.TEMPLATE_NOT_FOUND.message,
                 )
-                await self.database.create_generation_stats(run_id, get_trace_uuid())
+                if record is not None:
+                    await self.database.create_generation_stats(run_id, get_trace_uuid())
             logger.error(
                 'Pipeline run failed because template was not found',
                 extra={'run_id': run_id, 'template_uuid': str(template_uuid), 'tenant_uuid': str(auth.tenant_uuid)},
@@ -325,11 +410,13 @@ class PipelineService:
         record = await self.database.update_generation(
             run_id,
             auth.tenant_uuid,
+            expected_statuses=(PipelineStatus.QUEUED,),
             status=PipelineStatus.RUNNING,
             progress_message='Starting pipeline...',
         )
         if record is None:
-            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+            # A cancelled queued run must not start, even if it reaches this worker.
+            return
 
         # Read at the start of every run so a queued job uses the settings saved at that moment.
         llm_config = await self.database.get_llm_settings(auth.tenant_uuid)
@@ -358,15 +445,17 @@ class PipelineService:
         def on_progress(message: str) -> None:
             # Called synchronously from deep inside the (async) pipeline; fire the DB
             # write without awaiting it so progress reporting never blocks generation.
+            # The status filter also discards writes delivered after a terminal state.
             task = asyncio.ensure_future(
-                self.database.update_generation(run_id, auth.tenant_uuid, progress_message=message),
+                self.database.update_generation(
+                    run_id, auth.tenant_uuid, expected_statuses=(PipelineStatus.RUNNING,), progress_message=message
+                ),
             )
             task.add_done_callback(_log_background_update_failure)
 
         output = await run_pipeline(
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
-            template_title=template.title,
             template_data=template.content,
             tenant_uuid=auth.tenant_uuid,
             pipeline=pipeline,
@@ -380,7 +469,13 @@ class PipelineService:
 
         # Everything the run produced is written in one transaction, so it lands atomically.
         async with self.database.transaction():
-            await self.database.update_generation(run_id, auth.tenant_uuid, **_succeeded_update(output))
+            record = await self.database.update_generation(
+                run_id, auth.tenant_uuid, expected_statuses=(PipelineStatus.RUNNING,), **_succeeded_update(output)
+            )
+            if record is None:
+                # Cancellation won the atomic status transition. Discard the output
+                # and skip success stats instead of reviving the cancelled run.
+                return
             await self.database.create_generation_stats(run_id, get_trace_uuid(), **_succeeded_stats(output))
         logger.info(
             'Pipeline run status updated to succeeded',

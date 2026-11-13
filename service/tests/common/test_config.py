@@ -105,12 +105,8 @@ def test_load_config_rejects_absolute_prompts_path_in_config(
     _copy_test_config(tmp_path, prompts_path=absolute_prompts_path.as_posix())
     monkeypatch.chdir(tmp_path)
 
-    try:
+    with pytest.raises(ValueError, match=r"^Invalid config value: 'files\.prompts_path' must be a relative path$"):
         load_config()
-    except ValueError as error:
-        assert str(error) == "Invalid config value: 'files.prompts_path' must be a relative path"
-    else:
-        raise AssertionError('Expected load_config() to reject an absolute prompts path')
 
 
 def test_load_config_expands_env_vars_in_encryption_key(
@@ -148,7 +144,7 @@ def test_create_app_stores_the_resolved_config(
     app = create_app(run_migrations=False)
 
     assert app.state.config.files.prompts_path == str(TEST_PROMPTS_PATH)
-    assert app.state.config.cover_definition['version'] == '1'
+    assert app.state.config.cover_definition.version == '1'
 
 
 @patch('ai_document_plugin_service.app.run_startup_migrations')

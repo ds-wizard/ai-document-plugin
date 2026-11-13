@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
+
 type ResolvedCoverData = str | list[dict[str, Any]]
 
 
@@ -109,10 +111,10 @@ def resolve_cover_data(resolver_id: str, sources: CoverDataSources) -> ResolvedC
     return resolver(sources)
 
 
-def validate_cover_data_resolvers(definition: dict[str, Any]) -> None:
+def validate_cover_data_resolvers(definition: CoverPageDefinition) -> None:
     configured_resolvers = {
-        *(field['resolver'] for field in definition['metadata']['fields']),
-        definition['history']['resolver'],
+        *(field.resolver for field in definition.metadata.fields),
+        definition.history.resolver,
     }
     unknown_resolvers = configured_resolvers - COVER_DATA_RESOLVERS.keys()
     if unknown_resolvers:

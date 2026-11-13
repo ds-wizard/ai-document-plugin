@@ -16,7 +16,7 @@ def _render(markdown: str) -> Document:
 
 
 def _hyperlinks(paragraph: Paragraph) -> list:
-    return paragraph._p.findall(qn('w:hyperlink'))  # noqa: SLF001
+    return paragraph._p.findall(qn('w:hyperlink'))
 
 
 def _link_targets(paragraph: Paragraph) -> list[str]:
@@ -77,7 +77,7 @@ def test_inline_formatting_maps_to_runs() -> None:
 def test_heading_runs_do_not_disable_inherited_bold() -> None:
     document = _render('# Title with **bold**')
 
-    assert all(run.bold in (None, True) for run in document.paragraphs[0].runs)
+    assert all(run.bold in {None, True} for run in document.paragraphs[0].runs)
 
 
 def test_soft_break_becomes_a_space_in_one_paragraph() -> None:

@@ -102,7 +102,7 @@ class DmpGeneratorComponent:
         if include_cover_page or cover_page_assignments:
             field_labels = '\n'.join(self.cover_page_field_labels.values())
             cover_page_instruction += (
-                '\n\nUse these exact English field labels:\n'
+                '\n\nUse these field labels, translated into the output language:\n'
                 + field_labels
                 + '\nPreserve the original project names in subsection headings.'
             )

@@ -18,6 +18,7 @@ import type { ApiTemplateContent, TemplateDetail, TemplateOption, TemplateScope 
 export type TemplateFormTarget = TemplateDetail | 'new'
 
 type TemplateFormDialogProps = {
+    language?: string
     scope: TemplateScope
     target: TemplateFormTarget
     onSaved: (template: TemplateOption) => void
@@ -47,7 +48,13 @@ const parseTemplateContent = (json: string): ApiTemplateContent => {
  *
  * Mount it to open it: the form starts from `target` each time, so nothing has to be reset.
  */
-export function TemplateFormDialog({ scope, target, onSaved, onClose }: TemplateFormDialogProps) {
+export function TemplateFormDialog({
+    scope,
+    target,
+    onSaved,
+    onClose,
+    language = 'en',
+}: TemplateFormDialogProps) {
     const editedTemplate = target === 'new' ? null : target
     const [hasCoverPage, setHasCoverPage] = useState(editedTemplate?.hasCoverPage ?? false)
     const [title, setTitle] = useState(editedTemplate?.title ?? '')
@@ -155,7 +162,7 @@ export function TemplateFormDialog({ scope, target, onSaved, onClose }: Template
                         onChange={setHasCoverPage}
                         disabled={isSaving}
                     />
-                    <CoverPagePreview />
+                    <CoverPagePreview key={language} language={language} />
                 </Stack>
 
                 <Separator />

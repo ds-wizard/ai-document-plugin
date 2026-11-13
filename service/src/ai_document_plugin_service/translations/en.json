@@ -1,0 +1,22 @@
+{
+  "code": "en",
+  "name": "English",
+  "nativeName": "English",
+  "iso6392": "eng",
+  "family": "Indo-European",
+  "coverPage": {
+    "metadata.title.text": "Data Management Plan",
+    "metadata.columns.metadata.text": "Metadata",
+    "metadata.columns.details.text": "Details",
+    "metadata.fields.project_name.label": "Project Name",
+    "metadata.fields.based_on.label": "Based On",
+    "metadata.fields.project_phase.label": "Project Phase",
+    "metadata.fields.created_by.label": "Created By",
+    "metadata.fields.generated_on.label": "Generated On",
+    "metadata.attribution": "Data Management Plan created in Data Stewardship Wizard «ds-wizard.org» using AI document generation plugin",
+    "history.title.text": "History of Changes",
+    "history.columns.version.text": "Version",
+    "history.columns.date.text": "Date",
+    "history.columns.changes.text": "Changes"
+  }
+}

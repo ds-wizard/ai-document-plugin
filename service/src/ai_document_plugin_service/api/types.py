@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 from pydantic.alias_generators import to_camel
 
 from ai_document_plugin_service.ai.common.types import TemplateContent
+from ai_document_plugin_service.data.languages import get_translation
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
@@ -212,7 +213,15 @@ class PipelineRunRequest(ApiModel):
     time_zone: str = 'UTC'
     questionnaire_uuid: UUID
     template_uuid: UUID
-    language: str = Field(default='en', min_length=2, max_length=10, pattern=r'^[a-z]{2,3}(?:-[A-Z]{2})?$')
+    language: str = Field(
+        default='en', validate_default=True, min_length=2, max_length=10, pattern=r'^[a-z]{2,3}(?:-[A-Z]{2})?$'
+    )
+
+    @field_validator('language')
+    @classmethod
+    def validate_language(cls, value: str) -> str:
+        get_translation(value)
+        return value
 
     @field_validator('time_zone')
     @classmethod

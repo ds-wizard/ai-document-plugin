@@ -859,6 +859,7 @@ async def test_czech_pipeline_generates_cover_and_body_in_czech():
     assert '# Plán správy dat' in result['cover_page']
     assert '# Projects' in result['cover_page']
     assert 'Název projektu' in result['cover_page']
+    assert generator.cover_page_renderer is not None
     assert generator.cover_page_renderer.definition.metadata.title.text == 'Plán správy dat'
     assert generator.cover_page_field_labels['funding'] == 'Funding'
     assert client.completion.await_count == 2

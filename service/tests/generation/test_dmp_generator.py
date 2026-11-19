@@ -256,17 +256,17 @@ def test_flatten_matched_questions_extracts_leaf_rows() -> None:
 
 
 def test_construct_chapter_prompt_returns_none_for_empty() -> None:
-    assert _component().construct_chapter_prompt('Ch', []) is None
+    assert _component().construct_chapter_prompt('Ch', [], {}) is None
 
 
 def test_construct_chapter_prompt_formats_questions() -> None:
     replies = [
         {'type': 'question', 'question_path': 'ch.q1', 'question_title': 'Q1', 'reply': 'A1', 'children': []},
     ]
-    prompt = _component().construct_chapter_prompt('Data', replies)
+    prompt = _component().construct_chapter_prompt('Data', replies, {'ch.q1': 'q1', 'ch.parent.child': 'q2'})
     assert prompt is not None
     assert 'Chapter name: Data' in prompt
-    assert ' - Question: Q1\n   Question path: ch.q1\n   Answer: A1\n' in prompt
+    assert ' - Question: Q1\n   Source ID: q1\n   Answer: A1\n' in prompt
 
 
 def test_construct_chapter_prompt_preserves_nested_questions() -> None:
@@ -287,13 +287,10 @@ def test_construct_chapter_prompt_preserves_nested_questions() -> None:
         },
     ]
 
-    prompt = _component().construct_chapter_prompt('Data', replies)
+    prompt = _component().construct_chapter_prompt('Data', replies, {'ch.q1': 'q1', 'ch.parent.child': 'q2'})
 
     assert prompt is not None
-    assert (
-        ' - Question: Parent\n   Question path: ch.parent\n'
-        '\t - Question: Child\n\t   Question path: ch.parent.child\n\t   Answer: Child answer\n'
-    ) in prompt
+    assert (' - Question: Parent\n\t - Question: Child\n\t   Source ID: q2\n\t   Answer: Child answer\n') in prompt
 
 
 async def test_disabled_cover_page_is_omitted_even_when_source_data_are_available() -> None:
@@ -341,12 +338,21 @@ def test_match_replies_selection_handles_multianswer_groups() -> None:
     assert all(item['type'] == 'wrapper' for item in result)
     flattened = [child['reply'] for wrapper in result for child in wrapper['children']]
     assert sorted(flattened) == ['No', 'Yes']
-    prompt = component.construct_chapter_prompt('Data', result)
+    prompt = component.construct_chapter_prompt(
+        'Data',
+        result,
+        {
+            'ch.listQ.uuidA.itemQ': 'q1',
+            'ch.listQ.uuidB.itemQ': 'q2',
+            'ch.listQ.itemQ': 'q3',
+            'ch.listQ.neighborQ': 'q4',
+        },
+    )
     assert prompt is not None
     assert prompt.count('SUBQUESTIONS GROUP:') == 2
-    assert prompt.count('Question path:') == 2
-    assert '\t   Question path: ch.listQ.uuidA.itemQ\n\t   Answer: Yes\n' in prompt
-    assert '\t   Question path: ch.listQ.uuidB.itemQ\n\t   Answer: No\n' in prompt
+    assert prompt.count('Source ID:') == 2
+    assert '\t   Source ID: q1\n\t   Answer: Yes\n' in prompt
+    assert '\t   Source ID: q2\n\t   Answer: No\n' in prompt
     assert '*' not in prompt
 
 
@@ -381,10 +387,19 @@ def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -
     assert synthetic['question_title'] == 'Neighbor'
     assert synthetic['reply'] == 'No'
     assert synthetic['debug-info']
-    prompt = component.construct_chapter_prompt('Data', result)
+    prompt = component.construct_chapter_prompt(
+        'Data',
+        result,
+        {
+            'ch.listQ.uuidA.itemQ': 'q1',
+            'ch.listQ.uuidB.itemQ': 'q2',
+            'ch.listQ.itemQ': 'q3',
+            'ch.listQ.neighborQ': 'q4',
+        },
+    )
     assert prompt is not None
-    assert '   Question path: ch.listQ.itemQ\n   Answer: Yes\n' in prompt
-    assert '   Question path: ch.listQ.neighborQ\n   Answer: No\n' in prompt
+    assert '   Source ID: q3\n   Answer: Yes\n' in prompt
+    assert '   Source ID: q4\n   Answer: No\n' in prompt
 
 
 def test_filter_reachable_replies_drops_stale_option_branch() -> None:
@@ -732,6 +747,9 @@ async def test_run_uses_cover_page_assignments_regardless_of_title(nested: bool)
     body_prompt = next(prompt for prompt in stub.section_calls if 'Projects' in prompt)
     assert 'Use the answered project title' in cover_page_prompt
     assert 'Use the answered project title' not in body_prompt
+    assert 'Source ID: q1' in cover_page_prompt
+    assert 'Source ID: q1' in body_prompt
+    assert 'ch.itemQ' not in cover_page_prompt + body_prompt
 
     import io
 
@@ -948,3 +966,68 @@ async def test_generated_on_uses_browser_timezone(instant, zone, expected):
         created_at=datetime.fromisoformat(instant).astimezone(ZoneInfo(zone)),
     )
     assert expected in result['cover_page']
+
+
+@pytest.mark.parametrize('unknown_id', [False, True])
+async def test_short_sources_flow_through_generation_and_polishing(unknown_id: bool) -> None:
+    from unittest.mock import AsyncMock
+
+    from haystack import Pipeline
+
+    from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
+    from ai_document_plugin_service.ai.common.source_ids import build_source_ids, restore_source_paths
+    from ai_document_plugin_service.ai.polishing.dmp_polisher_component import DmpPolisherComponent
+
+    source = 'q999' if unknown_id else 'q1'
+    stub = StubGenerationLLM(f'<statement source="{source}">Stored data.</statement>')
+    polisher = AsyncMock()
+    polisher.polish_dmp.return_value = '# Body\n<statement source="q1">Polished data.</statement>'
+    pipeline = Pipeline()
+    pipeline.add_component('generate', _component(stub))
+    pipeline.add_component('polish', DmpPolisherComponent(polisher))
+    pipeline.add_component('cover', CoverPageComponent())
+    pipeline.connect('generate.markdown', 'polish.markdown')
+    pipeline.connect('generate.cover_page', 'cover.cover_page')
+    pipeline.connect('polish.markdown', 'cover.markdown')
+    replies = {'ch.itemQ': {'value': {'type': 'StringReply', 'value': 'Stored data'}}}
+    source_ids = build_source_ids(replies)
+    data = {
+        'generate': {
+            'replies': replies,
+            'km': _km_fixture(),
+            'source_ids': source_ids,
+            'assignments': _serialize_assignments(
+                [
+                    SectionAssignment(
+                        id=uuid.uuid4(),
+                        title='Body',
+                        assignments={
+                            'itemQ': {
+                                'question_path': 'ch.itemQ',
+                                'question_title': 'Item',
+                                'question_text': 'Item text',
+                                'children': {},
+                            }
+                        },
+                    )
+                ]
+            ),
+        }
+    }
+    if unknown_id:
+        with pytest.raises(ExceptionGroup) as error:
+            await run_haystack_pipeline(pipeline, data)
+        assert isinstance(error.value.exceptions[0], ValueError)
+        assert 'Unknown statement source IDs: q999' in str(error.value.exceptions[0])
+        polisher.polish_dmp.assert_not_called()
+        return
+    result = await pipeline.run_async(data, include_outputs_from={'generate'})
+    assert 'Source ID: q1' in stub.section_calls[0]
+    assert 'ch.itemQ' not in stub.section_calls[0]
+    assert polisher.polish_dmp.await_args.kwargs['markdown'] == (
+        '# Body\n\n<statement source="q1">Stored data.</statement>'
+    )
+    assert '<statement source="ch.itemQ">' in result['generate']['debug_markdown']
+    assert restore_source_paths(result['cover']['markdown'], source_ids) == (
+        '# Body\n<statement source="ch.itemQ">Polished data.</statement>'
+    )

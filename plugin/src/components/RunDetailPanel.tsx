@@ -26,7 +26,6 @@ type RunDetailPanelProps = {
 function RunNameEditor({
     name,
     onRename,
-    projectUuid,
 }: {
     name: string
     onRename: (name: string) => Promise<boolean>
@@ -99,9 +98,11 @@ function RunNameEditor({
 function RunDetailPanelBody({
     run,
     applyStatus,
+    projectUuid,
 }: {
     run: RunRecord
     applyStatus: (status: PipelineStatusResponse) => void
+    projectUuid: string
 }) {
     if (run.status === 'queued' || run.status === 'running') {
         return (
@@ -129,6 +130,7 @@ function RunDetailPanelBody({
 
     return (
         <PipelineResultPanel
+            projectUuid={projectUuid}
             resultMarkdown={run.resultMarkdown}
             resultRunId={run.runId}
             downloadBaseName={run.templateTitle}
@@ -137,7 +139,7 @@ function RunDetailPanelBody({
     )
 }
 
-export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
+export function RunDetailPanel({ runId, history, projectUuid }: RunDetailPanelProps) {
     const run = history.getRun(runId)
     const { ensureDetailLoaded, applyStatus } = history
 
@@ -164,7 +166,7 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
                     <Muted>{getRunTimeLabel(run)}</Muted>
                 </Inline>
             </Stack>
-            <RunDetailPanelBody run={run} applyStatus={applyStatus} />
+            <RunDetailPanelBody run={run} applyStatus={applyStatus} projectUuid={projectUuid} />
         </Stack>
     )
 }

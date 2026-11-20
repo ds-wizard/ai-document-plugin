@@ -7,7 +7,9 @@ from zoneinfo import ZoneInfo
 
 from ai_document_plugin_service.ai.common.config import Config
 from ai_document_plugin_service.ai.common.execution_logging import (
+    RunLogContext,
     log_timing_event,
+    run_log_context,
 )
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.llm_error import LLMError
@@ -106,18 +108,27 @@ def _succeeded_update(output: PipelineOutput) -> GenerationUpdate:
     }
 
 
-def _succeeded_stats(output: PipelineOutput) -> GenerationStats:
-    """The stats a finished run writes. Per-step usage stays NULL for steps that did not run."""
+def _log_run_stats(output: PipelineOutput) -> None:
+    """Emit the run statistics to the log; they are no longer persisted.
+
+    Per-step usage is None for steps that did not run (e.g. assignment when cached assignments are reused).
+    """
     stats = output.stats
-    assignment, generation, polishing = stats.assignment, stats.generation, stats.polishing
-    return {
-        'dmp_pre_polished': output.dmp_pre_polished,
-        'dmp_polished': output.markdown,
-        'assignment_llm_calls': assignment.llm_calls if assignment else None,
-        'generation_llm_calls': generation.llm_calls if generation else None,
-        'polishing_llm_calls': polishing.llm_calls if polishing else None,
-        'elapsed_seconds': stats.elapsed_seconds,
-    }
+    fields: dict[str, object] = {'trace_id': str(get_trace_uuid()), 'elapsed_seconds': stats.elapsed_seconds}
+    for step_name, usage in (
+        ('assignment', stats.assignment),
+        ('generation', stats.generation),
+        ('polishing', stats.polishing),
+    ):
+        fields[f'{step_name}_llm_calls'] = usage.llm_calls if usage else None
+        fields[f'{step_name}_input_tokens'] = usage.input_tokens if usage else None
+        fields[f'{step_name}_output_tokens'] = usage.output_tokens if usage else None
+    log_timing_event('generation_stats', **fields)
+
+
+def _succeeded_stats(output: PipelineOutput) -> GenerationStats:
+    """The analysis-only documents a finished run writes."""
+    return {'dmp_pre_polished': output.dmp_pre_polished, 'dmp_polished': output.markdown}
 
 
 class LlmClientTenantStore:
@@ -447,19 +458,30 @@ class PipelineService:
             )
             task.add_done_callback(_log_background_update_failure)
 
-        output = await run_pipeline(
+        # Every execution event (LLM calls, timings, stats) logged inside carries the run identifiers.
+        log_context = RunLogContext(
+            run_id=run_id,
             questionnaire_uuid=questionnaire_uuid,
             template_uuid=template_uuid,
-            template_data=template.content,
+            template_title=template.title,
+            user_uuid=auth.user_uuid,
             tenant_uuid=auth.tenant_uuid,
-            pipeline=pipeline,
-            on_progress=on_progress,
-            dsw_client=DSWClient(auth.token, auth.api_url),
-            created_at=record.created_at.astimezone(ZoneInfo(time_zone)),
-            project_versions=project_versions,
-            include_cover_page=include_cover_page,
         )
-        log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
+        with run_log_context(log_context):
+            output = await run_pipeline(
+                questionnaire_uuid=questionnaire_uuid,
+                template_uuid=template_uuid,
+                template_data=template.content,
+                tenant_uuid=auth.tenant_uuid,
+                pipeline=pipeline,
+                on_progress=on_progress,
+                dsw_client=DSWClient(auth.token, auth.api_url),
+                created_at=record.created_at.astimezone(ZoneInfo(time_zone)),
+                project_versions=project_versions,
+                include_cover_page=include_cover_page,
+            )
+            log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
+            _log_run_stats(output)
 
         # Everything the run produced is written in one transaction, so it lands atomically.
         async with self.database.transaction():

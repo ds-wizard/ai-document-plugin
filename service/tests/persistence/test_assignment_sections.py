@@ -150,11 +150,11 @@ async def test_saver_skips_the_write_when_nothing_new_was_assigned():
     generated = _generated_assignments()
 
     result = await AssignmentSaverComponent(saver).run_async(
-        uuid4(), 'Model', '1', uuid4(), uuid4(), generated, None, has_new_assignments=False
+        uuid4(), 'Model', '1', uuid4(), uuid4(), generated, has_new_assignments=False
     )
 
     saver.save.assert_not_awaited()
-    assert result == {'assignments': [assignment.to_dict() for assignment in generated], 'stats': None}
+    assert result == {'assignments': [assignment.to_dict() for assignment in generated]}
 
 
 def _database_with_recorded_statements(monkeypatch) -> tuple[PostgresDB, SimpleNamespace]:

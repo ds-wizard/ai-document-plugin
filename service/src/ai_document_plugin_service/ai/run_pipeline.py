@@ -113,7 +113,6 @@ def build_pipeline(
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
-    pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     pipeline.connect('assignment_component.has_new_assignments', 'assignment_saver_component.has_new_assignments')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
@@ -198,6 +197,7 @@ async def run_pipeline(
                 },
             },
             include_outputs_from={
+                'assignment_component',
                 'assignment_saver_component',
                 'dmp_generator_component',
                 'dmp_polisher_component',
@@ -230,7 +230,7 @@ async def run_pipeline(
         logger.error(msg, extra={'template_uuid': str(template_uuid)})
         raise RuntimeError(msg)
 
-    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    assignment_stats = get_component_stats(result, 'assignment_component')
     generation_stats = get_component_stats(result, 'dmp_generator_component')
     polishing_stats = get_component_stats(result, 'dmp_polisher_component')
 
@@ -267,7 +267,7 @@ async def run_pipeline(
 
 def collect_stats(result: Mapping[str, object], total_time: float) -> PipelineStats:
     """Collect per-step LLM usage. Pure, so it can never fail a finished run."""
-    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    assignment_stats = get_component_stats(result, 'assignment_component')
     generation_stats = get_component_stats(result, 'dmp_generator_component')
     polishing_stats = get_component_stats(result, 'dmp_polisher_component')
 

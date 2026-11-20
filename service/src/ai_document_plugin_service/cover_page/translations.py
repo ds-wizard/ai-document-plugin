@@ -41,7 +41,7 @@ class _CoverPageTranslator:
 
     def section(self, section: CoverPageSection) -> CoverPageSection:
         return section.model_copy(update={'fields': [self.field(field, 'sections.fields') for field in section.fields]})
-    
+
     def history(self, history: CoverPageHistory) -> CoverPageHistory:
         return history.model_copy(
             update={

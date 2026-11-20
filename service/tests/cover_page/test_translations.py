@@ -42,7 +42,7 @@ def test_translates_cover_page(config, language, heading):
     assert translate_cover_page(config.cover_definition, language).metadata.title.text == heading
 
 
-def test_preview_is_english(client, config):
+def test_preview_is_english(client):
     preview = client.get('/cover-page/preview')
     assert preview.status_code == 200
     assert preview.json()['metadata']['title']['text'] == 'Data Management Plan'

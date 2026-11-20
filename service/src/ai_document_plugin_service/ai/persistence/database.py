@@ -88,6 +88,7 @@ class GenerationUpdate(TypedDict, total=False):
     result_markdown: str | None
     progress_message: str | None
     named_version: str | None
+    source_event_uuid: UUID | None
 
 
 class GenerationStats(TypedDict, total=False):
@@ -115,6 +116,7 @@ class GenerationRecord:
     created_at: datetime
     updated_at: datetime
     named_version: str | None = None
+    source_event_uuid: UUID | None = None
 
     @classmethod
     def from_row(cls, row: Row) -> 'GenerationRecord':
@@ -135,6 +137,7 @@ class GenerationRecord:
             created_at=row.created_at,
             updated_at=row.updated_at,
             named_version=row.named_version,
+            source_event_uuid=row.source_event_uuid,
         )
 
 

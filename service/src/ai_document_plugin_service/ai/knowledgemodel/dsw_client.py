@@ -9,6 +9,30 @@ from ai_document_plugin_service.ai.knowledgemodel.project_version import sort_pr
 logger = logging.getLogger(__name__)
 
 
+# Stands for "event 0" of a questionnaire without any events.
+NO_EVENTS_UUID = UUID(int=0)
+
+
+def parse_latest_event_uuid(payload: object) -> UUID:
+    """Read the newest event UUID from a ``/projects/{uuid}/events?size=1&sort=createdAt,desc`` response.
+
+    A questionnaire without events gives ``NO_EVENTS_UUID``. Raises ValueError, TypeError or KeyError for an
+    unexpected shape, so that a changed DSW response is never mistaken for an empty questionnaire.
+    """
+    if not isinstance(payload, dict):
+        msg = 'Unexpected events response: not an object'
+        raise TypeError(msg)
+
+    embedded = payload.get('_embedded')
+    events = embedded.get('projectEvents') if isinstance(embedded, dict) else None
+    if not isinstance(events, list):
+        msg = 'Unexpected events response: no projectEvents list'
+        raise TypeError(msg)
+    if not events:
+        return NO_EVENTS_UUID
+    return UUID(events[0]['uuid'])
+
+
 class DSWClient:
     def __init__(self, token: str, api_url: str) -> None:
         self.token = token
@@ -53,6 +77,31 @@ class DSWClient:
             },
         )
         return payload
+
+    async def get_latest_event_uuid(self, project_uuid: str | UUID) -> UUID:
+        # One event, newest first. DSW applies no default order, so the sort is required.
+        url = f'{self.api_url}/projects/{project_uuid}/events'
+        logger.info(
+            'Fetching latest questionnaire event from DSW',
+            extra={'url.full': url, 'project_uuid': str(project_uuid)},
+        )
+
+        headers: dict[str, str] = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, params={'size': 1, 'sort': 'createdAt,desc'})
+            response.raise_for_status()
+        except httpx.HTTPError:
+            logger.exception(
+                'Failed to fetch latest questionnaire event from DSW',
+                extra={'url.full': url, 'project_uuid': str(project_uuid)},
+            )
+            raise
+
+        return parse_latest_event_uuid(response.json())
 
     async def get_project_versions(self, project_uuid: str | UUID) -> list[dict]:
         # Fetch versions once and return them newest first for all consumers.

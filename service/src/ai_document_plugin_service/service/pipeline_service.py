@@ -6,13 +6,9 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from ai_document_plugin_service.ai.common.config import Config
-from ai_document_plugin_service.ai.common.execution_logging import (
-    RunLogContext,
-    log_timing_event,
-    run_log_context,
-)
 from ai_document_plugin_service.ai.common.llm_client import LLMClient
 from ai_document_plugin_service.ai.common.llm_error import LLMError
+from ai_document_plugin_service.ai.common.run_context import RunLogContext, run_log_context
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.knowledgemodel.project_version import resolve_named_version
@@ -114,7 +110,7 @@ def _log_run_stats(output: PipelineOutput) -> None:
     Per-step usage is None for steps that did not run (e.g. assignment when cached assignments are reused).
     """
     stats = output.stats
-    fields: dict[str, object] = {'trace_id': str(get_trace_uuid()), 'elapsed_seconds': stats.elapsed_seconds}
+    fields: dict[str, object] = {'trace_id': get_trace_uuid(), 'elapsed_seconds': stats.elapsed_seconds}
     for step_name, usage in (
         ('assignment', stats.assignment),
         ('generation', stats.generation),
@@ -123,7 +119,7 @@ def _log_run_stats(output: PipelineOutput) -> None:
         fields[f'{step_name}_llm_calls'] = usage.llm_calls if usage else None
         fields[f'{step_name}_input_tokens'] = usage.input_tokens if usage else None
         fields[f'{step_name}_output_tokens'] = usage.output_tokens if usage else None
-    log_timing_event('generation_stats', **fields)
+    logger.info('Generation stats', extra=fields)
 
 
 def _succeeded_stats(output: PipelineOutput) -> GenerationStats:
@@ -480,7 +476,9 @@ class PipelineService:
                 project_versions=project_versions,
                 include_cover_page=include_cover_page,
             )
-            log_timing_event('pipeline_generation_finished', knowledge_model_uuid=str(output.knowledge_model_uuid))
+            logger.info(
+                'Pipeline generation finished', extra={'knowledge_model_uuid': str(output.knowledge_model_uuid)}
+            )
             _log_run_stats(output)
 
         # Everything the run produced is written in one transaction, so it lands atomically.

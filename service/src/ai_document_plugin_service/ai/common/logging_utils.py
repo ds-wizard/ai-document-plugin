@@ -1,5 +1,8 @@
 import logging
+from dataclasses import asdict
+from uuid import UUID
 
+from ai_document_plugin_service.ai.common.run_context import get_run_log_context
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 
 LOG_FORMAT = '%(asctime)s | %(levelname)8s | %(name)s: [T:%(traceId)s] %(message)s'
@@ -7,12 +10,31 @@ _ORIGINAL_LOG_RECORD_FACTORY = logging.getLogRecordFactory()
 _STANDARD_LOG_RECORD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__) | {'asctime', 'message', 'traceId'}
 
 
+class RunContextFilter(logging.Filter):
+    """Adds the identifiers of the pipeline run in progress to every log record.
+
+    Fields a log call passes explicitly through ``extra`` are kept as they are.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        context = get_run_log_context()
+        if context is not None:
+            for field, value in asdict(context).items():
+                if value is not None and not hasattr(record, field):
+                    setattr(record, field, value)
+        return True
+
+
 class ExtraFormatter(logging.Formatter):
     """Appends application fields supplied through ``extra`` to text logs."""
 
     def format(self, record: logging.LogRecord) -> str:
         formatted = super().format(record)
-        extra = {key: value for key, value in record.__dict__.items() if key not in _STANDARD_LOG_RECORD_FIELDS}
+        extra = {
+            key: str(value) if isinstance(value, UUID) else value
+            for key, value in record.__dict__.items()
+            if key not in _STANDARD_LOG_RECORD_FIELDS
+        }
         return f'{formatted} | extra={extra!r}' if extra else formatted
 
 
@@ -46,6 +68,8 @@ def _configure_root_stdout_logging(level: int) -> None:
     for handler in root_logger.handlers:
         handler.setLevel(level)
         handler.setFormatter(ExtraFormatter(LOG_FORMAT))
+        if not any(isinstance(log_filter, RunContextFilter) for log_filter in handler.filters):
+            handler.addFilter(RunContextFilter())
 
 
 def _configure_library_log_levels() -> None:

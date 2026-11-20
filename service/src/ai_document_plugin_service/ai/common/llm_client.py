@@ -8,7 +8,6 @@ from openai import APIError, AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
 from ai_document_plugin_service.ai.common.dynamic_semaphore import DynamicSemaphore
-from ai_document_plugin_service.ai.common.execution_logging import log_llm_event
 from ai_document_plugin_service.ai.common.llm_error import LLMError, llm_error_from_exception
 
 if TYPE_CHECKING:
@@ -192,8 +191,9 @@ class LLMClient:
             raise RuntimeError(msg)
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()
-        log_llm_event(
-            {
+        logger.info(
+            'Waiting for LLM semaphore',
+            extra={
                 'state': 'waiting_for_semaphore',
                 'stage': stage,
                 'req_id': req_id,
@@ -206,8 +206,9 @@ class LLMClient:
         )
         async with self.semaphore:
             wait_s = time.perf_counter() - wait_start
-            log_llm_event(
-                {
+            logger.info(
+                'Waiting for LLM response',
+                extra={
                     'state': 'waiting_for_llm_response',
                     'stage': stage,
                     'req_id': req_id,
@@ -302,7 +303,10 @@ class LLMClient:
                     'error_message': str(error),
                 },
             )
-        log_llm_event(payload)
+        if error is None:
+            logger.info('LLM call completed', extra=payload)
+        else:
+            logger.error('LLM call failed', extra=payload)
 
 
 def _count_messages(messages: object) -> int | None:

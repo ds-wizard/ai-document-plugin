@@ -1,5 +1,6 @@
 import logging
 from dataclasses import asdict
+from typing import override
 from uuid import UUID
 
 from ai_document_plugin_service.ai.common.run_context import get_run_log_context
@@ -11,17 +12,16 @@ _STANDARD_LOG_RECORD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__) | {'
 
 
 class RunContextFilter(logging.Filter):
-    """Adds the identifiers of the pipeline run in progress to every log record.
+    """Adds the identifiers of the pipeline run in progress to every log record under ``context``.
 
-    Fields a log call passes explicitly through ``extra`` are kept as they are.
+    A ``context`` a log call passes explicitly through ``extra`` is kept as it is.
     """
 
+    @override
     def filter(self, record: logging.LogRecord) -> bool:
         context = get_run_log_context()
-        if context is not None:
-            for field, value in asdict(context).items():
-                if value is not None and not hasattr(record, field):
-                    setattr(record, field, value)
+        if context is not None and not hasattr(record, 'context'):
+            record.context = {field: str(value) for field, value in asdict(context).items() if value is not None}
         return True
 
 

@@ -191,7 +191,7 @@ class LLMClient:
             raise RuntimeError(msg)
         req_id = uuid.uuid4().hex[:8]
         wait_start = time.perf_counter()
-        logger.info(
+        logger.debug(
             'Waiting for LLM semaphore',
             extra={
                 'state': 'waiting_for_semaphore',
@@ -206,7 +206,7 @@ class LLMClient:
         )
         async with self.semaphore:
             wait_s = time.perf_counter() - wait_start
-            logger.info(
+            logger.debug(
                 'Waiting for LLM response',
                 extra={
                     'state': 'waiting_for_llm_response',

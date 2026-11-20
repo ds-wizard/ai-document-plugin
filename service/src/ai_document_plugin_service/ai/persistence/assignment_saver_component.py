@@ -152,4 +152,3 @@ class DBSaver(Saver):
                 'tenant_uuid': str(tenant_uuid),
             },
         )
-

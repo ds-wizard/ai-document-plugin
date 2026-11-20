@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Added a note on a generated document when the questionnaire answers may have changed since it was generated
+
 ## [0.5.1] - 2026-11-10
 
 - Fixed the admin permission check to use the DSW 5.0 `settings.manage` permission (#221)

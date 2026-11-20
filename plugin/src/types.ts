@@ -95,6 +95,8 @@ export type PipelineStatusResponse = {
     progressMessage: string | null
     updatedAt: string
     namedVersion: string | null
+    /** Newest DSW questionnaire event when the run read the answers; null for older runs. */
+    sourceEventUuid: string | null
 }
 
 export type PipelineSummaryItem = {
@@ -107,6 +109,7 @@ export type PipelineSummaryItem = {
     createdAt: string
     updatedAt: string
     namedVersion: string | null
+    sourceEventUuid: string | null
 }
 
 export type ResultRenderMode = 'formatted' | 'raw'

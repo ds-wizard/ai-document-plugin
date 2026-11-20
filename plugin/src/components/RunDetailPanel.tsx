@@ -7,6 +7,7 @@ import { Muted, Title } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useState } from 'react'
 
 import { PipelineResultPanel } from '@/components/PipelineResultPanel'
+import { QuestionnaireChangeBadge } from '@/components/QuestionnaireChangeBadge'
 import styles from '@/components/RunDetailPanel.module.css'
 import {
     getRunTimeLabel,
@@ -15,11 +16,13 @@ import {
     RunRecord,
     type UseGenerationHistoryResult,
 } from '@/hooks/useGenerationHistory'
+import type { LatestQuestionnaireEvent } from '@/hooks/useLatestQuestionnaireEvent'
 import type { PipelineStatusResponse } from '@/types.ts'
 
 type RunDetailPanelProps = {
     runId: string
     history: UseGenerationHistoryResult
+    latestEvent: LatestQuestionnaireEvent
 }
 
 function RunNameEditor({
@@ -135,7 +138,7 @@ function RunDetailPanelBody({
     )
 }
 
-export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
+export function RunDetailPanel({ runId, history, latestEvent }: RunDetailPanelProps) {
     const run = history.getRun(runId)
     const { ensureDetailLoaded, applyStatus } = history
 
@@ -160,6 +163,7 @@ export function RunDetailPanel({ runId, history }: RunDetailPanelProps) {
                 <Inline>
                     <Badge>{getRunVersionLabel(run)}</Badge>
                     <Muted>{getRunTimeLabel(run)}</Muted>
+                    <QuestionnaireChangeBadge run={run} latestEvent={latestEvent} />
                 </Inline>
             </Stack>
             <RunDetailPanelBody run={run} applyStatus={applyStatus} />

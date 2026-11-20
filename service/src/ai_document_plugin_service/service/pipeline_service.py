@@ -34,6 +34,10 @@ from ai_document_plugin_service.api.types import (
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
+from ai_document_plugin_service.service.questionnaire_state_service import (
+    QuestionnaireState,
+    QuestionnaireStateService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +81,7 @@ def _generation_record_to_status_response(record: GenerationRecord) -> PipelineS
         progress_message=record.progress_message,
         updated_at=record.updated_at.isoformat(),
         named_version=record.named_version,
+        source_event_uuid=record.source_event_uuid,
     )
 
 
@@ -91,16 +96,18 @@ def _generation_record_to_summary_response(record: GenerationRecord) -> Pipeline
         created_at=record.created_at.isoformat(),
         updated_at=record.updated_at.isoformat(),
         named_version=record.named_version,
+        source_event_uuid=record.source_event_uuid,
     )
 
 
-def _succeeded_update(output: PipelineOutput) -> GenerationUpdate:
+def _succeeded_update(output: PipelineOutput, questionnaire_state: QuestionnaireState) -> GenerationUpdate:
     """The generation fields a finished run writes."""
     return {
         'status': PipelineStatus.SUCCEEDED,
         'knowledge_model_uuid': output.knowledge_model_uuid,
         'result_markdown': output.markdown,
         'progress_message': None,
+        'source_event_uuid': questionnaire_state.event_uuid,
     }
 
 
@@ -159,9 +166,15 @@ def _log_background_update_failure(task: Task[object]) -> None:
 
 
 class PipelineService:
-    def __init__(self, pipeline_queue_manager: PipelineQueueManager, database: Database) -> None:
+    def __init__(
+        self,
+        pipeline_queue_manager: PipelineQueueManager,
+        database: Database,
+        questionnaire_state_service: QuestionnaireStateService,
+    ) -> None:
         self.pipeline_queue_manager = pipeline_queue_manager
         self.database = database
+        self.questionnaire_state_service = questionnaire_state_service
         self._llm_clients = LlmClientTenantStore()
 
     async def get_pipeline_status(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse | None:
@@ -464,6 +477,10 @@ class PipelineService:
             tenant_uuid=auth.tenant_uuid,
         )
         with run_log_context(log_context):
+            dsw_client = DSWClient(auth.token, auth.api_url)
+            # Taken right before run_pipeline reads the answers, so an edit in between only makes the run look
+            # changed, never unchanged. A failure here fails the run: it would otherwise lose the change check.
+            questionnaire_state = await self.questionnaire_state_service.capture(dsw_client, questionnaire_uuid)
             output = await run_pipeline(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
@@ -471,7 +488,7 @@ class PipelineService:
                 tenant_uuid=auth.tenant_uuid,
                 pipeline=pipeline,
                 on_progress=on_progress,
-                dsw_client=DSWClient(auth.token, auth.api_url),
+                dsw_client=dsw_client,
                 created_at=record.created_at.astimezone(ZoneInfo(time_zone)),
                 project_versions=project_versions,
                 include_cover_page=include_cover_page,
@@ -484,7 +501,10 @@ class PipelineService:
         # Everything the run produced is written in one transaction, so it lands atomically.
         async with self.database.transaction():
             record = await self.database.update_generation(
-                run_id, auth.tenant_uuid, expected_statuses=(PipelineStatus.RUNNING,), **_succeeded_update(output)
+                run_id,
+                auth.tenant_uuid,
+                expected_statuses=(PipelineStatus.RUNNING,),
+                **_succeeded_update(output, questionnaire_state),
             )
             if record is None:
                 # Cancellation won the atomic status transition. Discard the output

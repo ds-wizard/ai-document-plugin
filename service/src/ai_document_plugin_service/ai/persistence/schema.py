@@ -117,6 +117,9 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
         Column('named_version', Text, nullable=True),
+        # Newest DSW event of the questionnaire when the run read it (see QuestionnaireStateService).
+        # The nil UUID for a questionnaire without events; NULL for runs from before this column existed.
+        Column('source_event_uuid', UUID(as_uuid=True), nullable=True),
         Column(
             'created_at',
             DateTime(timezone=True),

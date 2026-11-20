@@ -31,6 +31,7 @@ export type RunRecord = {
     createdAt: string
     updatedAt: string
     namedVersion: string | null
+    sourceEventUuid: string | null
     resultMarkdown: string | null
     /** false = came only from the summary list, never polled/backfilled with full detail. */
     hasDetail: boolean
@@ -79,6 +80,7 @@ const summaryToRunRecord = (item: PipelineSummaryItem): RunRecord => ({
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     namedVersion: item.namedVersion,
+    sourceEventUuid: item.sourceEventUuid,
     resultMarkdown: null,
     hasDetail: false,
 })
@@ -127,6 +129,7 @@ export function useGenerationHistory(project: PipelineProject): UseGenerationHis
                 error: status.error,
                 createdAt: status.createdAt,
                 namedVersion: status.namedVersion,
+                sourceEventUuid: status.sourceEventUuid,
                 updatedAt: status.updatedAt,
                 progressMessage: status.progressMessage,
                 resultMarkdown: status.resultMarkdown,

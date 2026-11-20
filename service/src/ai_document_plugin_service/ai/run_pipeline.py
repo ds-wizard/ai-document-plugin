@@ -22,6 +22,7 @@ from ai_document_plugin_service.ai.common import (
 )
 from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
+from ai_document_plugin_service.ai.common.source_ids import build_source_ids, restore_source_paths
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
@@ -152,6 +153,7 @@ async def run_pipeline(
         duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
     )
     replies = km_data['replies']
+    source_ids = build_source_ids(replies)
     km = km_data['knowledgeModel']
     knowledge_model_uuid = UUID(km_data['knowledgeModelPackage']['uuid'])
     knowledge_model_name = km_data['knowledgeModelPackage']['name']
@@ -184,6 +186,7 @@ async def run_pipeline(
                 },
                 'dmp_generator_component': {
                     'replies': replies,
+                    'source_ids': source_ids,
                     'km': km,
                     'questionnaire_detail': km_data,
                     'project_versions': project_versions,
@@ -259,8 +262,8 @@ async def run_pipeline(
     )
     return PipelineOutput(
         knowledge_model_uuid=knowledge_model_uuid,
-        markdown=result_markdown,
-        dmp_pre_polished=dmp_pre_polished,
+        markdown=restore_source_paths(result_markdown, source_ids),
+        dmp_pre_polished=restore_source_paths(dmp_pre_polished, source_ids),
         stats=pipeline_stats,
     )
 

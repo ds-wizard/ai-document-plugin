@@ -6,6 +6,7 @@ from ai_document_plugin_service.ai.common.llm_client import (
     LLMClient,
     add_usage,
 )
+from ai_document_plugin_service.ai.common.source_retry import generate_with_valid_sources
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.data.languages import get_language_name
 
@@ -28,6 +29,8 @@ class GenerationLLM(ABC):
         prompt: str,
         stats: AssignmentStats | None = None,
         previously_generated: str = '',
+        *,
+        allowed_source_ids: set[str] | None = None,
     ) -> str:
         pass
 
@@ -60,14 +63,23 @@ class SectionGenerationLLM(GenerationLLM):
         prompt: str,
         stats: AssignmentStats | None = None,
         previously_generated: str = '',
+        *,
+        allowed_source_ids: set[str] | None = None,
     ) -> str:
         _ = previously_generated
         messages = self._section_from_qa_messages(prompt)
-        response = await self.client.completion(
-            stats=stats,
-            messages=messages,
-            temperature=self.config.dmp_generation.temperature,
-            max_completion_tokens=self.config.dmp_generation.max_tokens,
-        )
-        add_usage(stats, response)
-        return (response.choices[0].message.content or '').strip()
+
+        async def generate(repair_instruction: str) -> str:
+            request_messages = list(messages)
+            if repair_instruction:
+                request_messages.append({'role': 'user', 'content': repair_instruction})
+            response = await self.client.completion(
+                stats=stats,
+                messages=request_messages,
+                temperature=self.config.dmp_generation.temperature,
+                max_completion_tokens=self.config.dmp_generation.max_tokens,
+            )
+            add_usage(stats, response)
+            return (response.choices[0].message.content or '').strip()
+
+        return await generate_with_valid_sources(generate, allowed_source_ids or set())

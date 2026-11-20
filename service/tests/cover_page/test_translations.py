@@ -42,10 +42,10 @@ def test_translates_cover_page(config, language, heading):
     assert translate_cover_page(config.cover_definition, language).metadata.title.text == heading
 
 
-def test_preview_is_untranslated(client, config):
+def test_preview_is_english(client, config):
     preview = client.get('/cover-page/preview')
     assert preview.status_code == 200
-    assert preview.json()['metadata']['title']['text'] == config.cover_definition.metadata.title.text
+    assert preview.json()['metadata']['title']['text'] == 'Data Management Plan'
 
 
 @pytest.mark.parametrize('language', ['de', 'en-US', 'ces', '../en', ''])

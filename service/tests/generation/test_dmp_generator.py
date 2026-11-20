@@ -17,9 +17,11 @@ from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
 )
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
+from ai_document_plugin_service.cover_page.translations import translate_cover_page
 
 TEST_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / 'config.test.yaml')
 TEST_CONFIG = load_config(TEST_CONFIG_PATH)
+ENGLISH_COVER_DEFINITION = translate_cover_page(TEST_CONFIG.cover_definition, 'en')
 
 
 def _component(
@@ -31,8 +33,8 @@ def _component(
         dmp_generator_llm=gen_llm,
         cover_page_llm=gen_llm,
         cover_page_generation_prompt=cover_page_generation_prompt,
-        cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
-        cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
+        cover_page_renderer=CoverPageRenderer(ENGLISH_COVER_DEFINITION),
+        cover_page_field_labels=cover_page_assignment_field_labels(ENGLISH_COVER_DEFINITION),
     )
 
 
@@ -776,8 +778,8 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
     component = DmpGeneratorComponent(
         stub,
         cover_page_llm=cover_stub,
-        cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
-        cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
+        cover_page_renderer=CoverPageRenderer(ENGLISH_COVER_DEFINITION),
+        cover_page_field_labels=cover_page_assignment_field_labels(ENGLISH_COVER_DEFINITION),
     )
     cover_page_assignments = [
         SectionAssignment(
@@ -861,7 +863,7 @@ async def test_czech_pipeline_generates_cover_and_body_in_czech():
     assert 'Název projektu' in result['cover_page']
     assert generator.cover_page_renderer is not None
     assert generator.cover_page_renderer.definition.metadata.title.text == 'Plán správy dat'
-    assert generator.cover_page_field_labels['funding'] == 'Funding'
+    assert generator.cover_page_field_labels['funding'] == 'Financování'
     assert client.completion.await_count == 2
     for call in client.completion.await_args_list:
         messages = call.kwargs['messages']

@@ -6,6 +6,7 @@ from ai_document_plugin_service.cover_page.cover_page_definition import (
     CoverPageHistory,
     CoverPageLabel,
     CoverPageMetadata,
+    CoverPageSection,
 )
 from ai_document_plugin_service.data.languages import get_translation
 
@@ -38,6 +39,9 @@ class _CoverPageTranslator:
             }
         )
 
+    def section(self, section: CoverPageSection) -> CoverPageSection:
+        return section.model_copy(update={'fields': [self.field(field, 'sections.fields') for field in section.fields]})
+    
     def history(self, history: CoverPageHistory) -> CoverPageHistory:
         return history.model_copy(
             update={
@@ -53,5 +57,6 @@ def translate_cover_page(definition: CoverPageDefinition, language: str) -> Cove
         update={
             'metadata': translator.metadata(definition.metadata),
             'history': translator.history(definition.history),
+            'sections': [translator.section(section) for section in definition.sections],
         }
     )

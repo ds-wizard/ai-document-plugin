@@ -7,12 +7,12 @@ from ai_document_plugin_service.ai.common.types import TemplateSection
 
 class CoverPageLabel(BaseModel):
     id: str
-    text: str
+    text: str = ''  # filled in from the selected translation
 
 
 class CoverPageField(BaseModel):
     id: str
-    label: str
+    label: str = ''  # filled in from the selected translation
 
 
 class CoverPageMetadataField(CoverPageField):
@@ -24,7 +24,7 @@ class CoverPageMetadata(BaseModel):
     title: CoverPageLabel
     columns: list[CoverPageLabel]
     fields: list[CoverPageMetadataField]
-    attribution: str
+    attribution: str = ''  # filled in from the selected translation
 
 
 class CoverPageHistoryColumn(CoverPageLabel):

@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 TRANSLATIONS_DIRECTORY = Path(__file__).parents[1] / 'translations'
+DEFAULT_LANGUAGE = 'en'
 
 
 class Translation(BaseModel):

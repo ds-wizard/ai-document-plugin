@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -25,7 +25,6 @@ from ai_document_plugin_service.api.types import PipelineStatus, TemplateScope
 
 logger = logging.getLogger(__name__)
 
-JsonValue = Mapping[str, Any] | Sequence[Any]
 
 # Holds the connection of the transaction currently active on this asyncio task, if any.
 # Set by PostgresDB.transaction(); read by every operation so it can join that transaction
@@ -94,16 +93,6 @@ class GenerationUpdate(TypedDict, total=False):
 class GenerationStats(TypedDict, total=False):
     dmp_pre_polished: str | None
     dmp_polished: str | None
-    assignment_llm_calls: int | None
-    assignment_input_tokens: int | None
-    assignment_output_tokens: int | None
-    generation_llm_calls: int | None
-    generation_input_tokens: int | None
-    generation_output_tokens: int | None
-    polishing_llm_calls: int | None
-    polishing_input_tokens: int | None
-    polishing_output_tokens: int | None
-    elapsed_seconds: float | None
 
 
 @dataclass(frozen=True)
@@ -207,7 +196,6 @@ class Database(ABC):
         knowledge_model_version: str,
         question_paths: SectionQuestionPaths,
         template_uuid: UUID,
-        stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
         """Persist the question paths of each leaf section by section id, replacing the stored sections."""
@@ -428,7 +416,6 @@ class PostgresDB(Database):
         knowledge_model_version: str,
         question_paths: SectionQuestionPaths,
         template_uuid: UUID,
-        stats: JsonValue | None = None,
         created_at: datetime | None = None,
     ) -> None:
         await self._ensure_schema()
@@ -439,7 +426,6 @@ class PostgresDB(Database):
             knowledge_model_version=knowledge_model_version,
             created_at=created_at_value,
             updated_at=created_at_value,
-            stats=stats,
             template_uuid=template_uuid,
         )
         upsert_statement = statement.on_conflict_do_update(

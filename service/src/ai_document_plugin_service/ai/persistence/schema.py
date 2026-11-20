@@ -4,7 +4,6 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -80,7 +79,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
             server_default=func.now(),
         ),
         Column('updated_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
-        Column('stats', JSON, nullable=True),
         Column('template_uuid', UUID(as_uuid=True), ForeignKey('template.uuid'), primary_key=True, nullable=False),
     )
 
@@ -140,7 +138,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         ),
     )
 
-    # Analysis-only data, one row per generation (created together with it).
+    # Analysis-only documents, one row per generation (created together with it).
     generation_stats_table = Table(
         'generation_stats',
         metadata,
@@ -150,18 +148,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('dmp_pre_polished', Text, nullable=True),
         # at start same as generation.result_markdown, but not editable. Older rows don't have the original value saved
         Column('dmp_polished', Text, nullable=True),
-        # LLM usage per pipeline step. NULL when the step did not run (assignment is skipped
-        # when cached assignments are reused) or the run has no stats (failed or old runs).
-        Column('assignment_llm_calls', Integer, nullable=True),
-        Column('assignment_input_tokens', Integer, nullable=True),
-        Column('assignment_output_tokens', Integer, nullable=True),
-        Column('generation_llm_calls', Integer, nullable=True),
-        Column('generation_input_tokens', Integer, nullable=True),
-        Column('generation_output_tokens', Integer, nullable=True),
-        Column('polishing_llm_calls', Integer, nullable=True),
-        Column('polishing_input_tokens', Integer, nullable=True),
-        Column('polishing_output_tokens', Integer, nullable=True),
-        Column('elapsed_seconds', Float, nullable=True),
         Column(
             'created_at',
             DateTime(timezone=True),

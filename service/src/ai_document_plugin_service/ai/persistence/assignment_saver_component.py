@@ -17,20 +17,14 @@ from ai_document_plugin_service.ai.assignment.types import (
     SerializedSectionAssignment,
 )
 
-# Haystack inspects component input annotations at runtime.
-from ai_document_plugin_service.ai.common.types import AssignmentStats
-
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.persistence.database import Database
 
 logger = logging.getLogger(__name__)
 
-StatsJson = dict[str, dict[str, int | float]]
-
 
 class AssignmentSaverComponentResult(TypedDict):
     assignments: list[SerializedSectionAssignment]
-    stats: AssignmentStats | None
 
 
 @component
@@ -38,7 +32,7 @@ class AssignmentSaverComponent:
     def __init__(self, saver: Saver) -> None:
         self.saver = saver
 
-    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats | None)
+    @component.output_types(assignments=list[SerializedSectionAssignment])
     async def run_async(
         self,
         knowledge_model_uuid: UUID,
@@ -47,11 +41,10 @@ class AssignmentSaverComponent:
         template_uuid: UUID,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
-        stats: AssignmentStats | None = None,
         *,
         has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
-        """Save assignments to storage, optionally including token usage stats.
+        """Save assignments to storage.
 
         Skips the write when ``has_new_assignments`` is false: everything came from storage unchanged.
         """
@@ -61,7 +54,7 @@ class AssignmentSaverComponent:
                 'Reusing stored assignments without saving',
                 extra={'knowledge_model_uuid': knowledge_model_uuid, 'template_uuid': str(template_uuid)},
             )
-            return {'assignments': serializable, 'stats': stats}
+            return {'assignments': serializable}
 
         logger.info(
             'Persisting generated assignments',
@@ -71,29 +64,23 @@ class AssignmentSaverComponent:
                 'template_uuid': str(template_uuid),
                 'tenant_uuid': str(tenant_uuid),
                 'assignment_count': len(assignments),
-                'has_stats': stats is not None,
             },
         )
         question_paths = collect_leaf_question_paths(assignments)
-        stats_payload = _serialize_stats(stats)
 
         await self.saver.save(
             knowledge_model_uuid=knowledge_model_uuid,
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             question_paths=question_paths,
-            stats=stats_payload,
             template_uuid=template_uuid,
             tenant_uuid=tenant_uuid,
             created_at=datetime.now(tz=UTC),
         )
 
-        return {
-            'assignments': serializable,
-            'stats': stats,
-        }
+        return {'assignments': serializable}
 
-    @component.output_types(assignments=list[SerializedSectionAssignment], stats=AssignmentStats | None)
+    @component.output_types(assignments=list[SerializedSectionAssignment])
     def run(
         self,
         knowledge_model_uuid: UUID,
@@ -102,7 +89,6 @@ class AssignmentSaverComponent:
         template_uuid: UUID,
         tenant_uuid: UUID,
         assignments: list[SectionAssignment],
-        stats: AssignmentStats | None = None,
         *,
         has_new_assignments: bool = True,
     ) -> AssignmentSaverComponentResult:
@@ -121,7 +107,6 @@ class Saver(ABC):
         knowledge_model_name: str,
         knowledge_model_version: str,
         question_paths: SectionQuestionPaths,
-        stats: StatsJson | None,
         template_uuid: UUID,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
@@ -139,7 +124,6 @@ class DBSaver(Saver):
         knowledge_model_name: str,
         knowledge_model_version: str,
         question_paths: SectionQuestionPaths,
-        stats: StatsJson | None,
         template_uuid: UUID,
         tenant_uuid: UUID,
         created_at: datetime | None = None,
@@ -157,7 +141,6 @@ class DBSaver(Saver):
             knowledge_model_name=knowledge_model_name,
             knowledge_model_version=knowledge_model_version,
             question_paths=question_paths,
-            stats=stats,
             created_at=created_at,
             template_uuid=template_uuid,
         )
@@ -169,18 +152,3 @@ class DBSaver(Saver):
                 'tenant_uuid': str(tenant_uuid),
             },
         )
-
-
-def _serialize_stats(stats: AssignmentStats | None) -> StatsJson | None:
-    if stats is None:
-        return None
-    return {
-        'stats': {
-            'total_calls': stats.total_calls,
-            'total_input_tokens': stats.total_input_tokens,
-            'total_output_tokens': stats.total_output_tokens,
-            'total_llm_wait_ms': stats.total_llm_wait_ms,
-            'total_llm_response_ms': stats.total_llm_response_ms,
-            'total_duration_ms': stats.total_duration_ms,
-        },
-    }

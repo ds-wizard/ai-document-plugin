@@ -71,6 +71,7 @@ class OpenAILayerMatcher(LayerMatcher):
         messages = self._assignment_messages(sections_xml, question_chunk_xml)
 
         response = await self.client.completion(
+            stage='assignment',
             stats=stats,
             messages=messages,
             temperature=self.config.assignment.temperature,

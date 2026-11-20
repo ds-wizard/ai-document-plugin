@@ -20,7 +20,6 @@ from ai_document_plugin_service.ai.common import (
     get_component_markdown,
     get_component_stats,
 )
-from ai_document_plugin_service.ai.common.execution_logging import log_timing_event
 from ai_document_plugin_service.ai.common.pipeline_runner import run_haystack_pipeline
 from ai_document_plugin_service.ai.generation.cover_page_component import CoverPageComponent
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
@@ -115,7 +114,6 @@ def build_pipeline(
     pipeline.connect('parser_component.data', 'assignment_component.data')
     # assignment_component -> assignment_saver_component
     pipeline.connect('assignment_component.assignments', 'assignment_saver_component.assignments')
-    pipeline.connect('assignment_component.stats', 'assignment_saver_component.stats')
     pipeline.connect('assignment_component.has_new_assignments', 'assignment_saver_component.has_new_assignments')
     # assignment_saver_component -> dmp_generator_component
     pipeline.connect('assignment_saver_component.assignments', 'dmp_generator_component.assignments')
@@ -149,9 +147,9 @@ async def run_pipeline(
     except Exception:
         logger.exception('Failed to load questionnaire detail', extra={'questionnaire_uuid': str(questionnaire_uuid)})
         raise
-    log_timing_event(
-        'questionnaire_detail_loaded',
-        duration_ms=round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3),
+    logger.info(
+        'Questionnaire detail loaded',
+        extra={'duration_ms': round((time.perf_counter() - questionnaire_fetch_started) * 1000, 3)},
     )
     replies = km_data['replies']
     km = km_data['knowledgeModel']
@@ -200,6 +198,7 @@ async def run_pipeline(
                 },
             },
             include_outputs_from={
+                'assignment_component',
                 'assignment_saver_component',
                 'dmp_generator_component',
                 'dmp_polisher_component',
@@ -212,9 +211,9 @@ async def run_pipeline(
             extra={'questionnaire_uuid': str(questionnaire_uuid), 'template_uuid': str(template_uuid)},
         )
         raise
-    log_timing_event(
-        'pipeline_components_finished',
-        duration_ms=round((time.perf_counter() - pipeline_started) * 1000, 3),
+    logger.info(
+        'Pipeline components finished',
+        extra={'duration_ms': round((time.perf_counter() - pipeline_started) * 1000, 3)},
     )
     total_time = time.perf_counter() - pipeline_total_started
 
@@ -232,32 +231,21 @@ async def run_pipeline(
         logger.error(msg, extra={'template_uuid': str(template_uuid)})
         raise RuntimeError(msg)
 
-    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    assignment_stats = get_component_stats(result, 'assignment_component')
     generation_stats = get_component_stats(result, 'dmp_generator_component')
     polishing_stats = get_component_stats(result, 'dmp_polisher_component')
 
     pipeline_stats = collect_stats(result, total_time)
-    log_timing_event(
-        'pipeline_summary',
-        generation_ms=generation_stats.total_duration_ms if generation_stats is not None else None,
-        polishing_ms=polishing_stats.total_duration_ms if polishing_stats is not None else None,
-        total_pipeline_ms=round(total_time * 1000, 3),
-        total_llm_wait_ms=round(
-            sum(
-                stats.total_llm_wait_ms
-                for stats in (assignment_stats, generation_stats, polishing_stats)
-                if stats is not None
-            ),
-            3,
-        ),
-        total_llm_response_ms=round(
-            sum(
-                stats.total_llm_response_ms
-                for stats in (assignment_stats, generation_stats, polishing_stats)
-                if stats is not None
-            ),
-            3,
-        ),
+    step_stats = [stats for stats in (assignment_stats, generation_stats, polishing_stats) if stats is not None]
+    logger.info(
+        'Pipeline summary',
+        extra={
+            'generation_ms': generation_stats.total_duration_ms if generation_stats is not None else None,
+            'polishing_ms': polishing_stats.total_duration_ms if polishing_stats is not None else None,
+            'total_pipeline_ms': round(total_time * 1000, 3),
+            'total_llm_wait_ms': round(sum(stats.total_llm_wait_ms for stats in step_stats), 3),
+            'total_llm_response_ms': round(sum(stats.total_llm_response_ms for stats in step_stats), 3),
+        },
     )
     return PipelineOutput(
         knowledge_model_uuid=knowledge_model_uuid,
@@ -269,7 +257,7 @@ async def run_pipeline(
 
 def collect_stats(result: Mapping[str, object], total_time: float) -> PipelineStats:
     """Collect per-step LLM usage. Pure, so it can never fail a finished run."""
-    assignment_stats = get_component_stats(result, 'assignment_saver_component')
+    assignment_stats = get_component_stats(result, 'assignment_component')
     generation_stats = get_component_stats(result, 'dmp_generator_component')
     polishing_stats = get_component_stats(result, 'dmp_polisher_component')
 

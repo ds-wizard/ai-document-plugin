@@ -2,6 +2,8 @@ from typing import TYPE_CHECKING
 
 from ai_document_plugin_service.ai.common import AssignmentStats, Config
 from ai_document_plugin_service.ai.common.llm_client import LLMClient, add_usage
+from ai_document_plugin_service.ai.common.source_ids import extract_source_ids
+from ai_document_plugin_service.ai.common.source_retry import generate_with_valid_sources
 from ai_document_plugin_service.data.languages import get_language_name
 
 if TYPE_CHECKING:
@@ -47,12 +49,19 @@ class SectionPolishingLLM:
             system_message,
             user_message,
         ]
+        allowed_ids = extract_source_ids(markdown)
 
-        response = await self.client.completion(
-            stats=stats,
-            messages=messages,
-            temperature=self.config.dmp_polishing.temperature,
-            max_completion_tokens=self.config.dmp_polishing.max_tokens,
-        )
-        add_usage(stats, response)
-        return (response.choices[0].message.content or '').strip()
+        async def generate(repair_instruction: str) -> str:
+            request_messages = list(messages)
+            if repair_instruction:
+                request_messages.append({'role': 'user', 'content': repair_instruction})
+            response = await self.client.completion(
+                stats=stats,
+                messages=request_messages,
+                temperature=self.config.dmp_polishing.temperature,
+                max_completion_tokens=self.config.dmp_polishing.max_tokens,
+            )
+            add_usage(stats, response)
+            return (response.choices[0].message.content or '').strip()
+
+        return await generate_with_valid_sources(generate, allowed_ids, require_sources=bool(allowed_ids))

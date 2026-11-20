@@ -161,6 +161,8 @@ class StubGenerationLLM(GenerationLLM):
         prompt: str,
         stats: AssignmentStats | None = None,
         previously_generated: str = '',
+        *,
+        allowed_source_ids: set[str] | None = None,
     ) -> str:
         self.section_calls.append(prompt)
         return self._section_response

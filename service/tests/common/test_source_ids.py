@@ -35,3 +35,20 @@ def test_restore_rejects_unknown_or_empty_sources(source: str) -> None:
 
 def test_plain_markdown_is_unchanged() -> None:
     assert restore_source_paths('# Title\n\nNo data', {}) == '# Title\n\nNo data'
+
+
+@pytest.mark.parametrize(
+    'markdown',
+    [
+        '<statement>Text.</statement>',
+        '<statement source="">Text.</statement>',
+        '<statement source="q1">Text.',
+        'Text.</statement>',
+        '<statement source="q1"><statement source="q1">Text.</statement></statement>',
+    ],
+)
+def test_invalid_markup_is_rejected(markdown: str) -> None:
+    from ai_document_plugin_service.ai.common.source_ids import SourceValidationError, validate_source_ids
+
+    with pytest.raises(SourceValidationError):
+        validate_source_ids(markdown, {'q1'})

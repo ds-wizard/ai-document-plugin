@@ -34,7 +34,8 @@ dmp_generation:
 cover_page_generation:
   instruction: |
     Return a structured Markdown list with one `### <Project title>` subsection per project.
-    Use the answered project title as each subsection heading. For each project, include `Project title` and, when answered, `Project acronym`, `Project number/code`, `Funding`, `Project duration`, and `Project abstract`.
+    Use the answered project title as each subsection heading. For each project, include each of the supplied field labels when it is answered.
+    Translate the answered content, such as the project abstract, into the output language. Do not translate project titles, acronyms, project numbers or codes.
     Do not include the top-level section heading or add facts not present in the answers.
 
 dmp_polishing:

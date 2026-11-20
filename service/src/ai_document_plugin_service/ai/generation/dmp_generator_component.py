@@ -13,7 +13,10 @@ from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
-from ai_document_plugin_service.ai.common.source_ids import build_source_ids, restore_source_paths
+from ai_document_plugin_service.ai.common.source_ids import (
+    build_source_ids,
+    restore_source_paths,
+)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
@@ -931,7 +934,15 @@ class DmpGeneratorComponent:
         prompt = self.construct_chapter_prompt(title, matches, source_ids)
         if prompt and generation_instruction:
             prompt += f'\n\n{generation_instruction}'
-        content = await llm.section_from_qa(prompt, stats) if prompt else 'No data'
+        content = 'No data'
+        if prompt:
+            allowed_ids = {
+                source_ids[row['question_path']]
+                for row in rows
+                if row['has_reply'] and row['question_path'] in source_ids
+            }
+
+            content = await llm.section_from_qa(prompt, stats, allowed_source_ids=allowed_ids)
         decoded_content = restore_source_paths(content, source_ids)
         debug_body = (table + '\n\n' + decoded_content) if table else decoded_content
         section = heading + '\n\n' + content

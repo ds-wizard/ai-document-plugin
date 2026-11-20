@@ -16,8 +16,11 @@ NO_EVENTS_UUID = UUID(int=0)
 def parse_latest_event_uuid(payload: object) -> UUID:
     """Read the newest event UUID from a ``/projects/{uuid}/events?size=1&sort=createdAt,desc`` response.
 
-    A questionnaire without events gives ``NO_EVENTS_UUID``. Raises ValueError, TypeError or KeyError for an
-    unexpected shape, so that a changed DSW response is never mistaken for an empty questionnaire.
+    A questionnaire without events gives ``NO_EVENTS_UUID``.
+
+    Raises:
+        TypeError: If the payload is not the expected page of events. A malformed event also raises KeyError or
+            ValueError.
     """
     if not isinstance(payload, dict):
         msg = 'Unexpected events response: not an object'

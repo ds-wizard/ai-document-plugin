@@ -1,5 +1,4 @@
-"""The state of a questionnaire at the time a document was generated.
-"""
+"""The state of a questionnaire at the time a document was generated."""
 
 from dataclasses import dataclass
 from uuid import UUID
@@ -13,6 +12,7 @@ class QuestionnaireState:
 
 
 class QuestionnaireStateService:
-    async def capture(self, dsw_client: DSWClient, questionnaire_uuid: UUID) -> QuestionnaireState:
+    @staticmethod
+    async def capture(dsw_client: DSWClient, questionnaire_uuid: UUID) -> QuestionnaireState:
         """Read the current state id of the questionnaire."""
         return QuestionnaireState(event_uuid=await dsw_client.get_latest_event_uuid(questionnaire_uuid))

@@ -501,7 +501,10 @@ class PipelineService:
         # Everything the run produced is written in one transaction, so it lands atomically.
         async with self.database.transaction():
             record = await self.database.update_generation(
-                run_id, auth.tenant_uuid, expected_statuses=(PipelineStatus.RUNNING,), **_succeeded_update(output, questionnaire_state)
+                run_id,
+                auth.tenant_uuid,
+                expected_statuses=(PipelineStatus.RUNNING,),
+                **_succeeded_update(output, questionnaire_state),
             )
             if record is None:
                 # Cancellation won the atomic status transition. Discard the output

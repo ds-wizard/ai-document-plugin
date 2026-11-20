@@ -76,10 +76,8 @@ export const getAvailableLanguages = async (): Promise<LanguageDefinition[]> => 
                 item &&
                 typeof item === 'object' &&
                 typeof item.code === 'string' &&
-                typeof item.iso6392 === 'string' &&
                 typeof item.name === 'string' &&
-                typeof item.nativeName === 'string' &&
-                typeof item.family === 'string',
+                typeof item.nativeName === 'string',
         )
     ) {
         throw new Error('Invalid available languages returned.')

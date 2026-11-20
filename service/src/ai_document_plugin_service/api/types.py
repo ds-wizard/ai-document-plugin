@@ -119,10 +119,8 @@ class QuestionnaireLanguageResponse(ApiModel):
 
 class LanguageOptionResponse(ApiModel):
     code: str
-    iso6392: str
     name: str
     native_name: str
-    family: str
 
 
 class CoverPagePreviewLabel(ApiModel):

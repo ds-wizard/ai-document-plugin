@@ -2,8 +2,6 @@
   "code": "cs",
   "name": "Czech",
   "nativeName": "Čeština",
-  "iso6392": "ces/cze",
-  "family": "Indo-European",
   "coverPage": {
     "metadata.title.text": "Plán správy dat",
     "metadata.columns.metadata.text": "Metadata",

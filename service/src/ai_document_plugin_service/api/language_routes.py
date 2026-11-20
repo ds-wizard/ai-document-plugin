@@ -28,10 +28,8 @@ def list_languages() -> list[LanguageOptionResponse]:
     return [
         LanguageOptionResponse(
             code=language.code,
-            iso6392=language.iso6392,
             name=language.name,
             native_name=language.native_name,
-            family=language.family,
         )
         for language in get_available_languages()
     ]

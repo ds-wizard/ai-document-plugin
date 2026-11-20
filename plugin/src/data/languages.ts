@@ -1,9 +1,7 @@
 export type LanguageDefinition = {
     code: string
-    iso6392: string
     name: string
     nativeName: string
-    family: string
 }
 
 export type LanguageOption = {
@@ -25,13 +23,7 @@ const buildLanguageOption = (definition: LanguageDefinition): LanguageOption => 
     englishLabel: definition.name,
     nativeLabel: definition.nativeName || definition.name,
     searchLabel: normalizeSearchValue(
-        [
-            definition.code,
-            definition.iso6392,
-            definition.name,
-            definition.nativeName,
-            definition.family,
-        ].join(' '),
+        [definition.code, definition.name, definition.nativeName].join(' '),
     ),
 })
 

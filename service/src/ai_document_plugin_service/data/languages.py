@@ -13,8 +13,6 @@ class Translation(BaseModel):
     code: str
     name: str
     native_name: str = Field(alias='nativeName')
-    iso6392: str
-    family: str
     cover_page: dict[str, str] = Field(alias='coverPage')
 
 

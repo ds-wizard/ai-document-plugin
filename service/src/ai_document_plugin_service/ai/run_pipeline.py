@@ -37,6 +37,7 @@ from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
 )
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
+from ai_document_plugin_service.cover_page.translations import translate_cover_page
 
 if TYPE_CHECKING:
     from ai_document_plugin_service.ai.common.llm_client import LLMClient
@@ -67,8 +68,9 @@ class CoverPagePipelineDependencies:
 
 def _collect_cover_page_dependencies(
     config: Config,
+    language: str,
 ) -> CoverPagePipelineDependencies:
-    definition = config.cover_definition
+    definition = translate_cover_page(config.cover_definition, language)
     return CoverPagePipelineDependencies(
         generation_prompt=config.cover_page_generation,
         field_labels=cover_page_assignment_field_labels(definition),
@@ -80,7 +82,7 @@ def build_pipeline(
     database: Database, saver: DBSaver, config: Config, llm_client: LLMClient, language: str
 ) -> Pipeline:
     pipeline = Pipeline()
-    cover_page = _collect_cover_page_dependencies(config)
+    cover_page = _collect_cover_page_dependencies(config, language)
     loader_component = AssignmentLoaderComponent(database=database)
     parser_component = ParserComponent()
     assignment_component = AssignmentComponent(llm_client, config)
@@ -88,7 +90,7 @@ def build_pipeline(
     dmp_generator_component = DmpGeneratorComponent(
         SectionGenerationLLM(llm_client, config, language),
         cover_page_generation_prompt=cover_page.generation_prompt,
-        cover_page_llm=SectionGenerationLLM(llm_client, config, 'en'),
+        cover_page_llm=SectionGenerationLLM(llm_client, config, language),
         cover_page_field_labels=cover_page.field_labels,
         cover_page_renderer=cover_page.renderer,
     )

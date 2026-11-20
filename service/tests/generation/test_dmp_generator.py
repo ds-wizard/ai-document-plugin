@@ -17,9 +17,11 @@ from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
 )
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
+from ai_document_plugin_service.cover_page.translations import translate_cover_page
 
 TEST_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / 'config.test.yaml')
 TEST_CONFIG = load_config(TEST_CONFIG_PATH)
+ENGLISH_COVER_DEFINITION = translate_cover_page(TEST_CONFIG.cover_definition, 'en')
 
 
 def _component(
@@ -31,8 +33,8 @@ def _component(
         dmp_generator_llm=gen_llm,
         cover_page_llm=gen_llm,
         cover_page_generation_prompt=cover_page_generation_prompt,
-        cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
-        cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
+        cover_page_renderer=CoverPageRenderer(ENGLISH_COVER_DEFINITION),
+        cover_page_field_labels=cover_page_assignment_field_labels(ENGLISH_COVER_DEFINITION),
     )
 
 
@@ -776,8 +778,8 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
     component = DmpGeneratorComponent(
         stub,
         cover_page_llm=cover_stub,
-        cover_page_renderer=CoverPageRenderer(TEST_CONFIG.cover_definition),
-        cover_page_field_labels=cover_page_assignment_field_labels(TEST_CONFIG.cover_definition),
+        cover_page_renderer=CoverPageRenderer(ENGLISH_COVER_DEFINITION),
+        cover_page_field_labels=cover_page_assignment_field_labels(ENGLISH_COVER_DEFINITION),
     )
     cover_page_assignments = [
         SectionAssignment(
@@ -807,7 +809,7 @@ async def test_cover_page_uses_separate_generator_and_keeps_english_labels():
     assert '## History of Changes' in result['cover_page']
     assert '# Research overview' in result['cover_page']
     assert '# Research overview' in result['markdown']
-    assert 'Use these exact English field labels:' in cover_stub.section_calls[0]
+    assert 'Use these field labels, translated into the output language:' in cover_stub.section_calls[0]
     assert 'Funding' in cover_stub.section_calls[0]
     assert not stub.section_calls
     assert cover_page_assignments == original
@@ -820,7 +822,7 @@ async def test_no_cover_page_skips_cover_generation():
     assert not cover_stub.section_calls
 
 
-async def test_czech_pipeline_generates_cover_in_english_and_body_in_czech():
+async def test_czech_pipeline_generates_cover_and_body_in_czech():
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, Mock
 
@@ -849,18 +851,23 @@ async def test_czech_pipeline_generates_cover_in_english_and_body_in_czech():
             },
         },
     ).to_dict()
-    await generator.run_async(
+    result = await generator.run_async(
         replies={'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}}},
         km=_km_fixture(),
         questionnaire_detail=_questionnaire_detail_fixture(),
         assignments=[assignment, assignment],
         include_cover_page=True,
     )
+    assert '# Plán správy dat' in result['cover_page']
+    assert '# Projects' in result['cover_page']
+    assert 'Název projektu' in result['cover_page']
+    assert generator.cover_page_renderer is not None
+    assert generator.cover_page_renderer.definition.metadata.title.text == 'Plán správy dat'
+    assert generator.cover_page_field_labels['funding'] == 'Financování'
     assert client.completion.await_count == 2
     for call in client.completion.await_args_list:
         messages = call.kwargs['messages']
-        is_cover = 'Use these exact English field labels:' in messages[1]['content']
-        expected_language = 'English' if is_cover else 'Czech'
+        expected_language = 'Czech'
         assert messages[0]['content'] == TEST_CONFIG.dmp_generation.system_message.replace(
             '{language}', expected_language
         )

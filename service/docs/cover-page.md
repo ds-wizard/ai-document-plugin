@@ -1,7 +1,7 @@
 # Cover page configuration
 
 [`cover-page.yaml`](../cover-page.yaml) defines the shared cover page used by templates that have the cover page
-enabled. You can keep the supplied definition unchanged when deploying the service. It contains display text and
+enabled. You can keep the supplied definition unchanged when deploying the service. It contains structure and
 generation instructions, not credentials or project-specific values to fill in manually.
 
 The definition has three parts: `metadata` reads project information from DSW, `history` displays named project
@@ -36,8 +36,8 @@ by the renderer and preview API. Unless explicitly described as optional, keep t
 template is created or updated with the cover page enabled. It does not select an archived YAML file or automatically
 migrate existing templates.
 
-`id` values are internal identifiers, not displayed labels or paths into questionnaire data. Keep them stable when
-changing display text. Use distinct IDs for sibling elements and unique field IDs across all generated sections:
+`id` values are internal identifiers, not displayed labels or paths into questionnaire data. They are also the
+keys of the translations, so keep them stable. Use distinct IDs for sibling elements and unique field IDs across all generated sections:
 section field labels are collected into a dictionary keyed by their IDs.
 
 ### Metadata
@@ -46,17 +46,33 @@ Metadata is rendered directly from resolver results, without AI generation, in t
 
 | Field | Meaning |
 | --- | --- |
-| `metadata.title.id`, `metadata.title.text` | Identifier and displayed document heading. |
-| `metadata.columns` | Exactly two column definitions, each with `id` and `text`: the field-label column followed by the value column. |
+| `metadata.title.id` | Identifier of the document heading. |
+| `metadata.columns` | Exactly two column definitions, each with an `id`: the field-label column followed by the value column. |
 | `metadata.fields[].id` | Identifier of the metadata row. |
-| `metadata.fields[].label` | Displayed row label, such as `Project Name`. |
 | `metadata.fields[].resolver` | Supported resolver identifier that supplies the actual value; see the list below. |
 | `metadata.fields[].preview` | Placeholder shown in the template preview, not a default value for generated documents. |
-| `metadata.attribution` | Text placed after the metadata table. Use an empty string if no attribution text is wanted. |
 
-The title, column headings, labels, and attribution are taken from the YAML as written; they are not automatically
-translated to the selected document language. Missing metadata values produce empty cells, not the preview text.
+All displayed text (title, column headings, row labels, and attribution) comes from the selected translation; see
+[Translations](#translations).
 
+### Translations
+
+`src/ai_document_plugin_service/translations/` contains one JSON file per supported language.
+
+To add a new language, simply add a new file. Every displayed text has a key, and a missing key stops the service at
+startup:
+
+| Key | Text |
+| --- | --- |
+| `metadata.title.text` | Document heading. |
+| `metadata.columns.<id>.text` | Metadata column headings. |
+| `metadata.fields.<id>.label` | Metadata row labels. |
+| `metadata.attribution` | Text after the metadata table. |
+| `history.title.text` | History heading. |
+| `history.columns.<id>.text` | History column headings. |
+| `sections.fields.<id>.label` | Section field labels. |
+
+The template preview in the plugin is shown in English.
 ### Supported resolvers
 
 A `resolver` is the name of a function supported by the service, **not an arbitrary JSON path**. Adding a new name
@@ -82,10 +98,9 @@ The history table uses DSW project versions, not previous AI generation runs or 
 | Field | Meaning |
 | --- | --- |
 | `history.id` | Identifier of the history block. |
-| `history.title.id`, `history.title.text` | Identifier and displayed history heading. |
+| `history.title.id` | Identifier of the history heading. |
 | `history.resolver` | `project.versions`, which supplies the rows. |
 | `history.columns[].id` | Identifier of the column. |
-| `history.columns[].text` | Displayed column heading. |
 | `history.columns[].value_key` | Key to read from each version object. The supplied definition uses `name`, `updatedAt`, and `description`. |
 | `history.columns[].formatter` | Optional formatting mode, defaulting to `text`. Use `date` to format an ISO date/time string as `DD.MM.YYYY`. |
 | `history.preview` | Description shown in the template preview instead of actual version rows. |
@@ -103,11 +118,10 @@ metadata and history tables, before the main document body.
 | Field | Meaning |
 | --- | --- |
 | `sections[].id` | Identifier of the section. |
-| `sections[].title` | Section title used by the generation pipeline and shown in the preview. |
+| `sections[].title` | Section title used by the generation pipeline and shown in the preview. It is not translated, like the titles of template sections. |
 | `sections[].content` | Instructions for assigning relevant questions and generating the section from their answers. |
 | `sections[].preview` | Explanatory text shown in the preview; it does not supply document content or generation instructions. |
-| `sections[].fields[].id` | Identifier used to collect the field's label for generation. |
-| `sections[].fields[].label` | Field label shown in the preview and supplied to the AI as a label to preserve. |
+| `sections[].fields[].id` | Identifier of the field; also the translation key `sections.fields.<id>.label`. The translated label is shown in the preview and supplied to the AI. |
 
 Section fields do not have resolvers and do not map directly to questionnaire question IDs. Their labels guide
 generation; they do not enforce a fixed output schema or guarantee that every field appears. Put requirements about

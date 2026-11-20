@@ -6,13 +6,14 @@ import yaml
 from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 from ai_document_plugin_service.cover_page.cover_page_resolvers import CoverDataSources
+from ai_document_plugin_service.cover_page.translations import translate_cover_page
 
 SERVICE_DIR = Path(__file__).resolve().parents[2]
 
 
 def _renderer() -> CoverPageRenderer:
     raw_definition = yaml.safe_load((SERVICE_DIR / 'cover-page.yaml').read_text(encoding='utf-8'))
-    return CoverPageRenderer(CoverPageDefinition.model_validate(raw_definition))
+    return CoverPageRenderer(translate_cover_page(CoverPageDefinition.model_validate(raw_definition), 'en'))
 
 
 def _sources() -> CoverDataSources:

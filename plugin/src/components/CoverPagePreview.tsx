@@ -1,7 +1,6 @@
 import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
 import { FormCollapsible } from '@ds-wizard/plugin-sdk/ui/Form'
 import { Stack } from '@ds-wizard/plugin-sdk/ui/Layout'
-import { BodySmall } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useState } from 'react'
 
 import { getCoverPagePreview } from '@/client'
@@ -44,8 +43,6 @@ export function CoverPagePreview({ embedded = false }: CoverPagePreviewProps) {
         >
             {definition && (
                 <Stack>
-                    {!embedded && <BodySmall>The cover page is always in English.</BodySmall>}
-
                     <section aria-label="Cover page structure" className={styles.page}>
                         <h3 className={styles.title}>{definition.metadata.title.text}</h3>
                         <div className={styles.tableWrapper}>

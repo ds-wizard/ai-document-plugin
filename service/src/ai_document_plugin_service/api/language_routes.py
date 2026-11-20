@@ -25,4 +25,11 @@ async def get_questionnaire_language(questionnaire_uuid: UUID, auth: Authenticat
 
 @languages_router.get('/languages')
 def list_languages() -> list[LanguageOptionResponse]:
-    return [LanguageOptionResponse.model_validate(language) for language in get_available_languages()]
+    return [
+        LanguageOptionResponse(
+            code=language.code,
+            name=language.name,
+            native_name=language.native_name,
+        )
+        for language in get_available_languages()
+    ]

@@ -10,6 +10,8 @@ from cryptography.fernet import Fernet
 
 from ai_document_plugin_service.cover_page.cover_page_definition import CoverPageDefinition
 from ai_document_plugin_service.cover_page.cover_page_resolvers import validate_cover_data_resolvers
+from ai_document_plugin_service.cover_page.translations import translate_cover_page
+from ai_document_plugin_service.data.languages import get_translations
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +256,8 @@ def load_config(config_path: str | None = None) -> Config:
 
     cover_definition = CoverPageDefinition.model_validate(cover_definition)
     validate_cover_data_resolvers(cover_definition)
+    for language in get_translations():
+        translate_cover_page(cover_definition, language)
 
     return Config(
         allowed_apis=_get_allowed_apis(config),

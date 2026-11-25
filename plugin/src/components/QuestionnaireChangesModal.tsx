@@ -1,7 +1,8 @@
 import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
 import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
 import { Muted, VisuallyHidden } from '@ds-wizard/plugin-sdk/ui/Text'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { getQuestionnaireChanges } from '@/client'
 import { Modal } from '@/components/Modal'
@@ -124,7 +125,6 @@ function ChangesContent({ data }: { data: QuestionnaireChangesResponse }) {
 /** Lists the answers that differ between a generation and the questionnaire as it is now. */
 export function QuestionnaireChangesModal({ runId, onClose }: QuestionnaireChangesModalProps) {
     const [state, setState] = useState<LoadState>({ status: 'loading' })
-    const closeRef = useRef<HTMLButtonElement>(null)
 
     useEffect(() => {
         let cancelled = false
@@ -156,17 +156,11 @@ export function QuestionnaireChangesModal({ runId, onClose }: QuestionnaireChang
             fullHeight
             title="Questionnaire changes since this document was generated"
             busy={state.status === 'loading'}
-            initialFocusRef={closeRef}
             onClose={onClose}
             footer={
-                <button
-                    ref={closeRef}
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={onClose}
-                >
+                <Button variant="secondary" onClick={onClose}>
                     Close
-                </button>
+                </Button>
             }
         >
             <AsyncBlock

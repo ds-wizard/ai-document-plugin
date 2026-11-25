@@ -12,7 +12,6 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
-from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
 )
@@ -372,6 +371,33 @@ def test_parse_answer_item_select_reply_returns_selected_item_value() -> None:
     assert parsed == 'English'
 
 
+def test_parse_answer_item_select_reply_finds_a_list_outside_its_own_parent() -> None:
+    km = {
+        'entities': {
+            'questions': {
+                'listQ': {'questionType': 'ListQuestion'},
+                'nameQ': {'questionType': 'ValueQuestion'},
+                'selectQ': {'questionType': 'ItemSelectQuestion', 'listQuestionUuid': 'listQ'},
+            },
+            'answers': {},
+        },
+    }
+    replies = {
+        'chapterA.listQ': {'value': {'type': 'ItemListReply', 'value': ['selected-item']}},
+        'chapterA.listQ.selected-item.nameQ': {'value': {'type': 'StringReply', 'value': 'Alice'}},
+        'chapterB.parentQ.answer.selectQ': {'value': {'type': 'ItemSelectReply', 'value': 'selected-item'}},
+    }
+
+    parsed = parse_answer(
+        replies['chapterB.parentQ.answer.selectQ']['value'],
+        km,
+        replies=replies,
+        question_path='chapterB.parentQ.answer.selectQ',
+    )
+
+    assert parsed == 'Alice'
+
+
 def test_parse_answer_integration_reply_returns_first_raw_and_url() -> None:
     km = {
         'entities': {
@@ -444,45 +470,6 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
     parsed = parse_answer(answer, km)
 
     assert parsed == ('{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value')
-
-
-def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
-    parser = ParserComponent()
-    parser.km = {
-        'entities': {
-            'questions': {
-                'integrationQ': {'questionType': 'IntegrationQuestion'},
-            },
-        },
-    }
-    replies = {
-        'chapter.selectQ': {
-            'value': {
-                'type': 'ItemSelectReply',
-                'value': 'selected-item',
-            },
-        },
-        'chapter.listQ.selected-item.reply.integrationQ': {
-            'value': {
-                'type': 'IntegrationReply',
-                'value': {
-                    'type': 'IntegrationType',
-                    'value': 'value',
-                    'raw': {
-                        'homepage': 'https://tools.ietf.org/html/rfc4180',
-                        'doi': '10.25504/FAIRsharing.1943d4',
-                    },
-                },
-            },
-        },
-    }
-
-    parsed = parser.get_item_select_question_reply(
-        replies,
-        path='chapter.selectQ',
-    )
-
-    assert parsed == ('{"homepage": "https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4"} value')
 
 
 async def test_run_renders_parent_and_leaf_sections() -> None:

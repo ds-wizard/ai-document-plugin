@@ -20,7 +20,6 @@ class QuestionData(QuestionnaireElement):
         text: str | None,
         parent_question: Optional['QuestionData'] = None,
         parent_answer: Optional['OptionsAnswer'] = None,
-        reply: str | None = None,
     ) -> None:
         self.path = path
         self.uuid = uuid
@@ -28,7 +27,6 @@ class QuestionData(QuestionnaireElement):
         self.text = text
         self.parent_question = parent_question
         self.parent_answer = parent_answer
-        self.reply = reply
         self.context: str | None = None
 
     @abstractmethod

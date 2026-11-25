@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from ai_document_plugin_service.ai.knowledgemodel.list_items import find_list_path
 from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply, build_snapshot
 from ai_document_plugin_service.ai.knowledgemodel.reachable_replies import child_questions
 
@@ -254,5 +255,7 @@ def _describe_selected_item(reply: StoredReply, km: dict[str, Any], side: Mappin
     list_question_uuid = question.get('listQuestionUuid')
     if not list_question_uuid or not isinstance(reply.raw, str):
         return 'Untitled item'
-    list_path = f'{reply.path.rsplit(".", 1)[0]}.{list_question_uuid}'
+    list_path = find_list_path(list_question_uuid, reply.raw, ((path, r.value) for path, r in side.items()))
+    if list_path is None:
+        return 'Untitled item'
     return _item_title(km, list_path, reply.raw, side)

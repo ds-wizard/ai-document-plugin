@@ -23,7 +23,7 @@ def u(number: int) -> str:
 YES, NO = u(1), u(2)
 ITEM_1, ITEM_2 = u(5), u(6)
 
-KM = {
+KM: dict[str, Any] = {
     'chapterUuids': ['c1'],
     'entities': {
         'chapters': {'c1': {'title': 'Data', 'questionUuids': ['opt', 'items', 'pick', 'plain']}},
@@ -263,6 +263,25 @@ def test_an_item_select_is_described_by_the_title_of_the_selected_item() -> None
     new = {**items, **titles, 'c1.pick': reply('ItemSelectReply', ITEM_2)}
 
     assert find(tree(old, new), 'c1.pick').change == ValueChange(ChangeKind.CHANGED, 'Survey', 'Interviews')
+
+
+def test_an_item_select_finds_its_list_outside_its_own_parent() -> None:
+    km = copy.deepcopy(KM)
+    km['chapterUuids'] = ['c1', 'c2']
+    km['entities']['chapters']['c1']['questionUuids'].remove('pick')
+    km['entities']['chapters']['c2'] = {'title': 'Use', 'questionUuids': ['pick']}
+    items = {'c1.items': reply('ItemListReply', [ITEM_1, ITEM_2])}
+    titles = {
+        f'c1.items.{ITEM_1}.name': reply('StringReply', 'Survey'),
+        f'c1.items.{ITEM_2}.name': reply('StringReply', 'Interviews'),
+    }
+    old = {**items, **titles, 'c2.pick': reply('ItemSelectReply', ITEM_1)}
+    new = {**items, **titles, 'c2.pick': reply('ItemSelectReply', ITEM_2)}
+
+    stored = build_snapshot(km, old)
+    nodes = change_tree(stored, {'knowledgeModel': km, 'replies': new})
+
+    assert find(nodes, 'c2.pick').change == ValueChange(ChangeKind.CHANGED, 'Survey', 'Interviews')
 
 
 def test_a_reply_to_a_question_the_knowledge_model_no_longer_has_goes_into_a_last_group() -> None:

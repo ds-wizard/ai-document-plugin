@@ -3,6 +3,8 @@ import logging
 import re
 from typing import Any
 
+from ai_document_plugin_service.ai.knowledgemodel.list_items import find_list_path
+
 logger = logging.getLogger(__name__)
 RAW_URL_PATTERN = re.compile(r'https?://[^\s)]+')
 
@@ -125,11 +127,16 @@ def _parse_item_select_reply(
     if not list_question_uuid:
         return ''
 
-    parent_path = question_path.rsplit('.', 1)[0]
-    list_path_prefix = f'{parent_path}.{list_question_uuid}'
+    list_path = find_list_path(
+        list_question_uuid,
+        selected_item_uuid,
+        ((path, payload.get('value')) for path, payload in replies.items()),
+    )
+    if list_path is None:
+        return ''
 
     for reply_path, reply_payload in replies.items():
-        if not reply_path.startswith(f'{list_path_prefix}.{selected_item_uuid}.'):
+        if not reply_path.startswith(f'{list_path}.{selected_item_uuid}.'):
             continue
 
         reply_question_uuid = reply_path.rsplit('.', 1)[-1]

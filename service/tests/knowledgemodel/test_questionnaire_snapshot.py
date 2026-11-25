@@ -1,11 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import (
-    ReplyType,
-    StoredReply,
-    build_snapshot,
-)
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply, build_snapshot
 
 
 def u(number: int) -> str:
@@ -43,36 +39,42 @@ def reply(reply_type: str, value: Any) -> dict[str, Any]:
     return {'value': {'type': reply_type, 'value': value}, 'createdAt': '2026-11-20T10:00:00Z', 'createdBy': None}
 
 
-def test_stores_string_replies() -> None:
+def test_stores_the_value_as_dsw_sends_it_without_who_made_it_and_when() -> None:
     snapshot = build_snapshot(KM, {'c1.plain': reply('StringReply', 'Some notes')})
 
-    assert snapshot == [StoredReply('c1.plain', ReplyType.STRING, text_value='Some notes')]
+    assert snapshot == [StoredReply('c1.plain', {'type': 'StringReply', 'value': 'Some notes'})]
 
 
-def test_stores_the_display_value_of_integration_replies_without_the_raw_payload() -> None:
-    integration = reply('IntegrationReply', {'type': 'IntegrationType', 'value': 'Zenodo', 'raw': {'id': 1}})
+def test_stores_integration_replies_with_the_raw_payload() -> None:
+    value = {'type': 'IntegrationType', 'value': 'Zenodo', 'raw': {'id': 1}}
 
-    assert build_snapshot(KM, {'c1.integ': integration}) == [
-        StoredReply('c1.integ', ReplyType.INTEGRATION, text_value='Zenodo'),
+    assert build_snapshot(KM, {'c1.integ': reply('IntegrationReply', value)}) == [
+        StoredReply('c1.integ', {'type': 'IntegrationReply', 'value': value}),
     ]
 
 
 def test_stores_the_selected_answer_with_its_label() -> None:
     assert build_snapshot(KM, {'c1.opt': reply('AnswerReply', YES)}) == [
-        StoredReply('c1.opt', ReplyType.ANSWER, uuid_value=UUID(YES), display_text='Yes'),
+        StoredReply('c1.opt', {'type': 'AnswerReply', 'value': YES}, display_text='Yes'),
     ]
 
 
-def test_stores_selected_choices_in_order_with_their_labels() -> None:
+def test_stores_selected_choices_with_their_labels() -> None:
     assert build_snapshot(KM, {'c1.multi': reply('MultiChoiceReply', [JSON, CSV])}) == [
-        StoredReply('c1.multi', ReplyType.MULTI_CHOICE, uuid_values=(UUID(JSON), UUID(CSV)), display_text='JSON, CSV'),
+        StoredReply('c1.multi', {'type': 'MultiChoiceReply', 'value': [JSON, CSV]}, display_text='JSON, CSV'),
     ]
 
 
 def test_stores_list_items_in_order() -> None:
     snapshot = build_snapshot(KM, {'c1.items': reply('ItemListReply', [ITEM_2, ITEM_1])})
 
-    assert snapshot == [StoredReply('c1.items', ReplyType.ITEM_LIST, uuid_values=(UUID(ITEM_2), UUID(ITEM_1)))]
+    assert snapshot == [StoredReply('c1.items', {'type': 'ItemListReply', 'value': [ITEM_2, ITEM_1]})]
+
+
+def test_stores_replies_of_types_it_does_not_know() -> None:
+    snapshot = build_snapshot(KM, {'c1.plain': reply('FutureReply', {'anything': 1})})
+
+    assert snapshot == [StoredReply('c1.plain', {'type': 'FutureReply', 'value': {'anything': 1}})]
 
 
 def test_leaves_out_empty_replies() -> None:
@@ -80,6 +82,7 @@ def test_leaves_out_empty_replies() -> None:
         'c1.plain': reply('StringReply', '   '),
         'c1.multi': reply('MultiChoiceReply', []),
         'c1.items': reply('ItemListReply', []),
+        'c1.integ': reply('IntegrationReply', {'type': 'PlainType', 'value': ''}),
     }
 
     assert build_snapshot(KM, replies) == []
@@ -99,9 +102,9 @@ def test_leaves_out_unreachable_replies() -> None:
     assert [stored.path for stored in build_snapshot(KM, replies)] == ['c1.opt']
 
 
-def test_skips_a_reply_that_cannot_be_read_and_keeps_the_others() -> None:
+def test_skips_a_reply_without_a_type_and_keeps_the_others() -> None:
     replies = {
-        'c1.opt': reply('AnswerReply', 'not-a-uuid'),
+        'c1.multi': {'value': {'value': [CSV]}},
         'c1.plain': reply('StringReply', 'kept'),
     }
 

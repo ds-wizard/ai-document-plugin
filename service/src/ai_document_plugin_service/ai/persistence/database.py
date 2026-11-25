@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from ai_document_plugin_service.ai.assignment.types import SectionQuestionPaths
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.common.types import TemplateContent
-from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import ReplyType, StoredReply
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
@@ -822,10 +822,7 @@ class PostgresDB(Database):
             {
                 'run_id': run_id,
                 'path': reply.path,
-                'reply_type': reply.reply_type.value,
-                'text_value': reply.text_value,
-                'uuid_value': reply.uuid_value,
-                'uuid_values': list(reply.uuid_values) if reply.uuid_values is not None else None,
+                'value': reply.value,
                 'display_text': reply.display_text,
             }
             for reply in replies
@@ -844,14 +841,7 @@ class PostgresDB(Database):
             rows = result.fetchall()
 
         return [
-            StoredReply(
-                path=row.path,
-                reply_type=ReplyType(row.reply_type),
-                text_value=row.text_value,
-                uuid_value=row.uuid_value,
-                uuid_values=tuple(row.uuid_values) if row.uuid_values is not None else None,
-                display_text=row.display_text,
-            )
+            StoredReply(path=row.path, value=row.value, display_text=row.display_text)
             for row in rows
         ]
 

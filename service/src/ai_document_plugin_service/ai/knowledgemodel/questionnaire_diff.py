@@ -4,13 +4,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
-from uuid import UUID
 
-from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import (
-    ReplyType,
-    StoredReply,
-    build_snapshot,
-)
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply, build_snapshot
 from ai_document_plugin_service.ai.knowledgemodel.reachable_replies import reachable_replies
 
 MAX_ITEM_TITLE_LENGTH = 80
@@ -119,14 +114,15 @@ def _user_name(user: dict[str, Any] | None) -> str | None:
     return name or None
 
 
-def _item_title(km: dict[str, Any], list_path: str, item_uuid: UUID | str, side: Mapping[str, StoredReply]) -> str:
+def _item_title(km: dict[str, Any], list_path: str, item_uuid: str, side: Mapping[str, StoredReply]) -> str:
     """An item has no title of its own: it is the answer to the first question of the list's item template."""
     list_question = _questions(km).get(list_path.rsplit('.', 1)[-1], {})
     templates = list_question.get('itemTemplateQuestionUuids', [])
     if templates:
         first = side.get(f'{list_path}.{item_uuid}.{templates[0]}')
-        if first is not None and first.text_value:
-            title = first.text_value.strip().splitlines()[0]
+        text = _text(first) if first is not None else None
+        if text and text.strip():
+            title = text.strip().splitlines()[0]
             if len(title) > MAX_ITEM_TITLE_LENGTH:
                 return title[: MAX_ITEM_TITLE_LENGTH - 1] + '…'
             return title
@@ -145,26 +141,41 @@ def _item_context(km: dict[str, Any], path: str, side: Mapping[str, StoredReply]
     return context
 
 
-def _label(km: dict[str, Any], kind: str, uuid: UUID) -> str | None:
-    label = km['entities'].get(kind, {}).get(str(uuid), {}).get('label')
+def _label(km: dict[str, Any], kind: str, uuid: object) -> str | None:
+    if not isinstance(uuid, str):
+        return None
+    label = km['entities'].get(kind, {}).get(uuid, {}).get('label')
     return label if isinstance(label, str) else None
 
 
+def _strings(raw: object) -> list[str]:
+    """The UUIDs of a multi-choice or item-list reply."""
+    return [value for value in raw if isinstance(value, str)] if isinstance(raw, list) else []
+
+
+def _text(reply: StoredReply) -> str | None:
+    """The text of a string reply, or the text an integration reply shows."""
+    raw = reply.raw
+    if reply.reply_type == 'IntegrationReply' and isinstance(raw, dict):
+        raw = raw.get('value')
+    return raw if isinstance(raw, str) else None
+
+
 def _describe_value(reply: StoredReply, km: dict[str, Any], side: Mapping[str, StoredReply]) -> str:
-    if reply.reply_type == ReplyType.ANSWER:
-        return _label(km, 'answers', reply.uuid_value) or reply.display_text or REMOVED_OPTION
-    if reply.reply_type == ReplyType.MULTI_CHOICE:
+    if reply.reply_type == 'AnswerReply':
+        return _label(km, 'answers', reply.raw) or reply.display_text or REMOVED_OPTION
+    if reply.reply_type == 'MultiChoiceReply':
         return _describe_choices(reply, km)
-    if reply.reply_type == ReplyType.ITEM_SELECT:
+    if reply.reply_type == 'ItemSelectReply':
         return _describe_selected_item(reply, km, side)
-    if reply.reply_type == ReplyType.ITEM_LIST:
-        return ', '.join(_item_title(km, reply.path, item_uuid, side) for item_uuid in reply.uuid_values or ())
-    return reply.text_value or ''
+    if reply.reply_type == 'ItemListReply':
+        return ', '.join(_item_title(km, reply.path, item_uuid, side) for item_uuid in _strings(reply.raw))
+    return _text(reply) or ''
 
 
 def _describe_choices(reply: StoredReply, km: dict[str, Any]) -> str:
-    labels = [_label(km, 'choices', choice) for choice in reply.uuid_values or ()]
-    if all(labels):
+    labels = [_label(km, 'choices', choice) for choice in _strings(reply.raw)]
+    if labels and all(labels):
         return ', '.join(label for label in labels if label)
     return reply.display_text or REMOVED_OPTION
 
@@ -173,7 +184,7 @@ def _describe_selected_item(reply: StoredReply, km: dict[str, Any], side: Mappin
     """An item-select reply names an item of another list; its title is looked up there."""
     question = _questions(km).get(reply.path.rsplit('.', 1)[-1], {})
     list_question_uuid = question.get('listQuestionUuid')
-    if not list_question_uuid or reply.uuid_value is None:
+    if not list_question_uuid or not isinstance(reply.raw, str):
         return 'Untitled item'
     list_path = f'{reply.path.rsplit(".", 1)[0]}.{list_question_uuid}'
-    return _item_title(km, list_path, reply.uuid_value, side)
+    return _item_title(km, list_path, reply.raw, side)

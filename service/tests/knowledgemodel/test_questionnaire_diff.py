@@ -7,11 +7,7 @@ from ai_document_plugin_service.ai.knowledgemodel.questionnaire_diff import (
     describe_changes,
     diff_replies,
 )
-from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import (
-    ReplyType,
-    StoredReply,
-    build_snapshot,
-)
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply, build_snapshot
 
 
 def u(number: int) -> str:
@@ -45,7 +41,7 @@ def reply(reply_type: str, value: Any, by: dict[str, str] | None = None) -> dict
 
 
 def text(path: str, value: str) -> StoredReply:
-    return StoredReply(path, ReplyType.STRING, text_value=value)
+    return StoredReply(path, {'type': 'StringReply', 'value': value})
 
 
 def describe(old_replies: dict[str, Any], new_replies: dict[str, Any], km: dict[str, Any] | None = None) -> list:
@@ -71,15 +67,25 @@ def test_diff_of_identical_snapshots_is_empty() -> None:
 
 
 def test_diff_ignores_the_stored_label_since_it_is_not_part_of_the_value() -> None:
-    old = StoredReply('a', ReplyType.ANSWER, uuid_value=UUID(YES), display_text='Yes')
-    new = StoredReply('a', ReplyType.ANSWER, uuid_value=UUID(YES), display_text='Ano')
+    old = StoredReply('a', {'type': 'AnswerReply', 'value': YES}, display_text='Yes')
+    new = StoredReply('a', {'type': 'AnswerReply', 'value': YES}, display_text='Ano')
 
     assert diff_replies([old], [new]) == []
 
 
 def test_diff_sees_a_reordered_item_list_as_a_change() -> None:
-    old = StoredReply('l', ReplyType.ITEM_LIST, uuid_values=(UUID(ITEM_1), UUID(ITEM_2)))
-    new = StoredReply('l', ReplyType.ITEM_LIST, uuid_values=(UUID(ITEM_2), UUID(ITEM_1)))
+    old = StoredReply('l', {'type': 'ItemListReply', 'value': [ITEM_1, ITEM_2]})
+    new = StoredReply('l', {'type': 'ItemListReply', 'value': [ITEM_2, ITEM_1]})
+
+    assert [change.kind for change in diff_replies([old], [new])] == [ChangeKind.CHANGED]
+
+
+def test_diff_sees_a_changed_integration_record_with_the_same_text_as_a_change() -> None:
+    def zenodo(record_id: int) -> StoredReply:
+        value = {'type': 'IntegrationType', 'value': 'Zenodo', 'raw': {'id': record_id}}
+        return StoredReply('i', {'type': 'IntegrationReply', 'value': value})
+
+    old, new = zenodo(1), zenodo(2)
 
     assert [change.kind for change in diff_replies([old], [new])] == [ChangeKind.CHANGED]
 
@@ -93,6 +99,15 @@ def test_describes_a_changed_text_with_titles_values_and_who_changed_it() -> Non
     assert (change.kind, change.chapter_title, change.question_title) == (ChangeKind.CHANGED, 'Data', 'Notes')
     assert (change.old_value, change.new_value) == ('before', 'after')
     assert (change.changed_by, change.changed_at) == ('Ada Lovelace', '2026-11-20T10:00:00Z')
+
+
+def test_describes_integration_replies_by_their_text() -> None:
+    old = {'c1.plain': reply('IntegrationReply', {'type': 'IntegrationType', 'value': 'Zenodo', 'raw': {'id': 1}})}
+    new = {'c1.plain': reply('IntegrationReply', {'type': 'PlainType', 'value': 'Dryad'})}
+
+    [change] = describe(old, new)
+
+    assert (change.old_value, change.new_value) == ('Zenodo', 'Dryad')
 
 
 def test_describes_answers_by_their_labels() -> None:

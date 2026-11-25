@@ -3,7 +3,7 @@ import { Spinner } from '@ds-wizard/plugin-sdk/ui/Icon'
 
 import type { RunRecord } from '@/hooks/useGenerationHistory'
 import {
-    getQuestionnaireChange,
+    isQuestionnaireChanged,
     type LatestQuestionnaireEvent,
 } from '@/hooks/useLatestQuestionnaireEvent'
 
@@ -20,20 +20,16 @@ export function QuestionnaireChangeBadge({ run, latestEvent }: QuestionnaireChan
         return <Spinner label="Checking the questionnaire for changes" />
     }
 
-    const change = getQuestionnaireChange(run, latestEvent)
-
-    if (change === 'changed') {
-        return (
-            <Badge
-                tone="warning"
-                icon="fa-triangle-exclamation"
-                description="Some answers may have been edited since this document was generated."
-            >
-                Questionnaire changed after the DMP was generated
-            </Badge>
-        )
-    }
-
     // Unchanged, or not verifiable (older run, DSW unreachable): nothing to show.
-    return null
+    if (!isQuestionnaireChanged(run.sourceEventUuid, latestEvent)) return null
+
+    return (
+        <Badge
+            tone="warning"
+            icon="fa-triangle-exclamation"
+            description="Some answers may have been edited since this document was generated."
+        >
+            Questionnaire changed after the DMP was generated
+        </Badge>
+    )
 }

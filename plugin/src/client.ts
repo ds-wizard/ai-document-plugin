@@ -232,7 +232,12 @@ export const getLatestQuestionnaireEventUuid = async (
     }
 
     const latest: unknown = events[0]
-    if (!latest || typeof latest !== 'object' || !('uuid' in latest) || typeof latest.uuid !== 'string') {
+    if (
+        !latest ||
+        typeof latest !== 'object' ||
+        !('uuid' in latest) ||
+        typeof latest.uuid !== 'string'
+    ) {
         throw new Error('Invalid questionnaire event returned.')
     }
     return latest.uuid

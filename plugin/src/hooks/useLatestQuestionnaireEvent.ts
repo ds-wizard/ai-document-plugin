@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react'
 
 import { getLatestQuestionnaireEventUuid } from '@/client'
-import type { RunRecord } from '@/hooks/useGenerationHistory'
 
 export type LatestQuestionnaireEvent =
-    | { status: 'loading' }
-    | { status: 'failed' }
-    | { status: 'ready'; eventUuid: string }
+    { status: 'loading' } | { status: 'failed' } | { status: 'ready'; eventUuid: string }
 
 /**
  * The newest DSW event of the questionnaire, read once when the project tab opens. Runs are compared against
@@ -39,20 +36,18 @@ export function useLatestQuestionnaireEvent(
 }
 
 /**
- * Whether the answers changed since the run read them: `changed`, `unknown` when that cannot be told (older
- * run, or DSW could not be asked), or `null` when there is nothing to show (unchanged, or the run has not
- * succeeded). Throws when called while the latest event is still loading, so callers must wait for it.
+ * Whether the answers changed since the run read them. False when that cannot be told: the latest event is not
+ * loaded or could not be read, or the run is older and has no event of its own.
  *
  * The check is conservative: phase and label edits, and re-saving the same value, also count as a change.
  */
-export function getQuestionnaireChange(
-    run: Pick<RunRecord, 'status' | 'sourceEventUuid'>,
+export function isQuestionnaireChanged(
+    sourceEventUuid: string | null,
     latest: LatestQuestionnaireEvent,
-): 'changed' | 'unknown' | null {
-    if (latest.status === 'loading') {
-        throw new Error('The latest questionnaire event is not loaded yet.')
-    }
-    if (run.status !== 'succeeded') return null
-    if (latest.status === 'failed' || !run.sourceEventUuid) return 'unknown'
-    return latest.eventUuid.toLowerCase() === run.sourceEventUuid.toLowerCase() ? null : 'changed'
+): boolean {
+    return (
+        latest.status === 'ready' &&
+        sourceEventUuid !== null &&
+        latest.eventUuid.toLowerCase() !== sourceEventUuid.toLowerCase()
+    )
 }

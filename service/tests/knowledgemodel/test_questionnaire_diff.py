@@ -30,7 +30,11 @@ KM: dict[str, Any] = {
         'questions': {
             'opt': {'questionType': 'OptionsQuestion', 'title': 'Reuse?'},
             'why': {'questionType': 'ValueQuestion', 'title': 'Why?'},
-            'items': {'questionType': 'ListQuestion', 'title': 'Datasets', 'itemTemplateQuestionUuids': ['name', 'fmt']},
+            'items': {
+                'questionType': 'ListQuestion',
+                'title': 'Datasets',
+                'itemTemplateQuestionUuids': ['name', 'fmt'],
+            },
             'name': {'questionType': 'ValueQuestion', 'title': 'Name'},
             'fmt': {'questionType': 'ValueQuestion', 'title': 'Format'},
             'pick': {'questionType': 'ItemSelectQuestion', 'title': 'Main dataset', 'listQuestionUuid': 'items'},

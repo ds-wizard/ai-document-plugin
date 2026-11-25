@@ -197,6 +197,9 @@ class PipelineService:
         """What changed in the questionnaire's answers since the run was generated.
 
         Not available for runs that did not store their replies; those have no event baseline either.
+
+        Raises:
+            NotFoundError: If the run does not exist or belongs to another user.
         """
         record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
         if record is None:

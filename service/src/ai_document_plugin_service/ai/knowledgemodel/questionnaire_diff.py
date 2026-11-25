@@ -3,6 +3,7 @@
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from itertools import starmap
 from typing import Any
 
 from ai_document_plugin_service.ai.knowledgemodel.list_items import find_list_path
@@ -125,7 +126,7 @@ class _Walk:
         return ChangeNode(chapter_uuid, NodeKind.CHAPTER, chapter.get('title'), children=children) if children else None
 
     def _question_nodes(self, questions: Iterable[tuple[str, str]]) -> tuple[ChangeNode, ...]:
-        nodes = (self._question(question_uuid, path) for question_uuid, path in questions)
+        nodes = starmap(self._question, questions)
         return tuple(node for node in nodes if node is not None)
 
     def _question(self, question_uuid: str, path: str) -> ChangeNode | None:

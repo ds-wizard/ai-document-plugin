@@ -56,22 +56,27 @@ def build_snapshot(km: dict[str, Any], replies: dict[str, Any]) -> list[StoredRe
         if not isinstance(value, dict) or not isinstance(value.get('type'), str):
             logger.warning('Skipping a reply without a typed value', extra={'reply_path': path})
             continue
-        if value['type'] in _LEFT_OUT_REPLY_TYPES or _is_empty(value.get('value')):
+        if value['type'] in _LEFT_OUT_REPLY_TYPES or _is_empty(value):
             continue
         snapshot.append(StoredReply(path, value, _display_text(value, entities)))
     return snapshot
 
 
-def _is_empty(raw: object) -> bool:
+def _is_empty(value: dict[str, Any]) -> bool:
+    raw = value.get('value')
+    if value['type'] == 'IntegrationReply' and isinstance(raw, dict):
+        # ``{type, value, raw?}``: empty when it has neither text nor a record.
+        return _is_blank(raw.get('value')) and not raw.get('raw')
+    return _is_blank(raw)
+
+
+def _is_blank(raw: object) -> bool:
     if raw is None:
         return True
     if isinstance(raw, str):
         return not raw.strip()
-    if isinstance(raw, list):
+    if isinstance(raw, (list, dict)):
         return not raw
-    if isinstance(raw, dict):
-        # An integration reply: ``{type, value, raw?}``, empty when it has neither text nor a record.
-        return _is_empty(raw.get('value')) and not raw.get('raw')
     return False
 
 

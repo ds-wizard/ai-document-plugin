@@ -77,13 +77,7 @@ function TreeNode({ node }: { node: QuestionnaireChangeNode }) {
     )
 }
 
-function TreeLevel({
-    nodes,
-    root = false,
-}: {
-    nodes: QuestionnaireChangeNode[]
-    root?: boolean
-}) {
+function TreeLevel({ nodes, root = false }: { nodes: QuestionnaireChangeNode[]; root?: boolean }) {
     return (
         <ul className={root ? styles.root : styles.level}>
             {nodes.map((node) => (

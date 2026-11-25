@@ -2,10 +2,9 @@ from typing import Any
 
 from ai_document_plugin_service.ai.knowledgemodel.reachable_replies import reachable_replies
 
-# c1
-#   opt (options): a1 -> f1 (value), a2 -> f2 (value)
-#   items (list): item template t1 (value) and nested (list) with item template n1 (value)
-#   plain (value)
+# Chapter c1 holds three questions. The options question opt has answers a1 and a2, which lead to the value
+# questions f1 and f2. The list question items has the value question t1 and the list question nested, with the
+# value question n1, in its item template. The value question plain has no children.
 KM = {
     'chapterUuids': ['c1'],
     'entities': {

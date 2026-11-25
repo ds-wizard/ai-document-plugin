@@ -1,0 +1,5 @@
+/* The alert's content fills the row, so the button can sit at the end. */
+.note :global(.ui-alert__content) {
+    flex: 1;
+    min-width: 0;
+}

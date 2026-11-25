@@ -18,6 +18,7 @@ from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
 )
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
+from ai_document_plugin_service.ai.knowledgemodel.reachable_replies import reachable_replies
 from ai_document_plugin_service.cover_page.cover_page_renderer import CoverPageRenderer
 from ai_document_plugin_service.cover_page.cover_page_resolvers import CoverDataSources
 
@@ -88,7 +89,7 @@ class DmpGeneratorComponent:
         )
         cover_page_assignments = document_assignments[:cover_page_section_count]
         document_assignments = document_assignments[cover_page_section_count:]
-        replies = self._filter_reachable_replies(replies, km)
+        replies = reachable_replies(km, replies)
         logger.info(
             'Starting DMP generation',
             extra={
@@ -240,129 +241,6 @@ class DmpGeneratorComponent:
         raise NotImplementedError(
             msg,
         )
-
-    @staticmethod
-    def _filter_reachable_replies(
-        replies: dict[str, Any],
-        km: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Keep only replies that are reachable in the current questionnaire state.
-
-        DSW can keep stale descendants in the raw questionnaire JSON when a user
-        changes an earlier answer (for example `YES -> NO`) or removes a list
-        item. Generation should ignore those historical branches and only use
-        replies that can be reached from the current KM roots via the currently
-        selected option answers and existing list-item UUIDs.
-        """
-        chapter_uuids = km.get('chapterUuids')
-        entities = km.get('entities', {})
-        chapters = entities.get('chapters', {})
-        questions = entities.get('questions', {})
-        answers = entities.get('answers', {})
-        if not chapter_uuids or not chapters or not questions:
-            return replies
-
-        reachable_paths: set[str] = set()
-
-        for chapter_uuid in chapter_uuids:
-            chapter = chapters.get(chapter_uuid)
-            if chapter is None:
-                continue
-            for question_uuid in chapter.get('questionUuids', []):
-                DmpGeneratorComponent._walk_reachable_question(
-                    question_uuid,
-                    f'{chapter_uuid}.{question_uuid}',
-                    replies,
-                    questions,
-                    answers,
-                    reachable_paths,
-                )
-
-        return {key: value for key, value in replies.items() if key in reachable_paths}
-
-    @staticmethod
-    def _walk_reachable_options_question(
-        path: str,
-        replies: dict[str, Any],
-        answers: dict[str, Any],
-    ) -> list[tuple[str, str]]:
-        selected_answer_uuid = replies.get(path, {}).get('value', {}).get('value')
-        if not selected_answer_uuid:
-            return []
-
-        answer = answers.get(selected_answer_uuid)
-        if answer is None:
-            return []
-
-        return [
-            (
-                follow_up_uuid,
-                f'{path}.{selected_answer_uuid}.{follow_up_uuid}',
-            )
-            for follow_up_uuid in answer.get('followUpUuids', [])
-        ]
-
-    @staticmethod
-    def _walk_reachable_list_question(
-        question: dict[str, Any],
-        path: str,
-        replies: dict[str, Any],
-    ) -> list[tuple[str, str]]:
-        list_items = replies.get(path, {}).get('value', {}).get('value', [])
-        if not isinstance(list_items, list):
-            logger.warning('Expected list items at %s, got %s', path, type(list_items).__name__)
-            return []
-
-        return [
-            (
-                nested_question_uuid,
-                f'{path}.{item_uuid}.{nested_question_uuid}',
-            )
-            for item_uuid in list_items
-            for nested_question_uuid in question.get('itemTemplateQuestionUuids', [])
-        ]
-
-    @staticmethod
-    def _walk_reachable_question(
-        question_uuid: str,
-        path: str,
-        replies: dict[str, Any],
-        questions: dict[str, Any],
-        answers: dict[str, Any],
-        reachable_paths: set[str],
-    ) -> None:
-        question = questions.get(question_uuid)
-        if question is None:
-            return
-
-        if path in replies:
-            reachable_paths.add(path)
-
-        question_type = question.get('questionType')
-        if question_type == 'OptionsQuestion':
-            child_questions = DmpGeneratorComponent._walk_reachable_options_question(
-                path,
-                replies,
-                answers,
-            )
-        elif question_type == 'ListQuestion':
-            child_questions = DmpGeneratorComponent._walk_reachable_list_question(
-                question,
-                path,
-                replies,
-            )
-        else:
-            child_questions = []
-
-        for child_question_uuid, child_path in child_questions:
-            DmpGeneratorComponent._walk_reachable_question(
-                child_question_uuid,
-                child_path,
-                replies,
-                questions,
-                answers,
-                reachable_paths,
-            )
 
     @staticmethod
     def _get_reply_keys_at_level(replies: dict[str, Any], prefix: str) -> list[str]:

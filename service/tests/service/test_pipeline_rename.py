@@ -42,7 +42,7 @@ async def test_rename_persists_title_for_every_run_status(auth, status):
     database = AsyncMock()
     database.get_generation.return_value = record
     database.update_generation.return_value = replace(record, title='New title')
-    service = PipelineService(Mock(), database, Mock())
+    service = PipelineService(Mock(), database)
 
     result = await service.rename_pipeline(record.run_id, PipelineRenameRequest(title='  New title  '), auth)
 
@@ -56,7 +56,7 @@ async def test_rename_persists_title_for_every_run_status(auth, status):
 async def test_rename_does_not_update_a_run_outside_the_users_scope(auth):
     database = AsyncMock()
     database.get_generation.return_value = None
-    service = PipelineService(Mock(), database, Mock())
+    service = PipelineService(Mock(), database)
     run_id = uuid4()
 
     with pytest.raises(NotFoundError):
@@ -69,7 +69,7 @@ async def test_rename_does_not_update_a_run_outside_the_users_scope(auth):
 async def test_rename_handles_a_run_removed_before_update(auth):
     database = AsyncMock()
     database.update_generation.return_value = None
-    service = PipelineService(Mock(), database, Mock())
+    service = PipelineService(Mock(), database)
 
     with pytest.raises(NotFoundError):
         await service.rename_pipeline(uuid4(), PipelineRenameRequest(title='New title'), auth)

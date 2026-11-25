@@ -25,6 +25,7 @@ from ai_document_plugin_service.ai.generation.cover_page_component import CoverP
 from ai_document_plugin_service.ai.generation.dmp_generator_component import DmpGeneratorComponent
 from ai_document_plugin_service.ai.generation.llm import SectionGenerationLLM
 from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply, build_snapshot
 from ai_document_plugin_service.ai.persistence.assignment_loader_component import AssignmentLoaderComponent
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import (
     AssignmentSaverComponent,
@@ -56,6 +57,8 @@ class PipelineOutput:
     # Generator output before polishing (the text fed into the polisher).
     dmp_pre_polished: str
     stats: PipelineStats
+    # The replies the document was generated from, kept to tell later what changed in the questionnaire.
+    reply_snapshot: tuple[StoredReply, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -252,6 +255,7 @@ async def run_pipeline(
         markdown=result_markdown,
         dmp_pre_polished=dmp_pre_polished,
         stats=pipeline_stats,
+        reply_snapshot=tuple(build_snapshot(km, replies)),
     )
 
 

@@ -14,7 +14,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class PersistenceSchema:
     template_table: Table
     generation_table: Table
     generation_stats_table: Table
+    generation_reply_table: Table
     llm_settings_table: Table
 
 
@@ -117,7 +118,7 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         Column('result_markdown', Text, nullable=True),
         Column('progress_message', Text, nullable=True),
         Column('named_version', Text, nullable=True),
-        # Newest DSW event of the questionnaire when the run read it (see QuestionnaireStateService).
+        # Newest DSW event of the questionnaire when the run read it (see DSWClient.get_latest_event_uuid).
         # The nil UUID for a questionnaire without events; NULL for runs from before this column existed.
         Column('source_event_uuid', UUID(as_uuid=True), nullable=True),
         Column(
@@ -165,6 +166,19 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         ),
     )
 
+    # The replies a generation was made from, one row per reply (see questionnaire_snapshot). Written together with
+    # the generation succeeding; a generation without rows predates this table or had no replies, and the former
+    # is told by generation.source_event_uuid being NULL.
+    generation_reply_table = Table(
+        'generation_reply',
+        metadata,
+        Column('run_id', UUID(as_uuid=True), ForeignKey('generation.run_id', ondelete='CASCADE'), primary_key=True),
+        Column('path', Text, primary_key=True),
+        # The value of the reply as DSW sends it (``{type, value}``), see StoredReply.
+        Column('value', JSONB, nullable=False),
+        Column('display_text', Text, nullable=True),
+    )
+
     # LLM connection settings, one row per tenant. Managed by tenant administrators.
     llm_settings_table = Table(
         'llm_settings',
@@ -192,5 +206,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         template_table=template_table,
         generation_table=generation_table,
         generation_stats_table=generation_stats_table,
+        generation_reply_table=generation_reply_table,
         llm_settings_table=llm_settings_table,
     )

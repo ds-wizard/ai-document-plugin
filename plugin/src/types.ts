@@ -112,4 +112,29 @@ export type PipelineSummaryItem = {
     sourceEventUuid: string | null
 }
 
+/** A reply that differs between a generation and the questionnaire now. */
+export type QuestionnaireValueChange = {
+    kind: 'added' | 'changed' | 'removed'
+    oldValue: string | null
+    newValue: string | null
+}
+
+/** A chapter, question or list item with changes in it, in the questionnaire's order. */
+export type QuestionnaireChangeNode = {
+    path: string
+    kind: 'chapter' | 'question' | 'item'
+    title: string | null
+    /** The change of this node's own reply, if it changed. */
+    change: QuestionnaireValueChange | null
+    /** The selected answer of an options question that did not change itself but has changed follow-ups. */
+    answer: string | null
+    children: QuestionnaireChangeNode[]
+}
+
+export type QuestionnaireChangesResponse = {
+    /** False for runs that did not store their answers, so there is nothing to compare with. */
+    available: boolean
+    tree: QuestionnaireChangeNode[]
+}
+
 export type ResultRenderMode = 'formatted' | 'raw'

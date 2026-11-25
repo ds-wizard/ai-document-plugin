@@ -12,6 +12,7 @@ from ai_document_plugin_service.api.types import (
     PipelineSaveRequest,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    QuestionnaireChangesResponse,
 )
 from ai_document_plugin_service.di import (
     AuthenticatedDI,
@@ -70,6 +71,15 @@ async def get_pipeline_status(
     if status is None:
         raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
     return status
+
+
+@pipeline_router.get('/pipelines/status/{run_id}/changes')
+async def get_questionnaire_changes(
+    run_id: UUID,
+    pipeline: PipelineServiceDI,
+    auth: AuthenticatedDI,
+) -> QuestionnaireChangesResponse:
+    return await pipeline.get_questionnaire_changes(run_id, auth)
 
 
 @pipeline_router.patch('/pipelines/status/{run_id}/title')

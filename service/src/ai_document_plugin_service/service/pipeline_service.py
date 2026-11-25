@@ -12,6 +12,7 @@ from ai_document_plugin_service.ai.common.run_context import RunLogContext, run_
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.knowledgemodel.project_version import resolve_named_version
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_diff import ChangeNode, change_tree
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
 from ai_document_plugin_service.ai.persistence.database import (
     Database,
@@ -30,14 +31,13 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    QuestionnaireChangeNodeResponse,
+    QuestionnaireChangesResponse,
+    QuestionnaireValueChangeResponse,
     TemplateDetail,
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
-from ai_document_plugin_service.service.questionnaire_state_service import (
-    QuestionnaireState,
-    QuestionnaireStateService,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -100,14 +100,14 @@ def _generation_record_to_summary_response(record: GenerationRecord) -> Pipeline
     )
 
 
-def _succeeded_update(output: PipelineOutput, questionnaire_state: QuestionnaireState) -> GenerationUpdate:
+def _succeeded_update(output: PipelineOutput, source_event_uuid: UUID) -> GenerationUpdate:
     """The generation fields a finished run writes."""
     return {
         'status': PipelineStatus.SUCCEEDED,
         'knowledge_model_uuid': output.knowledge_model_uuid,
         'result_markdown': output.markdown,
         'progress_message': None,
-        'source_event_uuid': questionnaire_state.event_uuid,
+        'source_event_uuid': source_event_uuid,
     }
 
 
@@ -165,17 +165,52 @@ def _log_background_update_failure(task: Task[object]) -> None:
         logger.error('Failed to persist pipeline progress message', exc_info=error)
 
 
+def _change_node_response(node: ChangeNode) -> QuestionnaireChangeNodeResponse:
+    change = node.change
+    return QuestionnaireChangeNodeResponse(
+        path=node.path,
+        kind=node.kind.value,
+        title=node.title,
+        change=QuestionnaireValueChangeResponse(
+            kind=change.kind.value,
+            old_value=change.old_value,
+            new_value=change.new_value,
+        )
+        if change is not None
+        else None,
+        answer=node.answer,
+        children=[_change_node_response(child) for child in node.children],
+    )
+
+
 class PipelineService:
     def __init__(
         self,
         pipeline_queue_manager: PipelineQueueManager,
         database: Database,
-        questionnaire_state_service: QuestionnaireStateService,
     ) -> None:
         self.pipeline_queue_manager = pipeline_queue_manager
         self.database = database
-        self.questionnaire_state_service = questionnaire_state_service
         self._llm_clients = LlmClientTenantStore()
+
+    async def get_questionnaire_changes(self, run_id: UUID, auth: AuthenticatedUser) -> QuestionnaireChangesResponse:
+        """What changed in the questionnaire's answers since the run was generated.
+
+        Not available for runs that did not store their replies; those have no event baseline either.
+
+        Raises:
+            NotFoundError: If the run does not exist or belongs to another user.
+        """
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        if record.status != PipelineStatus.SUCCEEDED or record.source_event_uuid is None:
+            return QuestionnaireChangesResponse(available=False, tree=[])
+
+        stored = await self.database.get_generation_replies(run_id)
+        current_detail = await DSWClient(auth.token, auth.api_url).get_questionnaire_detail(record.questionnaire_uuid)
+        tree = change_tree(stored, current_detail)
+        return QuestionnaireChangesResponse(available=True, tree=[_change_node_response(node) for node in tree])
 
     async def get_pipeline_status(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse | None:
         record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
@@ -480,7 +515,7 @@ class PipelineService:
             dsw_client = DSWClient(auth.token, auth.api_url)
             # Taken right before run_pipeline reads the answers, so an edit in between only makes the run look
             # changed, never unchanged. A failure here fails the run: it would otherwise lose the change check.
-            questionnaire_state = await self.questionnaire_state_service.capture(dsw_client, questionnaire_uuid)
+            source_event_uuid = await dsw_client.get_latest_event_uuid(questionnaire_uuid)
             output = await run_pipeline(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
@@ -504,12 +539,13 @@ class PipelineService:
                 run_id,
                 auth.tenant_uuid,
                 expected_statuses=(PipelineStatus.RUNNING,),
-                **_succeeded_update(output, questionnaire_state),
+                **_succeeded_update(output, source_event_uuid),
             )
             if record is None:
                 # Cancellation won the atomic status transition. Discard the output
                 # and skip success stats instead of reviving the cancelled run.
                 return
+            await self.database.save_generation_replies(run_id, output.reply_snapshot)
             await self.database.create_generation_stats(run_id, get_trace_uuid(), **_succeeded_stats(output))
         logger.info(
             'Pipeline run status updated to succeeded',

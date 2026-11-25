@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import TYPE_CHECKING, Annotated, Self
+from typing import TYPE_CHECKING, Annotated, Literal, Self
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -266,6 +266,33 @@ class PipelineExportRequest(ApiModel):
 class PipelineErrorResponse(ApiModel):
     type: ErrorType
     message: str
+
+
+class QuestionnaireValueChangeResponse(ApiModel):
+    """A reply that differs between the generation and the questionnaire now."""
+
+    kind: Literal['added', 'changed', 'removed']
+    old_value: str | None = None
+    new_value: str | None = None
+
+
+class QuestionnaireChangeNodeResponse(ApiModel):
+    """A chapter, question or list item with changes in it, in the questionnaire's order."""
+
+    path: str
+    kind: Literal['chapter', 'question', 'item']
+    title: str | None = None
+    # The change of this node's own reply, if it changed.
+    change: QuestionnaireValueChangeResponse | None = None
+    # The selected answer of an options question that did not change itself but has changed follow-ups.
+    answer: str | None = None
+    children: list['QuestionnaireChangeNodeResponse']
+
+
+class QuestionnaireChangesResponse(ApiModel):
+    # False for generations that did not store their replies, so there is nothing to compare with.
+    available: bool
+    tree: list[QuestionnaireChangeNodeResponse]
 
 
 class PipelineSummaryResponse(ApiModel):

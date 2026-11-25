@@ -12,7 +12,6 @@ from ai_document_plugin_service.ai.generation.dmp_generator_component import (
 )
 from ai_document_plugin_service.ai.generation.llm import GenerationLLM
 from ai_document_plugin_service.ai.generation.parse_answers import parse_answer
-from ai_document_plugin_service.ai.knowledgemodel.parser_component import ParserComponent
 from ai_document_plugin_service.cover_page.cover_page_definition import (
     cover_page_assignment_field_labels,
 )
@@ -44,6 +43,7 @@ def _serialize_assignments(assignments: list[SectionAssignment]) -> list[Seriali
 
 def _km_fixture() -> dict:
     return {
+        'chapterUuids': ['ch'],
         'entities': {
             'phases': {},
             'questions': {
@@ -55,52 +55,7 @@ def _km_fixture() -> dict:
                 'yes': {'label': 'Yes', 'advice': None},
                 'no': {'label': 'No', 'advice': None},
             },
-            'chapters': {},
-            'choices': {},
-        },
-    }
-
-
-def _reachable_km_fixture() -> dict:
-    return {
-        'chapterUuids': ['chapter'],
-        'entities': {
-            'chapters': {
-                'chapter': {
-                    'uuid': 'chapter',
-                    'title': 'Chapter',
-                    'questionUuids': ['rootQ', 'datasetsQ'],
-                },
-            },
-            'phases': {},
-            'questions': {
-                'rootQ': {
-                    'questionType': 'OptionsQuestion',
-                    'title': 'Root',
-                    'text': 'Root text',
-                    'answerUuids': ['yes', 'no'],
-                },
-                'childQ': {
-                    'questionType': 'ValueQuestion',
-                    'title': 'Child',
-                    'text': 'Child text',
-                },
-                'datasetsQ': {
-                    'questionType': 'ListQuestion',
-                    'title': 'Datasets',
-                    'text': 'Datasets text',
-                    'itemTemplateQuestionUuids': ['datasetNameQ'],
-                },
-                'datasetNameQ': {
-                    'questionType': 'ValueQuestion',
-                    'title': 'Dataset name',
-                    'text': 'Dataset name text',
-                },
-            },
-            'answers': {
-                'yes': {'label': 'Yes', 'advice': None, 'followUpUuids': ['childQ']},
-                'no': {'label': 'No', 'advice': None, 'followUpUuids': []},
-            },
+            'chapters': {'ch': {'title': 'Chapter', 'questionUuids': ['itemQ', 'neighborQ']}},
             'choices': {},
         },
     }
@@ -119,6 +74,7 @@ def _questionnaire_detail_fixture() -> dict:
 
 def _km_with_phase_fixture() -> dict:
     return {
+        'chapterUuids': [],
         'entities': {
             'phases': {
                 'phase-1': {
@@ -350,68 +306,6 @@ def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -
     assert synthetic['debug-info']
 
 
-def test_filter_reachable_replies_drops_stale_option_branch() -> None:
-    component = _component()
-    km = _reachable_km_fixture()
-    replies = {
-        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
-        'chapter.rootQ.yes.childQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'stale child',
-            },
-        },
-    }
-
-    filtered = component._filter_reachable_replies(replies, km)
-
-    assert filtered == {
-        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
-    }
-
-
-def test_filter_reachable_replies_drops_removed_list_item_branch() -> None:
-    component = _component()
-    km = _reachable_km_fixture()
-    replies = {
-        'chapter.datasetsQ': {
-            'value': {
-                'type': 'ItemListReply',
-                'value': ['active-item'],
-            },
-        },
-        'chapter.datasetsQ.active-item.datasetNameQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'active',
-            },
-        },
-        'chapter.datasetsQ.removed-item.datasetNameQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'stale',
-            },
-        },
-    }
-
-    filtered = component._filter_reachable_replies(replies, km)
-
-    assert filtered == {
-        'chapter.datasetsQ': {
-            'value': {
-                'type': 'ItemListReply',
-                'value': ['active-item'],
-            },
-        },
-        'chapter.datasetsQ.active-item.datasetNameQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'active',
-            },
-        },
-    }
-
-
 def test_match_replies_selection_returns_empty_for_no_questions() -> None:
     result, has_answer = _component().match_replies_selection({}, {}, _km_fixture())
     assert result == []
@@ -477,6 +371,33 @@ def test_parse_answer_item_select_reply_returns_selected_item_value() -> None:
     )
 
     assert parsed == 'English'
+
+
+def test_parse_answer_item_select_reply_finds_a_list_outside_its_own_parent() -> None:
+    km = {
+        'entities': {
+            'questions': {
+                'listQ': {'questionType': 'ListQuestion'},
+                'nameQ': {'questionType': 'ValueQuestion'},
+                'selectQ': {'questionType': 'ItemSelectQuestion', 'listQuestionUuid': 'listQ'},
+            },
+            'answers': {},
+        },
+    }
+    replies = {
+        'chapterA.listQ': {'value': {'type': 'ItemListReply', 'value': ['selected-item']}},
+        'chapterA.listQ.selected-item.nameQ': {'value': {'type': 'StringReply', 'value': 'Alice'}},
+        'chapterB.parentQ.answer.selectQ': {'value': {'type': 'ItemSelectReply', 'value': 'selected-item'}},
+    }
+
+    parsed = parse_answer(
+        replies['chapterB.parentQ.answer.selectQ']['value'],
+        km,
+        replies=replies,
+        question_path='chapterB.parentQ.answer.selectQ',
+    )
+
+    assert parsed == 'Alice'
 
 
 def test_parse_answer_integration_reply_returns_first_raw_and_url() -> None:
@@ -553,45 +474,6 @@ def test_parse_answer_integration_reply_handles_none_values_in_raw_mapping() -> 
     assert parsed == ('{"name": "Zenodo", "homepage": null, "url": null, "doi": null, "description": null} value')
 
 
-def test_parser_component_item_select_reply_uses_integration_raw_url() -> None:
-    parser = ParserComponent()
-    parser.km = {
-        'entities': {
-            'questions': {
-                'integrationQ': {'questionType': 'IntegrationQuestion'},
-            },
-        },
-    }
-    replies = {
-        'chapter.selectQ': {
-            'value': {
-                'type': 'ItemSelectReply',
-                'value': 'selected-item',
-            },
-        },
-        'chapter.listQ.selected-item.reply.integrationQ': {
-            'value': {
-                'type': 'IntegrationReply',
-                'value': {
-                    'type': 'IntegrationType',
-                    'value': 'value',
-                    'raw': {
-                        'homepage': 'https://tools.ietf.org/html/rfc4180',
-                        'doi': '10.25504/FAIRsharing.1943d4',
-                    },
-                },
-            },
-        },
-    }
-
-    parsed = parser.get_item_select_question_reply(
-        replies,
-        path='chapter.selectQ',
-    )
-
-    assert parsed == ('{"homepage": "https://tools.ietf.org/html/rfc4180", "doi": "10.25504/FAIRsharing.1943d4"} value')
-
-
 async def test_run_renders_parent_and_leaf_sections() -> None:
     stub = StubGenerationLLM()
     component = _component(stub)
@@ -606,7 +488,7 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
                     title='Leaf',
                     assignments={
                         'itemQ': {
-                            'question_path': 'ch.listQ.itemQ',
+                            'question_path': 'ch.itemQ',
                             'question_title': 'Item',
                             'question_text': 'Item text',
                             'children': {},
@@ -617,7 +499,7 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
         ),
     ]
     replies = {
-        'ch.listQ.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
+        'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
     }
 
     result = await component.run_async(

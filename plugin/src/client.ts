@@ -8,6 +8,7 @@ import type {
     LlmSettingsUpdate,
     PipelineStatusResponse,
     PipelineSummaryItem,
+    QuestionnaireChangesResponse,
     TemplateDetail,
     TemplateOption,
     TemplateScope,
@@ -241,6 +242,31 @@ export const getLatestQuestionnaireEventUuid = async (
         throw new Error('Invalid questionnaire event returned.')
     }
     return latest.uuid
+}
+
+export const getQuestionnaireChanges = async (
+    runId: string,
+): Promise<QuestionnaireChangesResponse> => {
+    const url = `${getApiBaseUrl()}/pipelines/status/${encodeURIComponent(runId)}/changes`
+    const response = await apiFetch(url)
+    const data = await readApiResponse<QuestionnaireChangesResponse | { detail?: string }>(
+        response,
+        url,
+    )
+
+    if (!response.ok) {
+        throw new Error(
+            'detail' in data && data.detail
+                ? data.detail
+                : 'Failed to load the changes of the questionnaire.',
+        )
+    }
+
+    if (!('tree' in data) || !Array.isArray(data.tree)) {
+        throw new Error('Invalid questionnaire changes returned.')
+    }
+
+    return data
 }
 
 export const deletePipeline = async (runId: string): Promise<void> => {

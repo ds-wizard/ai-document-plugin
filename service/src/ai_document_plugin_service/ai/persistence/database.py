@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from ai_document_plugin_service.ai.assignment.types import SectionQuestionPaths
 from ai_document_plugin_service.ai.common.config import DatabaseConfig, LLMConfig
 from ai_document_plugin_service.ai.common.types import TemplateContent
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply
 from ai_document_plugin_service.ai.persistence.errors import TemplateTitleConflictError
 from ai_document_plugin_service.ai.persistence.schema import create_persistence_schema
 from ai_document_plugin_service.ai.persistence.secret_cipher import SecretCipher
@@ -272,6 +273,14 @@ class Database(ABC):
         """Create the stats row of a finished generation."""
 
     @abstractmethod
+    async def save_generation_replies(self, run_id: UUID, replies: Sequence[StoredReply]) -> None:
+        """Store the replies a generation was made from."""
+
+    @abstractmethod
+    async def get_generation_replies(self, run_id: UUID) -> list[StoredReply]:
+        """Get the replies stored with a generation, ordered by path. The caller checks ownership of the run."""
+
+    @abstractmethod
     async def get_generation(
         self,
         run_id: UUID,
@@ -322,6 +331,7 @@ class PostgresDB(Database):
         self.template_table = schema.template_table
         self.generation_table = schema.generation_table
         self.generation_stats_table = schema.generation_stats_table
+        self.generation_reply_table = schema.generation_reply_table
         self.llm_settings_table = schema.llm_settings_table
         self._database_verified = False
         logger.info(
@@ -393,6 +403,7 @@ class PostgresDB(Database):
             'assignment_section',
             'generation',
             'generation_stats',
+            'generation_reply',
             'llm_settings',
         }
         missing_tables = sorted(required_tables - existing_tables)
@@ -802,6 +813,37 @@ class PostgresDB(Database):
 
         async with self._connect() as connection:
             await connection.execute(statement)
+
+    async def save_generation_replies(self, run_id: UUID, replies: Sequence[StoredReply]) -> None:
+        if not replies:
+            return
+        await self._ensure_schema()
+        rows = [
+            {
+                'run_id': run_id,
+                'path': reply.path,
+                'value': reply.value,
+                'display_text': reply.display_text,
+            }
+            for reply in replies
+        ]
+
+        async with self._connect() as connection:
+            await connection.execute(self.generation_reply_table.insert(), rows)
+
+    async def get_generation_replies(self, run_id: UUID) -> list[StoredReply]:
+        await self._ensure_schema()
+        table = self.generation_reply_table
+        statement = select(table).where(table.c.run_id == run_id).order_by(table.c.path)
+
+        async with self._connect() as connection:
+            result = await connection.execute(statement)
+            rows = result.fetchall()
+
+        return [
+            StoredReply(path=row.path, value=row.value, display_text=row.display_text)
+            for row in rows
+        ]
 
     async def get_generation(
         self,

@@ -1,3 +1,6 @@
+import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
+import { Button } from '@ds-wizard/plugin-sdk/ui/Button'
+import { Inline } from '@ds-wizard/plugin-sdk/ui/Layout'
 import { useState } from 'react'
 
 import styles from '@/components/QuestionnaireChangeNote.module.css'
@@ -27,14 +30,14 @@ export function QuestionnaireChangeNote({ run, latestEvent }: QuestionnaireChang
 
     return (
         <>
-            <button type="button" className={styles.note} onClick={() => setIsOpen(true)}>
-                <i className="fas fa-triangle-exclamation" aria-hidden="true" />
-                <span className={styles.text}>Changes since DMP was created</span>
-                <span className={styles.action}>
-                    Show changes
-                    <i className="fas fa-chevron-right" aria-hidden="true" />
-                </span>
-            </button>
+            <Alert tone="warning" className={styles.note}>
+                <Inline align="between">
+                    <span>DMP is outdated</span>
+                    <Button size="small" variant="secondary" onClick={() => setIsOpen(true)}>
+                        Show changes
+                    </Button>
+                </Inline>
+            </Alert>
             {isOpen && (
                 <QuestionnaireChangesModal runId={run.runId} onClose={() => setIsOpen(false)} />
             )}

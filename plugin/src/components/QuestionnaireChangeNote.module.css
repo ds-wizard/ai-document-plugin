@@ -1,38 +1,5 @@
-/* A warning, like the wizard's warning badge, that is a button opening the list of changes. */
-.note {
-    display: flex;
-    align-items: center;
-    gap: var(--ui-space-2);
-    width: 100%;
-    padding: var(--ui-space-2) var(--ui-space-3);
-    border: 1px solid var(--ui-warning-border);
-    border-radius: var(--ui-radius-control);
-    background: var(--ui-warning-subtle);
-    color: var(--ui-warning-on-subtle);
-    font: inherit;
-    font-weight: 600;
-    text-align: start;
-    cursor: pointer;
-}
-
-.note:hover {
-    filter: brightness(0.97);
-}
-
-.note:focus-visible {
-    outline: var(--ui-focus-ring-width, 2px) solid var(--ui-focus-ring, currentColor);
-    outline-offset: var(--ui-focus-ring-offset, 2px);
-}
-
-.text {
+/* The alert's content fills the row, so the button can sit at the end. */
+.note :global(.ui-alert__content) {
     flex: 1;
-}
-
-.action {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.875rem;
-    text-decoration: underline;
-    white-space: nowrap;
+    min-width: 0;
 }

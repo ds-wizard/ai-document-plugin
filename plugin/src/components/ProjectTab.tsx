@@ -14,6 +14,7 @@ import { buildLanguageOptions, getLanguageOption, type LanguageOption } from '@/
 import { SettingsData } from '@/data/settings-data'
 import { UserSettingsData } from '@/data/user-settings-data'
 import { useGenerationHistory } from '@/hooks/useGenerationHistory'
+import { useLatestQuestionnaireEvent } from '@/hooks/useLatestQuestionnaireEvent'
 import { useTemplates } from '@/hooks/useTemplates'
 
 const DEFAULT_LANGUAGE = 'en'
@@ -29,6 +30,7 @@ export default function ProjectTab({
     })
     const history = useGenerationHistory(project)
     const projectUuid = project?.uuid
+    const latestEvent = useLatestQuestionnaireEvent(projectUuid)
 
     const [selectedUuid, setSelectedUuid] = useState('')
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
@@ -171,7 +173,11 @@ export default function ProjectTab({
             <div className={styles.main}>
                 <div className={styles.content}>
                     {selectedRunId ? (
-                        <RunDetailPanel runId={selectedRunId} history={history} />
+                        <RunDetailPanel
+                            runId={selectedRunId}
+                            history={history}
+                            latestEvent={latestEvent}
+                        />
                     ) : (
                         <Stack loose>
                             <ProjectTemplatePanel

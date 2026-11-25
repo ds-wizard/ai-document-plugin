@@ -190,6 +190,59 @@ export const getPipelineStatus = async (runId: string): Promise<PipelineStatusRe
     return data
 }
 
+/** Stands for "event 0" of a questionnaire without any events; matches the service. */
+const NO_EVENTS_UUID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * UUID of the newest event of the questionnaire in DSW (the nil UUID when it has no events), read from the DSW
+ * API directly. DSW applies no default order, so the sort is required.
+ */
+export const getLatestQuestionnaireEventUuid = async (
+    questionnaireUuid: string,
+): Promise<string> => {
+    const { apiUrl, token } = getApiUrlAndToken()
+    if (!token) {
+        throw new Error("Failed to retrieve the current user's authentication token.")
+    }
+    if (!apiUrl) {
+        throw new Error('Failed to retrieve the DSW API URL.')
+    }
+
+    const url = `${apiUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(questionnaireUuid)}/events?size=1&sort=createdAt,desc`
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (!response.ok) {
+        throw new Error(`Failed to load the latest questionnaire event (${response.status}).`)
+    }
+
+    const data: unknown = await response.json()
+    if (!data || typeof data !== 'object') {
+        throw new Error('Invalid questionnaire events returned.')
+    }
+
+    const embedded = '_embedded' in data ? data._embedded : undefined
+    const events =
+        embedded && typeof embedded === 'object' && 'projectEvents' in embedded
+            ? embedded.projectEvents
+            : undefined
+    if (!Array.isArray(events)) {
+        throw new Error('Invalid questionnaire events returned.')
+    }
+    if (events.length === 0) {
+        return NO_EVENTS_UUID
+    }
+
+    const latest: unknown = events[0]
+    if (
+        !latest ||
+        typeof latest !== 'object' ||
+        !('uuid' in latest) ||
+        typeof latest.uuid !== 'string'
+    ) {
+        throw new Error('Invalid questionnaire event returned.')
+    }
+    return latest.uuid
+}
+
 export const deletePipeline = async (runId: string): Promise<void> => {
     const url = `${getApiBaseUrl()}/pipelines/status/${encodeURIComponent(runId)}`
     const response = await apiFetch(url, { method: 'DELETE' })

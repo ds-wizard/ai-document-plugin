@@ -278,6 +278,8 @@ class PipelineSummaryResponse(ApiModel):
     created_at: str
     updated_at: str
     named_version: str | None = None
+    # Newest DSW questionnaire event when the run read the answers; None for older runs.
+    source_event_uuid: UUID | None = None
 
 
 class PipelineStatusResponse(ApiModel):
@@ -294,3 +296,4 @@ class PipelineStatusResponse(ApiModel):
     progress_message: str | None = None
     updated_at: str
     named_version: str | None = None
+    source_event_uuid: UUID | None = None

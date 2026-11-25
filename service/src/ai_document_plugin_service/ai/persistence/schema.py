@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import (
     JSON,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -25,6 +26,7 @@ class PersistenceSchema:
     template_table: Table
     generation_table: Table
     generation_stats_table: Table
+    generation_reply_table: Table
     llm_settings_table: Table
 
 
@@ -165,6 +167,35 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         ),
     )
 
+    # The replies a generation was made from, one row per reply (see questionnaire_snapshot). Written together with
+    # the generation succeeding; a generation without rows predates this table or had no replies, and the former
+    # is told by generation.source_event_uuid being NULL.
+    generation_reply_table = Table(
+        'generation_reply',
+        metadata,
+        Column('run_id', UUID(as_uuid=True), ForeignKey('generation.run_id', ondelete='CASCADE'), primary_key=True),
+        Column('path', Text, primary_key=True),
+        Column('reply_type', Text, nullable=False),
+        # Which one is set depends on the reply type, see StoredReply.
+        Column('text_value', Text, nullable=True),
+        Column('uuid_value', UUID(as_uuid=True), nullable=True),
+        Column('uuid_values', ARRAY(UUID(as_uuid=True)), nullable=True),
+        Column('display_text', Text, nullable=True),
+        CheckConstraint(
+            "reply_type IN ('string', 'integration', 'answer', 'item_select', 'multi_choice', 'item_list')",
+            name='ck_generation_reply_type',
+        ),
+        CheckConstraint(
+            "(reply_type IN ('string', 'integration')"
+            ' AND text_value IS NOT NULL AND uuid_value IS NULL AND uuid_values IS NULL)'
+            " OR (reply_type IN ('answer', 'item_select')"
+            ' AND uuid_value IS NOT NULL AND text_value IS NULL AND uuid_values IS NULL)'
+            " OR (reply_type IN ('multi_choice', 'item_list')"
+            ' AND uuid_values IS NOT NULL AND text_value IS NULL AND uuid_value IS NULL)',
+            name='ck_generation_reply_value',
+        ),
+    )
+
     # LLM connection settings, one row per tenant. Managed by tenant administrators.
     llm_settings_table = Table(
         'llm_settings',
@@ -192,5 +223,6 @@ def create_persistence_schema(schema_name: str) -> PersistenceSchema:
         template_table=template_table,
         generation_table=generation_table,
         generation_stats_table=generation_stats_table,
+        generation_reply_table=generation_reply_table,
         llm_settings_table=llm_settings_table,
     )

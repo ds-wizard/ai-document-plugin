@@ -112,4 +112,25 @@ export type PipelineSummaryItem = {
     sourceEventUuid: string | null
 }
 
+/** One answer that differs between a generation and the questionnaire now. */
+export type QuestionnaireChange = {
+    path: string
+    kind: 'added' | 'changed' | 'removed'
+    chapterTitle: string | null
+    questionTitle: string | null
+    /** Titles of the list items the question sits in, outermost first. */
+    context: string[]
+    oldValue: string | null
+    newValue: string | null
+    /** Who made the answer and when; only known for answers that exist now. */
+    changedBy: string | null
+    changedAt: string | null
+}
+
+export type QuestionnaireChangesResponse = {
+    /** False for runs that did not store their answers, so there is nothing to compare with. */
+    available: boolean
+    changes: QuestionnaireChange[]
+}
+
 export type ResultRenderMode = 'formatted' | 'raw'

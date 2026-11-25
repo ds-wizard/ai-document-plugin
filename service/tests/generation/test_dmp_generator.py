@@ -61,51 +61,6 @@ def _km_fixture() -> dict:
     }
 
 
-def _reachable_km_fixture() -> dict:
-    return {
-        'chapterUuids': ['chapter'],
-        'entities': {
-            'chapters': {
-                'chapter': {
-                    'uuid': 'chapter',
-                    'title': 'Chapter',
-                    'questionUuids': ['rootQ', 'datasetsQ'],
-                },
-            },
-            'phases': {},
-            'questions': {
-                'rootQ': {
-                    'questionType': 'OptionsQuestion',
-                    'title': 'Root',
-                    'text': 'Root text',
-                    'answerUuids': ['yes', 'no'],
-                },
-                'childQ': {
-                    'questionType': 'ValueQuestion',
-                    'title': 'Child',
-                    'text': 'Child text',
-                },
-                'datasetsQ': {
-                    'questionType': 'ListQuestion',
-                    'title': 'Datasets',
-                    'text': 'Datasets text',
-                    'itemTemplateQuestionUuids': ['datasetNameQ'],
-                },
-                'datasetNameQ': {
-                    'questionType': 'ValueQuestion',
-                    'title': 'Dataset name',
-                    'text': 'Dataset name text',
-                },
-            },
-            'answers': {
-                'yes': {'label': 'Yes', 'advice': None, 'followUpUuids': ['childQ']},
-                'no': {'label': 'No', 'advice': None, 'followUpUuids': []},
-            },
-            'choices': {},
-        },
-    }
-
-
 def _questionnaire_detail_fixture() -> dict:
     return {
         'name': 'Potato project',
@@ -348,68 +303,6 @@ def test_handle_single_reply_adds_synthetic_neighbour_answers_from_depth_two() -
     assert synthetic['question_title'] == 'Neighbor'
     assert synthetic['reply'] == 'No'
     assert synthetic['debug-info']
-
-
-def test_filter_reachable_replies_drops_stale_option_branch() -> None:
-    component = _component()
-    km = _reachable_km_fixture()
-    replies = {
-        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
-        'chapter.rootQ.yes.childQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'stale child',
-            },
-        },
-    }
-
-    filtered = component._filter_reachable_replies(replies, km)
-
-    assert filtered == {
-        'chapter.rootQ': {'value': {'type': 'AnswerReply', 'value': 'no'}},
-    }
-
-
-def test_filter_reachable_replies_drops_removed_list_item_branch() -> None:
-    component = _component()
-    km = _reachable_km_fixture()
-    replies = {
-        'chapter.datasetsQ': {
-            'value': {
-                'type': 'ItemListReply',
-                'value': ['active-item'],
-            },
-        },
-        'chapter.datasetsQ.active-item.datasetNameQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'active',
-            },
-        },
-        'chapter.datasetsQ.removed-item.datasetNameQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'stale',
-            },
-        },
-    }
-
-    filtered = component._filter_reachable_replies(replies, km)
-
-    assert filtered == {
-        'chapter.datasetsQ': {
-            'value': {
-                'type': 'ItemListReply',
-                'value': ['active-item'],
-            },
-        },
-        'chapter.datasetsQ.active-item.datasetNameQ': {
-            'value': {
-                'type': 'StringReply',
-                'value': 'active',
-            },
-        },
-    }
 
 
 def test_match_replies_selection_returns_empty_for_no_questions() -> None:

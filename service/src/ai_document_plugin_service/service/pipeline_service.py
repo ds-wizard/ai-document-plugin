@@ -30,6 +30,8 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
+    QuestionnaireChangeResponse,
+    QuestionnaireChangesResponse,
     TemplateDetail,
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
@@ -176,6 +178,38 @@ class PipelineService:
         self.database = database
         self.questionnaire_state_service = questionnaire_state_service
         self._llm_clients = LlmClientTenantStore()
+
+    async def get_questionnaire_changes(self, run_id: UUID, auth: AuthenticatedUser) -> QuestionnaireChangesResponse:
+        """What changed in the questionnaire's answers since the run was generated.
+
+        Not available for runs that did not store their replies; those have no event baseline either.
+        """
+        record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
+        if record is None:
+            raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
+        if record.status != PipelineStatus.SUCCEEDED or record.source_event_uuid is None:
+            return QuestionnaireChangesResponse(available=False, changes=[])
+
+        stored = await self.database.get_generation_replies(run_id)
+        current_detail = await DSWClient(auth.token, auth.api_url).get_questionnaire_detail(record.questionnaire_uuid)
+        descriptions = self.questionnaire_state_service.changes(stored, current_detail)
+        return QuestionnaireChangesResponse(
+            available=True,
+            changes=[
+                QuestionnaireChangeResponse(
+                    path=description.path,
+                    kind=description.kind.value,
+                    chapter_title=description.chapter_title,
+                    question_title=description.question_title,
+                    context=description.context,
+                    old_value=description.old_value,
+                    new_value=description.new_value,
+                    changed_by=description.changed_by,
+                    changed_at=description.changed_at,
+                )
+                for description in descriptions
+            ],
+        )
 
     async def get_pipeline_status(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse | None:
         record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)
@@ -510,6 +544,7 @@ class PipelineService:
                 # Cancellation won the atomic status transition. Discard the output
                 # and skip success stats instead of reviving the cancelled run.
                 return
+            await self.database.save_generation_replies(run_id, output.reply_snapshot)
             await self.database.create_generation_stats(run_id, get_trace_uuid(), **_succeeded_stats(output))
         logger.info(
             'Pipeline run status updated to succeeded',

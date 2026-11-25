@@ -6,7 +6,11 @@ from enum import StrEnum
 from typing import Any
 
 from ai_document_plugin_service.ai.knowledgemodel.list_items import find_list_path
-from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import StoredReply, build_snapshot
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_snapshot import (
+    StoredReply,
+    build_snapshot,
+    entity_label,
+)
 from ai_document_plugin_service.ai.knowledgemodel.reachable_replies import child_questions
 
 MAX_ITEM_TITLE_LENGTH = 80
@@ -171,7 +175,7 @@ class _Walk:
         """The label of the answer an options reply selects."""
         if reply is None or reply.reply_type != 'AnswerReply':
             return None
-        return _label(self.km, 'answers', reply.raw) or reply.display_text or REMOVED_OPTION
+        return _answer_label(reply, self.km)
 
     def value_change(self, change: ReplyChange) -> ValueChange:
         return ValueChange(
@@ -210,11 +214,8 @@ def _item_title(km: dict[str, Any], list_path: str, item_uuid: str, side: Mappin
     return 'Untitled item'
 
 
-def _label(km: dict[str, Any], kind: str, uuid: object) -> str | None:
-    if not isinstance(uuid, str):
-        return None
-    label = km['entities'].get(kind, {}).get(uuid, {}).get('label')
-    return label if isinstance(label, str) else None
+def _answer_label(reply: StoredReply, km: dict[str, Any]) -> str:
+    return entity_label(km['entities'], 'answers', reply.raw) or reply.display_text or REMOVED_OPTION
 
 
 def _strings(raw: object) -> list[str]:
@@ -232,7 +233,7 @@ def _text(reply: StoredReply) -> str | None:
 
 def _describe_value(reply: StoredReply, km: dict[str, Any], side: Mapping[str, StoredReply]) -> str:
     if reply.reply_type == 'AnswerReply':
-        return _label(km, 'answers', reply.raw) or reply.display_text or REMOVED_OPTION
+        return _answer_label(reply, km)
     if reply.reply_type == 'MultiChoiceReply':
         return _describe_choices(reply, km)
     if reply.reply_type == 'ItemSelectReply':
@@ -243,7 +244,7 @@ def _describe_value(reply: StoredReply, km: dict[str, Any], side: Mapping[str, S
 
 
 def _describe_choices(reply: StoredReply, km: dict[str, Any]) -> str:
-    labels = [_label(km, 'choices', choice) for choice in _strings(reply.raw)]
+    labels = [entity_label(km['entities'], 'choices', choice) for choice in _strings(reply.raw)]
     if labels and all(labels):
         return ', '.join(label for label in labels if label)
     return reply.display_text or REMOVED_OPTION

@@ -78,13 +78,16 @@ def _is_empty(raw: object) -> bool:
 def _display_text(value: dict[str, Any], entities: dict[str, Any]) -> str | None:
     reply_type, raw = value['type'], value.get('value')
     if reply_type == 'AnswerReply' and isinstance(raw, str):
-        return _label(entities, 'answers', raw)
+        return entity_label(entities, 'answers', raw)
     if reply_type == 'MultiChoiceReply' and isinstance(raw, list):
-        labels = [_label(entities, 'choices', choice) for choice in raw if isinstance(choice, str)]
+        labels = [entity_label(entities, 'choices', choice) for choice in raw]
         return ', '.join(label for label in labels if label) or None
     return None
 
 
-def _label(entities: dict[str, Any], kind: str, uuid: str) -> str | None:
+def entity_label(entities: dict[str, Any], kind: str, uuid: object) -> str | None:
+    """The label of an answer or choice in the knowledge model, or None when it has none (any more)."""
+    if not isinstance(uuid, str):
+        return None
     label = entities.get(kind, {}).get(uuid, {}).get('label')
     return label if isinstance(label, str) else None

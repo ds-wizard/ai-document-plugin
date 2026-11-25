@@ -28,7 +28,7 @@ async def test_admission_uses_cancellable_states_in_owned_project_history(admiss
     database.list_generations.return_value = [
         Mock(template_uuid=payload.template_uuid if same_template else uuid4(), status=status),
     ]
-    service = PipelineService(queue, database, Mock())
+    service = PipelineService(queue, database)
     with patch('ai_document_plugin_service.service.pipeline_service.DSWClient') as client:
         client.return_value.get_project_versions = AsyncMock(return_value=[])
         if same_template and status in {PipelineStatus.QUEUED, PipelineStatus.RUNNING}:
@@ -51,7 +51,7 @@ async def test_admission_rejects_deleted_template(admission):
     with patch('ai_document_plugin_service.service.pipeline_service.DSWClient') as client:
         client.return_value.get_project_versions = AsyncMock(return_value=[])
         with pytest.raises(NotFoundError):
-            await PipelineService(queue, database, Mock()).enqueue_pipeline_job(payload, Mock(), auth, Mock(), None)
+            await PipelineService(queue, database).enqueue_pipeline_job(payload, Mock(), auth, Mock(), None)
     database.create_generation.assert_not_awaited()
     queue.enqueue.assert_not_called()
 
@@ -92,7 +92,7 @@ async def test_concurrent_services_admit_only_one_run(admission):
     database.get_template.side_effect = get_template
     database.list_generations.side_effect = list_generations
     database.create_generation.side_effect = create_generation
-    services = [PipelineService(queue, database, Mock()), PipelineService(queue, database, Mock())]
+    services = [PipelineService(queue, database), PipelineService(queue, database)]
     with patch('ai_document_plugin_service.service.pipeline_service.DSWClient') as client:
         client.return_value.get_project_versions = AsyncMock(return_value=[])
         results = await asyncio.gather(

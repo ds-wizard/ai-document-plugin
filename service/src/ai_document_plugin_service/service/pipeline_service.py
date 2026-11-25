@@ -12,7 +12,7 @@ from ai_document_plugin_service.ai.common.run_context import RunLogContext, run_
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.knowledgemodel.project_version import resolve_named_version
-from ai_document_plugin_service.ai.knowledgemodel.questionnaire_diff import ChangeNode
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_diff import ChangeNode, change_tree
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
 from ai_document_plugin_service.ai.persistence.database import (
     Database,
@@ -38,10 +38,6 @@ from ai_document_plugin_service.api.types import (
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
 from ai_document_plugin_service.service.pipeline_queue_manager import PipelineQueueManager
-from ai_document_plugin_service.service.questionnaire_state_service import (
-    QuestionnaireState,
-    QuestionnaireStateService,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -104,14 +100,14 @@ def _generation_record_to_summary_response(record: GenerationRecord) -> Pipeline
     )
 
 
-def _succeeded_update(output: PipelineOutput, questionnaire_state: QuestionnaireState) -> GenerationUpdate:
+def _succeeded_update(output: PipelineOutput, source_event_uuid: UUID) -> GenerationUpdate:
     """The generation fields a finished run writes."""
     return {
         'status': PipelineStatus.SUCCEEDED,
         'knowledge_model_uuid': output.knowledge_model_uuid,
         'result_markdown': output.markdown,
         'progress_message': None,
-        'source_event_uuid': questionnaire_state.event_uuid,
+        'source_event_uuid': source_event_uuid,
     }
 
 
@@ -192,11 +188,9 @@ class PipelineService:
         self,
         pipeline_queue_manager: PipelineQueueManager,
         database: Database,
-        questionnaire_state_service: QuestionnaireStateService,
     ) -> None:
         self.pipeline_queue_manager = pipeline_queue_manager
         self.database = database
-        self.questionnaire_state_service = questionnaire_state_service
         self._llm_clients = LlmClientTenantStore()
 
     async def get_questionnaire_changes(self, run_id: UUID, auth: AuthenticatedUser) -> QuestionnaireChangesResponse:
@@ -212,7 +206,7 @@ class PipelineService:
 
         stored = await self.database.get_generation_replies(run_id)
         current_detail = await DSWClient(auth.token, auth.api_url).get_questionnaire_detail(record.questionnaire_uuid)
-        tree = self.questionnaire_state_service.changes(stored, current_detail)
+        tree = change_tree(stored, current_detail)
         return QuestionnaireChangesResponse(available=True, tree=[_change_node_response(node) for node in tree])
 
     async def get_pipeline_status(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse | None:
@@ -518,7 +512,7 @@ class PipelineService:
             dsw_client = DSWClient(auth.token, auth.api_url)
             # Taken right before run_pipeline reads the answers, so an edit in between only makes the run look
             # changed, never unchanged. A failure here fails the run: it would otherwise lose the change check.
-            questionnaire_state = await self.questionnaire_state_service.capture(dsw_client, questionnaire_uuid)
+            source_event_uuid = await dsw_client.get_latest_event_uuid(questionnaire_uuid)
             output = await run_pipeline(
                 questionnaire_uuid=questionnaire_uuid,
                 template_uuid=template_uuid,
@@ -542,7 +536,7 @@ class PipelineService:
                 run_id,
                 auth.tenant_uuid,
                 expected_statuses=(PipelineStatus.RUNNING,),
-                **_succeeded_update(output, questionnaire_state),
+                **_succeeded_update(output, source_event_uuid),
             )
             if record is None:
                 # Cancellation won the atomic status transition. Discard the output

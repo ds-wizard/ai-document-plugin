@@ -10,9 +10,11 @@ import { saveEditedPipelineResult } from '@/client'
 import { DownloadDropdown } from '@/components/DownloadDropdown'
 import styles from '@/components/PipelineResultPanel.module.css'
 import { MarkdownRenderer } from '@/markdown-utils'
+import { stripStatementSources } from '@/statement-sources'
 import type { PipelineStatusResponse, ResultRenderMode } from '@/types'
 
 type PipelineResultPanelProps = {
+    projectUuid: string
     resultMarkdown: string | null
     resultRunId: string | null
     downloadBaseName: string
@@ -20,6 +22,7 @@ type PipelineResultPanelProps = {
 }
 
 export function PipelineResultPanel({
+    projectUuid,
     resultMarkdown,
     resultRunId,
     downloadBaseName,
@@ -45,7 +48,7 @@ export function PipelineResultPanel({
         }
 
         try {
-            await navigator.clipboard.writeText(displayedResultMarkdown)
+            await navigator.clipboard.writeText(stripStatementSources(displayedResultMarkdown))
             toast.success('Markdown has been copied to the clipboard.')
         } catch {
             toast.error('Failed to copy markdown to the clipboard.')
@@ -156,7 +159,10 @@ export function PipelineResultPanel({
                         />
                     </Stack>
                 ) : (
-                    <MarkdownRenderer markdown={displayedResultMarkdown || ''} />
+                    <MarkdownRenderer
+                        markdown={displayedResultMarkdown || ''}
+                        projectUuid={projectUuid}
+                    />
                 )}
             </Card>
         </Stack>

@@ -13,6 +13,10 @@ from haystack import component
 
 from ai_document_plugin_service.ai.assignment.types import SerializedSectionAssignment
 from ai_document_plugin_service.ai.common.progress import progress_percent
+from ai_document_plugin_service.ai.common.source_ids import (
+    build_source_ids,
+    restore_source_paths,
+)
 from ai_document_plugin_service.ai.common.types import AssignmentStats
 from ai_document_plugin_service.ai.generation.llm import (
     GenerationLLM,
@@ -70,6 +74,7 @@ class DmpGeneratorComponent:
         include_cover_page: bool = False,
         created_at: datetime | None = None,
         assignments: list[SerializedSectionAssignment] | None = None,
+        source_ids: dict[str, str] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         created_at = created_at or datetime.now(tz=UTC)
@@ -89,6 +94,7 @@ class DmpGeneratorComponent:
         cover_page_assignments = document_assignments[:cover_page_section_count]
         document_assignments = document_assignments[cover_page_section_count:]
         replies = self._filter_reachable_replies(replies, km)
+        source_ids = source_ids if source_ids is not None else build_source_ids(replies)
         logger.info(
             'Starting DMP generation',
             extra={
@@ -114,6 +120,7 @@ class DmpGeneratorComponent:
                 replies=replies,
                 km=km,
                 llm=self.dmp_generator_llm,
+                source_ids=source_ids,
                 stats=stats,
             )
             for node in document_assignments
@@ -125,6 +132,7 @@ class DmpGeneratorComponent:
                 replies=replies,
                 km=km,
                 llm=self.cover_page_llm,
+                source_ids=source_ids,
                 stats=stats,
                 generation_instruction=cover_page_instruction,
             )
@@ -233,6 +241,7 @@ class DmpGeneratorComponent:
         include_cover_page: bool = False,
         created_at: datetime | None = None,
         assignments: list[SerializedSectionAssignment] | None = None,
+        source_ids: dict[str, str] | None = None,
         on_progress: Callable[[str], None] | None = None,
     ) -> DmpGeneratorComponentResult:
         """Async-only component; the sync pipeline entrypoint is intentionally unsupported."""
@@ -718,6 +727,7 @@ class DmpGeneratorComponent:
         self,
         chapter_name: str,
         replies: list[dict[str, Any]],
+        source_ids: dict[str, str],
     ) -> str | None:
         """Build the LLM user prompt for one section from its matched question/answer tree.
 
@@ -731,6 +741,9 @@ class DmpGeneratorComponent:
                 groups = [construct_question_answers(q, level + 1) for q in question['children']]
                 return '\t' * level + 'SUBQUESTIONS GROUP: \n' + ''.join(groups)
             result = ('\t' * level) + ' - Question: ' + (self.sanitize(question['question_title']) or '') + '\n'
+            source_id = source_ids.get(question['question_path'])
+            if source_id is not None and question.get('reply') is not None:
+                result += ('\t' * level) + '   Source ID: ' + source_id + '\n'
             if question.get('reply') is not None:
                 result += ('\t' * level) + '   Answer: ' + question['reply'] + '\n'
             for child in question['children']:
@@ -819,6 +832,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM,
+        source_ids: dict[str, str],
         stats: AssignmentStats | None = None,
         generation_instruction: str = '',
     ) -> _ScheduledSection:
@@ -827,8 +841,10 @@ class DmpGeneratorComponent:
         heading = self._heading(depth, title)
 
         if self._is_leaf_section(node):
-            return self._handle_leaf_section(heading, km, llm, node, replies, stats, generation_instruction)
-        return self._handle_children_section(depth, heading, km, llm, node, replies, stats, generation_instruction)
+            return self._handle_leaf_section(heading, km, llm, source_ids, node, replies, stats, generation_instruction)
+        return self._handle_children_section(
+            depth, heading, km, llm, source_ids, node, replies, stats, generation_instruction
+        )
 
     def _handle_children_section(
         self,
@@ -836,6 +852,7 @@ class DmpGeneratorComponent:
         heading: str,
         km: dict,
         llm: GenerationLLM,
+        source_ids: dict[str, str],
         node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
@@ -850,6 +867,7 @@ class DmpGeneratorComponent:
                     replies=replies,
                     km=km,
                     llm=llm,
+                    source_ids=source_ids,
                     stats=stats,
                     generation_instruction=generation_instruction,
                 )
@@ -862,6 +880,7 @@ class DmpGeneratorComponent:
         heading: str,
         km: dict,
         llm: GenerationLLM,
+        source_ids: dict[str, str],
         node: SerializedSectionAssignment,
         replies: dict,
         stats: AssignmentStats | None,
@@ -876,6 +895,7 @@ class DmpGeneratorComponent:
                     replies,
                     km,
                     llm,
+                    source_ids,
                     stats,
                     generation_instruction,
                 ),
@@ -893,6 +913,7 @@ class DmpGeneratorComponent:
         replies: dict,
         km: dict,
         llm: GenerationLLM,
+        source_ids: dict[str, str],
         stats: AssignmentStats | None = None,
         generation_instruction: str = '',
     ) -> tuple[str, str]:
@@ -910,11 +931,20 @@ class DmpGeneratorComponent:
         matches, _ = self.match_replies_selection(assignments, replies, km)
         rows = self._flatten_matched_questions(matches, title)
         table = self._source_questions_table(rows)
-        prompt = self.construct_chapter_prompt(title, matches)
+        prompt = self.construct_chapter_prompt(title, matches, source_ids)
         if prompt and generation_instruction:
             prompt += f'\n\n{generation_instruction}'
-        content = await llm.section_from_qa(prompt, stats) if prompt else 'No data'
-        debug_body = (table + '\n\n' + content) if table else content
+        content = 'No data'
+        if prompt:
+            allowed_ids = {
+                source_ids[row['question_path']]
+                for row in rows
+                if row['has_reply'] and row['question_path'] in source_ids
+            }
+
+            content = await llm.section_from_qa(prompt, stats, allowed_source_ids=allowed_ids)
+        decoded_content = restore_source_paths(content, source_ids)
+        debug_body = (table + '\n\n' + decoded_content) if table else decoded_content
         section = heading + '\n\n' + content
         return section, heading + '\n\n' + debug_body
 

@@ -61,7 +61,7 @@ cover_page_generation:
     Do not include the top-level section heading or add facts not present in the answers.
 
 dmp_polishing:
-  max_tokens: 65536
+  max_tokens: 97635
   temperature: 0.3
   system_message: |
     You are a data management plan editor. Your task is to polish and reorganize a DMP document. Output a valid Markdown file. 

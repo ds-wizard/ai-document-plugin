@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 # Stands for "event 0" of a questionnaire without any events.
 NO_EVENTS_UUID = UUID(int=0)
 
+# The questionnaire detail carries the whole knowledge model, which DSW can take several seconds to build.
+DSW_REQUEST_TIMEOUT_SECONDS = 15
+
 
 def parse_latest_event_uuid(payload: object) -> UUID:
     """Read the newest event UUID from a ``/projects/{uuid}/events?size=1&sort=createdAt,desc`` response.
@@ -53,7 +56,7 @@ class DSWClient:
             headers['Authorization'] = f'Bearer {self.token}'
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=DSW_REQUEST_TIMEOUT_SECONDS) as client:
                 response = await client.get(url, headers=headers)
             response.raise_for_status()
         except httpx.HTTPError:
@@ -94,7 +97,7 @@ class DSWClient:
             headers['Authorization'] = f'Bearer {self.token}'
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=DSW_REQUEST_TIMEOUT_SECONDS) as client:
                 response = await client.get(url, headers=headers, params={'size': 1, 'sort': 'createdAt,desc'})
             response.raise_for_status()
         except httpx.HTTPError:
@@ -119,7 +122,7 @@ class DSWClient:
             headers['Authorization'] = f'Bearer {self.token}'
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=DSW_REQUEST_TIMEOUT_SECONDS) as client:
                 response = await client.get(url, headers=headers)
             response.raise_for_status()
         except httpx.HTTPError:

@@ -1,14 +1,16 @@
 import { Alert } from '@ds-wizard/plugin-sdk/ui/Alert'
 import { AsyncBlock } from '@ds-wizard/plugin-sdk/ui/AsyncBlock'
-import { Badge, type BadgeProps } from '@ds-wizard/plugin-sdk/ui/Badge'
-import { Icon } from '@ds-wizard/plugin-sdk/ui/Icon'
-import { Muted } from '@ds-wizard/plugin-sdk/ui/Text'
+import { Muted, VisuallyHidden } from '@ds-wizard/plugin-sdk/ui/Text'
 import { useEffect, useRef, useState } from 'react'
 
 import { getQuestionnaireChanges } from '@/client'
 import { Modal } from '@/components/Modal'
 import styles from '@/components/QuestionnaireChangesModal.module.css'
-import type { QuestionnaireChange, QuestionnaireChangesResponse } from '@/types'
+import type {
+    QuestionnaireChangeNode,
+    QuestionnaireChangesResponse,
+    QuestionnaireValueChange,
+} from '@/types'
 
 type QuestionnaireChangesModalProps = {
     runId: string
@@ -20,82 +22,81 @@ type LoadState =
     | { status: 'failed'; message: string }
     | { status: 'ready'; data: QuestionnaireChangesResponse }
 
-const KIND_LABELS: Record<QuestionnaireChange['kind'], string> = {
-    added: 'Added',
-    changed: 'Changed',
-    removed: 'Removed',
+const UNTITLED: Record<QuestionnaireChangeNode['kind'], string> = {
+    chapter: 'Untitled chapter',
+    question: 'Unknown question',
+    item: 'Untitled item',
 }
 
-const KIND_TONES: Record<QuestionnaireChange['kind'], NonNullable<BadgeProps['tone']>> = {
-    added: 'success',
-    changed: 'info',
-    removed: 'danger',
+// Long answers are cut so a line of the tree stays short; the whole value is shown on hover.
+const MAX_VALUE_LENGTH = 200
+
+function shorten(value: string): string {
+    return value.length > MAX_VALUE_LENGTH ? `${value.slice(0, MAX_VALUE_LENGTH - 1)}…` : value
 }
 
-const OTHER_CHAPTER = 'Other'
-
-function groupByChapter(changes: QuestionnaireChange[]): Array<[string, QuestionnaireChange[]]> {
-    const groups = new Map<string, QuestionnaireChange[]>()
-    for (const change of changes) {
-        const chapter = change.chapterTitle ?? OTHER_CHAPTER
-        groups.set(chapter, [...(groups.get(chapter) ?? []), change])
-    }
-    return [...groups]
-}
-
-function formatChangedAt(changedAt: string | null): string | null {
-    if (!changedAt) return null
-    const date = new Date(changedAt)
-    return Number.isNaN(date.getTime()) ? null : date.toLocaleString()
-}
-
-function Value({ value, old = false }: { value: string | null; old?: boolean }) {
-    if (!value) {
-        return <span className={styles.empty}>(empty)</span>
-    }
-    return <span className={old ? `${styles.value} ${styles.old}` : styles.value}>{value}</span>
-}
-
-function ChangeValues({ change }: { change: QuestionnaireChange }) {
-    if (change.kind === 'added') {
-        return (
-            <div className={styles.values}>
-                <Value value={change.newValue} />
-            </div>
-        )
-    }
-    if (change.kind === 'removed') {
-        return (
-            <div className={styles.values}>
-                <Value value={change.oldValue} old />
-            </div>
-        )
-    }
+/** The old value struck through in red and the current one in green, either left out when there is none. */
+function ChangeValues({ change }: { change: QuestionnaireValueChange }) {
     return (
-        <div className={styles.values}>
-            <Value value={change.oldValue} old />
-            <Icon name="fa-arrow-right" />
-            <Value value={change.newValue} />
-        </div>
+        <span className={styles.values}>
+            {change.oldValue && (
+                <del className={styles.removed} title={change.oldValue}>
+                    <VisuallyHidden>Removed: </VisuallyHidden>
+                    {shorten(change.oldValue)}
+                </del>
+            )}
+            {change.newValue && (
+                <ins className={styles.added} title={change.newValue}>
+                    <VisuallyHidden>Added: </VisuallyHidden>
+                    {shorten(change.newValue)}
+                </ins>
+            )}
+        </span>
     )
 }
 
-function ChangeItem({ change }: { change: QuestionnaireChange }) {
-    const changedAt = formatChangedAt(change.changedAt)
-    const meta = [change.changedBy, changedAt].filter(Boolean).join(', ')
-
+function TreeNode({ node }: { node: QuestionnaireChangeNode }) {
     return (
-        <li className={styles.change}>
-            {change.context.length > 0 && (
-                <div className={styles.context}>{change.context.join(' › ')}</div>
-            )}
-            <div className={styles.heading}>
-                <Badge tone={KIND_TONES[change.kind]}>{KIND_LABELS[change.kind]}</Badge>
-                <span>{change.questionTitle ?? 'Unknown question'}</span>
+        <li className={styles.node}>
+            <div className={styles.line}>
+                <span className={styles[node.kind]}>{node.title ?? UNTITLED[node.kind]}</span>
+                {node.change ? (
+                    <ChangeValues change={node.change} />
+                ) : (
+                    node.answer && (
+                        <span className={styles.answer}>
+                            <VisuallyHidden>Answer: </VisuallyHidden>
+                            {node.answer}
+                        </span>
+                    )
+                )}
             </div>
-            <ChangeValues change={change} />
-            {meta && <div className={styles.meta}>{meta}</div>}
+            {node.children.length > 0 && <TreeLevel nodes={node.children} />}
         </li>
+    )
+}
+
+function TreeLevel({
+    nodes,
+    root = false,
+}: {
+    nodes: QuestionnaireChangeNode[]
+    root?: boolean
+}) {
+    return (
+        <ul className={root ? styles.root : styles.level}>
+            {nodes.map((node) => (
+                <TreeNode key={node.path} node={node} />
+            ))}
+        </ul>
+    )
+}
+
+function ChangeTree({ tree }: { tree: QuestionnaireChangeNode[] }) {
+    return (
+        <div className={styles.tree}>
+            <TreeLevel nodes={tree} root />
+        </div>
     )
 }
 
@@ -108,7 +109,7 @@ function ChangesContent({ data }: { data: QuestionnaireChangesResponse }) {
             </Alert>
         )
     }
-    if (data.changes.length === 0) {
+    if (data.tree.length === 0) {
         return (
             <Muted>
                 No answers differ from when this document was generated. Only other parts of the
@@ -117,20 +118,7 @@ function ChangesContent({ data }: { data: QuestionnaireChangesResponse }) {
         )
     }
 
-    return (
-        <div className={styles.chapters}>
-            {groupByChapter(data.changes).map(([chapter, changes]) => (
-                <section key={chapter}>
-                    <h3 className={styles.chapter}>{chapter}</h3>
-                    <ul className={styles.list}>
-                        {changes.map((change) => (
-                            <ChangeItem key={change.path} change={change} />
-                        ))}
-                    </ul>
-                </section>
-            ))}
-        </div>
-    )
+    return <ChangeTree tree={data.tree} />
 }
 
 /** Lists the answers that differ between a generation and the questionnaire as it is now. */
@@ -165,6 +153,7 @@ export function QuestionnaireChangesModal({ runId, onClose }: QuestionnaireChang
     return (
         <Modal
             open
+            fullHeight
             title="Questionnaire changes since this document was generated"
             busy={state.status === 'loading'}
             initialFocusRef={closeRef}

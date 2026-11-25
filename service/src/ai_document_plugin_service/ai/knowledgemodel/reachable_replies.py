@@ -37,19 +37,22 @@ def reachable_replies(km: dict[str, Any], replies: dict[str, Any]) -> dict[str, 
         reply = replies.get(path)
         if reply is not None:
             reachable.add(path)
-        stack.extend(_child_questions(entities, question, path, reply))
+        stack.extend(child_questions(entities, question, path, reply.get('value') if reply is not None else None))
 
     return {path: reply for path, reply in replies.items() if path in reachable}
 
 
-def _child_questions(
+def child_questions(
     entities: dict[str, Any],
     question: dict[str, Any],
     path: str,
-    reply: dict[str, Any] | None,
+    value: dict[str, Any] | None,
 ) -> list[tuple[str, str]]:
-    """The questions below a question as ``(question uuid, path)``, given the reply to it."""
-    value = reply.get('value', {}) if reply is not None else {}
+    """The questions below a question as ``(question uuid, path)``, given the value of the reply to it.
+
+    ``value`` is the reply's value as DSW sends it (``{type, value}``), or None when there is no reply.
+    """
+    value = value or {}
     question_type = question.get('questionType')
 
     if question_type == 'OptionsQuestion' and value.get('type') == 'AnswerReply':

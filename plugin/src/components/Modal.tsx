@@ -16,6 +16,8 @@ type ModalProps = {
     initialFocusRef?: RefObject<HTMLElement | null>
     /** Blocks closing, e.g. while the content is being saved. */
     closeDisabled?: boolean
+    /** As tall as the window allows the whole time, so content that grows or shrinks does not resize it. */
+    fullHeight?: boolean
 }
 
 /**
@@ -38,6 +40,7 @@ export function Modal({
     busy,
     initialFocusRef,
     closeDisabled = false,
+    fullHeight = false,
 }: ModalProps) {
     return (
         <Dialog.Root
@@ -47,7 +50,9 @@ export function Modal({
             <Dialog.Portal>
                 <Dialog.Overlay className={styles.overlay} />
                 <Dialog.Content
-                    className={styles.content}
+                    className={
+                        fullHeight ? `${styles.content} ${styles.fullHeight}` : styles.content
+                    }
                     aria-describedby={descriptionId}
                     aria-busy={busy}
                     onOpenAutoFocus={(event) => {

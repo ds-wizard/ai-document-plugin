@@ -12,6 +12,7 @@ from ai_document_plugin_service.ai.common.run_context import RunLogContext, run_
 from ai_document_plugin_service.ai.common.trace_context import get_trace_uuid
 from ai_document_plugin_service.ai.knowledgemodel.dsw_client import DSWClient
 from ai_document_plugin_service.ai.knowledgemodel.project_version import resolve_named_version
+from ai_document_plugin_service.ai.knowledgemodel.questionnaire_diff import ChangeNode
 from ai_document_plugin_service.ai.persistence.assignment_saver_component import DBSaver
 from ai_document_plugin_service.ai.persistence.database import (
     Database,
@@ -30,8 +31,9 @@ from ai_document_plugin_service.api.types import (
     PipelineStatus,
     PipelineStatusResponse,
     PipelineSummaryResponse,
-    QuestionnaireChangeResponse,
+    QuestionnaireChangeNodeResponse,
     QuestionnaireChangesResponse,
+    QuestionnaireValueChangeResponse,
     TemplateDetail,
 )
 from ai_document_plugin_service.service.errors import ConflictError, NotConfiguredError, NotFoundError
@@ -167,6 +169,24 @@ def _log_background_update_failure(task: Task[object]) -> None:
         logger.error('Failed to persist pipeline progress message', exc_info=error)
 
 
+def _change_node_response(node: ChangeNode) -> QuestionnaireChangeNodeResponse:
+    change = node.change
+    return QuestionnaireChangeNodeResponse(
+        path=node.path,
+        kind=node.kind.value,
+        title=node.title,
+        change=QuestionnaireValueChangeResponse(
+            kind=change.kind.value,
+            old_value=change.old_value,
+            new_value=change.new_value,
+        )
+        if change is not None
+        else None,
+        answer=node.answer,
+        children=[_change_node_response(child) for child in node.children],
+    )
+
+
 class PipelineService:
     def __init__(
         self,
@@ -188,28 +208,12 @@ class PipelineService:
         if record is None:
             raise NotFoundError(NotFoundError.PIPELINE_RUN_MESSAGE)
         if record.status != PipelineStatus.SUCCEEDED or record.source_event_uuid is None:
-            return QuestionnaireChangesResponse(available=False, changes=[])
+            return QuestionnaireChangesResponse(available=False, tree=[])
 
         stored = await self.database.get_generation_replies(run_id)
         current_detail = await DSWClient(auth.token, auth.api_url).get_questionnaire_detail(record.questionnaire_uuid)
-        descriptions = self.questionnaire_state_service.changes(stored, current_detail)
-        return QuestionnaireChangesResponse(
-            available=True,
-            changes=[
-                QuestionnaireChangeResponse(
-                    path=description.path,
-                    kind=description.kind.value,
-                    chapter_title=description.chapter_title,
-                    question_title=description.question_title,
-                    context=description.context,
-                    old_value=description.old_value,
-                    new_value=description.new_value,
-                    changed_by=description.changed_by,
-                    changed_at=description.changed_at,
-                )
-                for description in descriptions
-            ],
-        )
+        tree = self.questionnaire_state_service.changes(stored, current_detail)
+        return QuestionnaireChangesResponse(available=True, tree=[_change_node_response(node) for node in tree])
 
     async def get_pipeline_status(self, run_id: UUID, auth: AuthenticatedUser) -> PipelineStatusResponse | None:
         record = await self.database.get_generation(run_id, auth.tenant_uuid, auth.user_uuid)

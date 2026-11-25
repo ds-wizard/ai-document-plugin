@@ -26,6 +26,15 @@
     color: var(--ui-text);
 }
 
+/* The body takes the height the header and footer leave, so the dialog does not resize with its content. */
+.fullHeight {
+    height: calc(100vh - 3.5rem);
+}
+
+.fullHeight .body {
+    flex: 1;
+}
+
 .content:focus {
     outline: none;
 }

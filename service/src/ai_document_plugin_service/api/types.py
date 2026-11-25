@@ -268,26 +268,31 @@ class PipelineErrorResponse(ApiModel):
     message: str
 
 
-class QuestionnaireChangeResponse(ApiModel):
-    """One answer that differs between the generation and the questionnaire now."""
+class QuestionnaireValueChangeResponse(ApiModel):
+    """A reply that differs between the generation and the questionnaire now."""
 
-    path: str
     kind: Literal['added', 'changed', 'removed']
-    chapter_title: str | None = None
-    question_title: str | None = None
-    # Titles of the list items the question sits in, outermost first.
-    context: list[str]
     old_value: str | None = None
     new_value: str | None = None
-    # Who made the answer and when; only known for answers that exist now.
-    changed_by: str | None = None
-    changed_at: str | None = None
+
+
+class QuestionnaireChangeNodeResponse(ApiModel):
+    """A chapter, question or list item with changes in it, in the questionnaire's order."""
+
+    path: str
+    kind: Literal['chapter', 'question', 'item']
+    title: str | None = None
+    # The change of this node's own reply, if it changed.
+    change: QuestionnaireValueChangeResponse | None = None
+    # The selected answer of an options question that did not change itself but has changed follow-ups.
+    answer: str | None = None
+    children: list['QuestionnaireChangeNodeResponse']
 
 
 class QuestionnaireChangesResponse(ApiModel):
     # False for generations that did not store their replies, so there is nothing to compare with.
     available: bool
-    changes: list[QuestionnaireChangeResponse]
+    tree: list[QuestionnaireChangeNodeResponse]
 
 
 class PipelineSummaryResponse(ApiModel):

@@ -262,7 +262,7 @@ export const getQuestionnaireChanges = async (
         )
     }
 
-    if (!('changes' in data) || !Array.isArray(data.changes)) {
+    if (!('tree' in data) || !Array.isArray(data.tree)) {
         throw new Error('Invalid questionnaire changes returned.')
     }
 

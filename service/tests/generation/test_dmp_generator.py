@@ -43,6 +43,7 @@ def _serialize_assignments(assignments: list[SectionAssignment]) -> list[Seriali
 
 def _km_fixture() -> dict:
     return {
+        'chapterUuids': ['ch'],
         'entities': {
             'phases': {},
             'questions': {
@@ -54,7 +55,7 @@ def _km_fixture() -> dict:
                 'yes': {'label': 'Yes', 'advice': None},
                 'no': {'label': 'No', 'advice': None},
             },
-            'chapters': {},
+            'chapters': {'ch': {'title': 'Chapter', 'questionUuids': ['itemQ', 'neighborQ']}},
             'choices': {},
         },
     }
@@ -73,6 +74,7 @@ def _questionnaire_detail_fixture() -> dict:
 
 def _km_with_phase_fixture() -> dict:
     return {
+        'chapterUuids': [],
         'entities': {
             'phases': {
                 'phase-1': {
@@ -486,7 +488,7 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
                     title='Leaf',
                     assignments={
                         'itemQ': {
-                            'question_path': 'ch.listQ.itemQ',
+                            'question_path': 'ch.itemQ',
                             'question_title': 'Item',
                             'question_text': 'Item text',
                             'children': {},
@@ -497,7 +499,7 @@ async def test_run_renders_parent_and_leaf_sections() -> None:
         ),
     ]
     replies = {
-        'ch.listQ.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
+        'ch.itemQ': {'value': {'type': 'AnswerReply', 'value': 'yes'}},
     }
 
     result = await component.run_async(
